@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- أيقونة: كتاب ذهبي بنجمة على خلفية داكنة -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#D4AF6A"
+        android:pathData="M37,29 L72,29 Q77,29 77,34 L77,77 Q77,82 72,82 L37,82 Q32,82 32,77 L32,34 Q32,29 37,29 Z" />
+    <path
+        android:fillColor="#120F0C"
+        android:pathData="M38,29 L41.5,29 L41.5,82 L38,82 Z" />
+    <path
+        android:fillColor="#120F0C"
+        android:pathData="M48,42 L70,42 L70,45 L48,45 Z M51,50 L67,50 L67,52.5 L51,52.5 Z" />
+    <path
+        android:fillColor="#120F0C"
+        android:pathData="M59,59 L61.6,64.4 L67.5,65.1 L63.1,69.1 L64.3,75 L59,72 L53.7,75 L54.9,69.1 L50.5,65.1 L56.4,64.4 Z" />
+</vector>
