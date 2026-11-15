@@ -88,7 +88,13 @@ public class MainActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
-                return assetLoader.shouldInterceptRequest(request.getUrl());
+                WebResourceResponse response = assetLoader.shouldInterceptRequest(request.getUrl());
+                // نوع MIME صحيح ضروري: المتصفح يرفض ملفات JavaScript (module) بنوع خاطئ
+                if (response != null) {
+                    String mime = mimeFor(request.getUrl().getPath());
+                    if (mime != null) response.setMimeType(mime);
+                }
+                return response;
             }
 
             @Override
@@ -189,6 +195,20 @@ public class MainActivity extends Activity {
     protected void onDestroy() {
         if (web != null) web.destroy();
         super.onDestroy();
+    }
+
+    private static String mimeFor(String path) {
+        if (path == null) return null;
+        String p = path.toLowerCase();
+        if (p.endsWith(".js") || p.endsWith(".mjs")) return "text/javascript";
+        if (p.endsWith(".css")) return "text/css";
+        if (p.endsWith(".html")) return "text/html";
+        if (p.endsWith(".woff2")) return "font/woff2";
+        if (p.endsWith(".woff")) return "font/woff";
+        if (p.endsWith(".wasm")) return "application/wasm";
+        if (p.endsWith(".json")) return "application/json";
+        if (p.endsWith(".png")) return "image/png";
+        return null;
     }
 
     // ───────── حفظ الملفات في الهاتف ─────────

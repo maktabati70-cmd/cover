@@ -1,0 +1,4433 @@
+import React, { useState, useEffect, useRef, useMemo, useCallback, forwardRef, useImperativeHandle } from 'https://esm.sh/react@18.3.1';
+import Konva from 'https://esm.sh/konva@9.3.14';
+import { createRoot } from 'https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1';
+import { Stage, Layer, Rect, Text, Transformer, Group, Shape, Ellipse, Circle, Line, Image as KonvaImage } from 'https://esm.sh/react-konva@18.2.10?deps=react@18.3.1,react-dom@18.3.1,konva@9.3.14';
+const IMGLY_URL = 'https://esm.sh/@imgly/background-removal@1.5.5';
+const IMGLY_FALLBACK = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.5.5/+esm';
+// ===== lib/constants.js =====
+// الأبعاد المنطقية للغلاف (نسبة 2:3 القياسية لأغلفة الكتب)
+const COVER_W = 1000;
+const COVER_H = 1500;
+// مضاعف دقة التصدير: 1000×1500 × 2 = 2000×3000 بكسل
+const EXPORT_PIXEL_RATIO = 2;
+// دقة توليد طبقات المؤثرات (أعلى من 1 لتبقى حادة عند التصدير)
+const OVERLAY_SCALE = 1.5;
+// ===== lib/palettes.js =====
+// 17 نمطاً لونياً داكناً وترابياً.
+// colors: [اللون الأساسي, لون الإضاءة, لون الأطراف]
+// type: linear تدرّج قُطري | radial تدرّج دائري من المنتصف
+const PALETTES = [
+    { id: 'ink-night', name: 'ليل الحبر', type: 'radial', colors: ['#0b0d12', '#1c2230', '#030407'] },
+    { id: 'volcanic-ash', name: 'رماد بركاني', type: 'linear', colors: ['#1a1716', '#332c28', '#0a0908'] },
+    { id: 'desert-dusk', name: 'غروب الصحراء', type: 'linear', colors: ['#2a1a10', '#7a4220', '#0f0805'] },
+    { id: 'burnt-clay', name: 'طين محروق', type: 'radial', colors: ['#3a1d14', '#6a3220', '#120604'] },
+    { id: 'coffee', name: 'بُنّ القهوة', type: 'linear', colors: ['#24170f', '#45301f', '#0c0704'] },
+    { id: 'military-olive', name: 'زيتوني عسكري', type: 'linear', colors: ['#1b1f14', '#363d27', '#090b06'] },
+    { id: 'moss', name: 'أخضر الطحلب', type: 'radial', colors: ['#10201a', '#244536', '#040a07'] },
+    { id: 'old-copper', name: 'نحاس قديم', type: 'linear', colors: ['#2b1c12', '#86522a', '#100a05'] },
+    { id: 'amber', name: 'كهرماني', type: 'radial', colors: ['#2d1b05', '#956214', '#0f0802'] },
+    { id: 'burgundy', name: 'عنّابي داكن', type: 'linear', colors: ['#2a0c10', '#651a24', '#0e0305'] },
+    { id: 'night-violet', name: 'بنفسجي الليل', type: 'radial', colors: ['#17111f', '#33244a', '#07050b'] },
+    { id: 'steel-blue', name: 'أزرق فولاذي', type: 'linear', colors: ['#0e1620', '#263c52', '#04070b'] },
+    { id: 'charcoal-gold', name: 'فحم وذهب', type: 'radial', colors: ['#0d0c0a', '#3a3120', '#000000'] },
+    { id: 'sand-fog', name: 'ضباب رملي', type: 'linear', colors: ['#3b342a', '#74695a', '#17140f'] },
+    { id: 'rust', name: 'صدأ', type: 'radial', colors: ['#2e140a', '#843a16', '#0f0603'] },
+    { id: 'slate', name: 'حجر الإردواز', type: 'linear', colors: ['#1c1f22', '#40464c', '#0a0b0c'] },
+    { id: 'night-dunes', name: 'كثبان الليل', type: 'radial', colors: ['#1e1812', '#4f3e2b', '#080604'] },
+];
+const getPalette = (id, custom) => id === 'custom' && custom ? { id: 'custom', ...custom } : PALETTES.find((p) => p.id === id) || PALETTES[0];
+// CSS مطابق لتدرّج الكانفاس — لعرض المعاينات الصغيرة في لوحة التحكم
+function paletteToCss(p) {
+    const [a, b, c] = p.colors;
+    return p.type === 'radial'
+        ? `radial-gradient(circle at 50% 40%, ${b} 0%, ${a} 55%, ${c} 100%)`
+        : `linear-gradient(165deg, ${b} 0%, ${a} 50%, ${c} 100%)`;
+}
+// ===== lib/fonts.js =====
+// ─────────────────────────────────────────────────────────────
+// الخطوة 4: تحميل الخطوط العربية من Google Fonts ديناميكياً
+// ─────────────────────────────────────────────────────────────
+// الكانفاس (Konva) لا يعيد الرسم تلقائياً عند وصول الخط، لذلك:
+// 1) نحقن <link> لملف CSS الخاص بالخط عند الحاجة فقط.
+// 2) ننتظر document.fonts.load حتى يصبح الخط جاهزاً فعلياً للرسم.
+// 3) نُعلم الواجهة (عبر useArabicFonts) لتعيد رسم النصوص بالقياسات الصحيحة.
+const ARABIC_FONTS = [
+    { family: 'Aref Ruqaa', label: 'عارف رقعة — زخرفي', weights: [400, 700], category: 'decorative' },
+    { family: 'Amiri', label: 'أميري — نسخ كلاسيكي', weights: [400, 700], category: 'decorative' },
+    { family: 'Reem Kufi', label: 'ريم كوفي — كوفي', weights: [400, 500, 700], category: 'decorative' },
+    { family: 'Lalezar', label: 'لاله‌زار — عريض للعناوين', weights: [400], category: 'display' },
+    { family: 'Cairo', label: 'القاهرة — حديث', weights: [400, 700, 900], category: 'modern' },
+    { family: 'Tajawal', label: 'تجوال — حديث', weights: [400, 500, 700, 900], category: 'modern' },
+    { family: 'Almarai', label: 'المراعي — حديث', weights: [400, 700, 800], category: 'modern' },
+];
+const WEIGHT_LABELS = {
+    300: 'رفيع',
+    400: 'عادي',
+    500: 'متوسط',
+    700: 'عريض',
+    800: 'عريض جداً',
+    900: 'أسود',
+};
+const SAMPLE_TEXT = 'أبجد هوز حطي كلمن';
+const cache = new Map(); // family -> Promise
+function getFontMeta(family) {
+    return ARABIC_FONTS.find((f) => f.family === family);
+}
+function buildGoogleFontsUrl(font) {
+    const family = font.family.replace(/ /g, '+');
+    return `https://fonts.googleapis.com/css2?family=${family}:wght@${font.weights.join(';')}&display=swap`;
+}
+function injectStylesheet(href, family) {
+    return new Promise((resolve) => {
+        const existing = document.querySelector(`link[data-cover-font="${family}"]`);
+        if (existing)
+            return resolve();
+        const link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = href;
+        link.dataset.coverFont = family;
+        link.onload = () => resolve();
+        link.onerror = () => resolve(); // لا نوقف التطبيق إذا فشل خط واحد
+        document.head.appendChild(link);
+    });
+}
+/** يحمّل خطاً واحداً بكل أوزانه ويعيد Promise تُحل عند جاهزيته للرسم */
+function loadGoogleFont(family) {
+    if (cache.has(family))
+        return cache.get(family);
+    const font = getFontMeta(family);
+    if (!font)
+        return Promise.resolve(false);
+    // في تطبيق أندرويد الخطوط مدمجة محلياً (window.__LOCAL_FONTS__) فلا حاجة لـ Google Fonts
+    const local = typeof window !== 'undefined' && window.__LOCAL_FONTS__;
+    const promise = (local ? Promise.resolve() : injectStylesheet(buildGoogleFontsUrl(font), family))
+        .then(() => Promise.all(font.weights.map((w) => document.fonts.load(`${w} 64px "${family}"`, SAMPLE_TEXT))))
+        .then(() => true)
+        .catch((err) => {
+        console.warn(`تعذّر تحميل الخط ${family}`, err);
+        return false;
+    });
+    cache.set(family, promise);
+    return promise;
+}
+function loadAllArabicFonts() {
+    return Promise.all(ARABIC_FONTS.map((f) => loadGoogleFont(f.family)));
+}
+/** أقرب وزن متاح للخط (مثلاً Lalezar لا يملك إلا 400) */
+function closestWeight(family, weight) {
+    const font = getFontMeta(family);
+    if (!font)
+        return weight;
+    return font.weights.reduce((best, w) => (Math.abs(w - weight) < Math.abs(best - weight) ? w : best));
+}
+// ===== lib/image.js =====
+// أدوات مساعدة للصور
+function loadImage(src) {
+    return new Promise((resolve, reject) => {
+        const img = new window.Image();
+        img.onload = () => resolve(img);
+        img.onerror = reject;
+        img.src = src;
+    });
+}
+function canvasToBlob(canvas, type = 'image/png', quality = 1) {
+    return new Promise((resolve) => canvas.toBlob(resolve, type, quality));
+}
+/** تصغير الصور الضخمة قبل التفريغ — يسرّع النموذج كثيراً دون خسارة ملحوظة */
+async function downscaleImage(blob, maxSide = 2048) {
+    const bitmap = await createImageBitmap(blob);
+    const { width, height } = bitmap;
+    const ratio = Math.min(1, maxSide / Math.max(width, height));
+    if (ratio === 1) {
+        bitmap.close?.();
+        return blob;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    const ctx = canvas.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close?.();
+    return canvasToBlob(canvas, 'image/png');
+}
+/** قصّ الحواف الشفافة حول العنصر المفرَّغ ليُحيط به إطار التحويل بدقة */
+async function trimTransparent(blob, alphaThreshold = 8, padding = 4) {
+    const bitmap = await createImageBitmap(blob);
+    const { width, height } = bitmap;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(bitmap, 0, 0);
+    bitmap.close?.();
+    const { data } = ctx.getImageData(0, 0, width, height);
+    let minX = width, minY = height, maxX = -1, maxY = -1;
+    for (let y = 0; y < height; y++) {
+        const row = y * width * 4;
+        for (let x = 0; x < width; x++) {
+            if (data[row + x * 4 + 3] > alphaThreshold) {
+                if (x < minX)
+                    minX = x;
+                if (x > maxX)
+                    maxX = x;
+                if (y < minY)
+                    minY = y;
+                if (y > maxY)
+                    maxY = y;
+            }
+        }
+    }
+    if (maxX < 0)
+        return blob; // الصورة شفافة بالكامل
+    minX = Math.max(0, minX - padding);
+    minY = Math.max(0, minY - padding);
+    maxX = Math.min(width - 1, maxX + padding);
+    maxY = Math.min(height - 1, maxY + padding);
+    const w = maxX - minX + 1;
+    const h = maxY - minY + 1;
+    if (w === width && h === height)
+        return blob;
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    out.getContext('2d').drawImage(canvas, minX, minY, w, h, 0, 0, w, h);
+    return canvasToBlob(out, 'image/png');
+}
+/** حجم مبدئي مناسب لعنصر جديد داخل الغلاف */
+function fitSize(naturalW, naturalH, maxW, maxH) {
+    const ratio = Math.min(maxW / naturalW, maxH / naturalH, 1e9);
+    return { width: naturalW * ratio, height: naturalH * ratio };
+}
+// ===== lib/color.js =====
+// ─────────────────────────────────────────────────────────────
+// استخراج ألوان الصورة واقتراح نمط لوني ولون للعنوان تلقائياً
+// ─────────────────────────────────────────────────────────────
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+function hexToRgb(hex) {
+    const h = hex.replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgbToHex({ r, g, b }) {
+    return '#' + [r, g, b].map((v) => Math.round(clamp(v, 0, 255)).toString(16).padStart(2, '0')).join('');
+}
+function rgbToHsl({ r, g, b }) {
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b);
+    const l = (max + min) / 2;
+    if (max === min)
+        return { h: 0, s: 0, l };
+    const d = max - min;
+    const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+    let h;
+    if (max === r)
+        h = (g - b) / d + (g < b ? 6 : 0);
+    else if (max === g)
+        h = (b - r) / d + 2;
+    else
+        h = (r - g) / d + 4;
+    return { h: h * 60, s, l };
+}
+function hslToHex(h, s, l) {
+    s = clamp(s, 0, 1);
+    l = clamp(l, 0, 1);
+    const k = (n) => (n + h / 30) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const f = (n) => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1)));
+    return rgbToHex({ r: f(0) * 255, g: f(8) * 255, b: f(4) * 255 });
+}
+const dist = (a, b) => Math.hypot(a.r - b.r, a.g - b.g, a.b - b.b);
+/** أهم ألوان الصورة مرتبة حسب مساحتها (يتجاهل البكسلات الشفافة) */
+async function extractColors(src, max = 8) {
+    const img = await loadImage(src);
+    const scale = Math.min(1, 96 / Math.max(img.naturalWidth, img.naturalHeight));
+    const w = Math.max(1, Math.round(img.naturalWidth * scale));
+    const h = Math.max(1, Math.round(img.naturalHeight * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    ctx.drawImage(img, 0, 0, w, h);
+    const { data } = ctx.getImageData(0, 0, w, h);
+    const buckets = new Map();
+    for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] < 200)
+            continue;
+        const key = ((data[i] >> 4) << 8) | ((data[i + 1] >> 4) << 4) | (data[i + 2] >> 4);
+        const bk = buckets.get(key) || { r: 0, g: 0, b: 0, n: 0 };
+        bk.r += data[i];
+        bk.g += data[i + 1];
+        bk.b += data[i + 2];
+        bk.n++;
+        buckets.set(key, bk);
+    }
+    const list = [...buckets.values()]
+        .map((bk) => ({ r: bk.r / bk.n, g: bk.g / bk.n, b: bk.b / bk.n, n: bk.n }))
+        .sort((a, b) => b.n - a.n);
+    const picked = [];
+    for (const c of list) {
+        if (picked.every((p) => dist(p, c) > 48))
+            picked.push(c);
+        if (picked.length >= max)
+            break;
+    }
+    const total = picked.reduce((s, c) => s + c.n, 0) || 1;
+    return picked.map((c) => ({ ...c, ...rgbToHsl(c), hex: rgbToHex(c), share: c.n / total }));
+}
+/** يبني نمطاً لونياً داكناً من ألوان الصورة + ألوان متناسقة للنصوص */
+function suggestDesign(colors) {
+    if (!colors.length)
+        return null;
+    const dominant = colors[0];
+    const accent = [...colors].sort((a, b) => b.s * (0.35 + b.l) - a.s * (0.35 + a.l))[0];
+    const hue = dominant.s < 0.08 ? accent.h : dominant.h;
+    const sat = clamp(dominant.s, 0.12, 0.5);
+    return {
+        palette: {
+            name: 'من الصورة',
+            type: 'radial',
+            colors: [hslToHex(hue, sat, 0.09), hslToHex(hue, Math.min(0.6, sat * 1.2), 0.25), hslToHex(hue, sat * 0.7, 0.03)],
+        },
+        title: hslToHex(accent.h, clamp(accent.s, 0.3, 0.7), 0.8),
+        titleEnd: hslToHex(accent.h, clamp(accent.s, 0.4, 0.8), 0.55),
+        subtitle: hslToHex(accent.h, 0.22, 0.7),
+        glow: hslToHex(accent.h, 0.75, 0.55),
+        swatches: colors.map((c) => c.hex),
+    };
+}
+// ===== lib/shapes.js =====
+// ─────────────────────────────────────────────────────────────
+// أشكال زخرفية: خلفيات خلف الصور (محراب، قوس…) ولوحة النص الزخرفية
+// تُرسم داخل Konva Shape عبر sceneFunc، ومركزها (0,0)
+// ─────────────────────────────────────────────────────────────
+const BACKDROP_SHAPES = [
+    { id: 'none', label: 'بدون' },
+    { id: 'mihrab', label: 'محراب', w: 0.95, h: 1.1, y: -0.06 },
+    { id: 'arch', label: 'قوس مدبّب', w: 0.9, h: 1.05, y: -0.04 },
+    { id: 'round', label: 'قوس دائري', w: 0.85, h: 1.0, y: -0.04 },
+    { id: 'circle', label: 'دائرة', w: 0.9, h: 0.9 * 1, y: -0.12 },
+    { id: 'rect', label: 'مستطيل', w: 0.85, h: 0.95, y: -0.04 },
+    { id: 'diamond', label: 'معيّن', w: 1.1, h: 1.1, y: -0.05 },
+    { id: 'glow', label: 'توهّج', w: 1.4, h: 1.3, y: -0.05 },
+];
+const DEFAULT_BACKDROP = {
+    shape: 'none',
+    color: '#b3121f',
+    opacity: 0.9,
+    width: 1,
+    height: 1,
+    offsetY: 0,
+    fade: 0.25,
+    pattern: 0,
+    stroke: false,
+    strokeColor: '#d4af6a',
+};
+const K = 0.5522847498;
+function ellipsePath(ctx, rx, ry) {
+    ctx.moveTo(rx, 0);
+    ctx.bezierCurveTo(rx, ry * K, rx * K, ry, 0, ry);
+    ctx.bezierCurveTo(-rx * K, ry, -rx, ry * K, -rx, 0);
+    ctx.bezierCurveTo(-rx, -ry * K, -rx * K, -ry, 0, -ry);
+    ctx.bezierCurveTo(rx * K, -ry, rx, -ry * K, rx, 0);
+}
+function traceBackdrop(ctx, shape, w, h) {
+    const hw = w / 2, hh = h / 2;
+    ctx.beginPath();
+    switch (shape) {
+        case 'mihrab': {
+            const iw = hw * 0.82;
+            const shoulder = -hh + h * 0.42;
+            const step = shoulder - w * 0.06;
+            const spring = -hh + h * 0.28;
+            const rise = spring + hh;
+            ctx.moveTo(-hw, hh);
+            ctx.lineTo(-hw, shoulder);
+            ctx.lineTo(-iw, step);
+            ctx.lineTo(-iw, spring);
+            ctx.bezierCurveTo(-iw, spring - rise * 0.55, -iw * 0.15, -hh + rise * 0.15, 0, -hh);
+            ctx.bezierCurveTo(iw * 0.15, -hh + rise * 0.15, iw, spring - rise * 0.55, iw, spring);
+            ctx.lineTo(iw, step);
+            ctx.lineTo(hw, shoulder);
+            ctx.lineTo(hw, hh);
+            break;
+        }
+        case 'arch': {
+            const spring = -hh + h * 0.3;
+            const rise = spring + hh;
+            ctx.moveTo(-hw, hh);
+            ctx.lineTo(-hw, spring);
+            ctx.bezierCurveTo(-hw, spring - rise * 0.6, -hw * 0.12, -hh + rise * 0.12, 0, -hh);
+            ctx.bezierCurveTo(hw * 0.12, -hh + rise * 0.12, hw, spring - rise * 0.6, hw, spring);
+            ctx.lineTo(hw, hh);
+            break;
+        }
+        case 'round':
+            ctx.moveTo(-hw, hh);
+            ctx.lineTo(-hw, -hh + hw);
+            ctx.arc(0, -hh + hw, hw, Math.PI, 0, false);
+            ctx.lineTo(hw, hh);
+            break;
+        case 'diamond':
+            ctx.moveTo(0, -hh);
+            ctx.lineTo(hw, 0);
+            ctx.lineTo(0, hh);
+            ctx.lineTo(-hw, 0);
+            break;
+        case 'rect':
+            ctx.moveTo(-hw, -hh);
+            ctx.lineTo(hw, -hh);
+            ctx.lineTo(hw, hh);
+            ctx.lineTo(-hw, hh);
+            break;
+        default: // circle, glow
+            ellipsePath(ctx, hw, hh);
+    }
+    ctx.closePath();
+}
+/** لوحة زخرفية بزوايا مقعّرة وأطراف مدبّبة — توضع خلف العنوان */
+function tracePlaque(ctx, w, h) {
+    const hw = w / 2, hh = h / 2;
+    const r = h * 0.2;
+    const p = h * 0.18;
+    ctx.beginPath();
+    ctx.moveTo(-hw + r, -hh);
+    ctx.lineTo(hw - r, -hh);
+    ctx.arc(hw, -hh, r, Math.PI, Math.PI / 2, true);
+    ctx.lineTo(hw, -hh * 0.35);
+    ctx.lineTo(hw + p, 0);
+    ctx.lineTo(hw, hh * 0.35);
+    ctx.lineTo(hw, hh - r);
+    ctx.arc(hw, hh, r, -Math.PI / 2, -Math.PI, true);
+    ctx.lineTo(-hw + r, hh);
+    ctx.arc(-hw, hh, r, 0, -Math.PI / 2, true);
+    ctx.lineTo(-hw, hh * 0.35);
+    ctx.lineTo(-hw - p, 0);
+    ctx.lineTo(-hw, -hh * 0.35);
+    ctx.lineTo(-hw, -hh + r);
+    ctx.arc(-hw, -hh, r, Math.PI / 2, 0, true);
+    ctx.closePath();
+}
+function rgba(hex, a) {
+    const h = (hex || '#000000').replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map((c) => c + c).join('') : h, 16);
+    return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+/** تلاشي حواف الصورة (أسفل / إطار بيضاوي) حتى تندمج مع الخلفية */
+function makeFadedImage(img, bottom = 0, edges = 0) {
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth || img.width;
+    c.height = img.naturalHeight || img.height;
+    const ctx = c.getContext('2d');
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    ctx.globalCompositeOperation = 'destination-in';
+    if (bottom > 0) {
+        const g = ctx.createLinearGradient(0, 0, 0, c.height);
+        g.addColorStop(0, '#000');
+        g.addColorStop(Math.max(0, 1 - bottom), '#000');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, c.width, c.height);
+    }
+    if (edges > 0) {
+        const R = c.width / 2;
+        ctx.save();
+        ctx.translate(c.width / 2, c.height / 2);
+        ctx.scale(1, c.height / c.width);
+        const g = ctx.createRadialGradient(0, 0, R * (1 - edges) * 0.95, 0, 0, R * 1.02);
+        g.addColorStop(0, '#000');
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(-1e5, -1e5, 2e5, 2e5);
+        ctx.restore();
+    }
+    return c;
+}
+// ===== lib/textMeasure.js =====
+// قياس أسطر النص بعد الالتفاف (لرسم الأشرطة والصناديق خلف كل سطر بدقة)
+let ctx = null;
+function getCtx() {
+    if (!ctx)
+        ctx = document.createElement('canvas').getContext('2d');
+    return ctx;
+}
+function measureLines(t) {
+    const c = getCtx();
+    c.font = `${t.weight} ${t.size}px "${t.font}"`;
+    const ls = t.letterSpacing || 0;
+    const measure = (s) => c.measureText(s).width + Math.max(0, s.length - 1) * ls;
+    const out = [];
+    for (const para of String(t.text || '').split('\n')) {
+        const words = para.split(' ');
+        let line = '';
+        for (const word of words) {
+            const test = line ? `${line} ${word}` : word;
+            if (line && measure(test) > t.width) {
+                out.push(line);
+                line = word;
+            }
+            else {
+                line = test;
+            }
+        }
+        out.push(line);
+    }
+    return out.map((text) => ({ text, width: Math.min(t.width, measure(text)) }));
+}
+/** التاريخ الهجري الحالي بالأرقام العربية: "جمادى الأولى\n١٤٤٨هـ" */
+function hijriNow() {
+    try {
+        const parts = new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura-nu-arab', { month: 'long', year: 'numeric' }).formatToParts(new Date());
+        const month = parts.find((p) => p.type === 'month')?.value || '';
+        const year = parts.find((p) => p.type === 'year')?.value || '';
+        return `${month}\n${year}هـ`;
+    }
+    catch {
+        return '١٤٤٨هـ';
+    }
+}
+// ===== lib/maskRefine.js =====
+// ─────────────────────────────────────────────────────────────
+// تحسين قناع القص: حدّة الحواف، تقليص الهالة، التنعيم، إزالة التلوّث اللوني
+// كل شيء داخل المتصفح على Canvas
+// ─────────────────────────────────────────────────────────────
+const DEFAULT_REFINE = { hardness: 0.4, shrink: 1.2, feather: 0.8, decontaminate: true };
+const WORK_MAX_SIDE = 2048;
+function makeCanvas(w, h) {
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w));
+    c.height = Math.max(1, Math.round(h));
+    return c;
+}
+const ctx2d = (c) => c.getContext('2d', { willReadFrequently: true });
+/** نسخة من الصورة بحجم العمل (أطول ضلع ≤ maxSide) */
+function toWorkCanvas(src, maxSide = WORK_MAX_SIDE) {
+    const w0 = src.naturalWidth || src.width;
+    const h0 = src.naturalHeight || src.height;
+    const r = Math.min(1, maxSide / Math.max(w0, h0));
+    const c = makeCanvas(w0 * r, h0 * r);
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(src, 0, 0, c.width, c.height);
+    return c;
+}
+/** يحوّل قناة الشفافية لصورة مفرّغة إلى قناع رمادي (أبيض = يبقى) */
+function alphaToMask(fg, w, h) {
+    const c = makeCanvas(w, h);
+    const ctx = ctx2d(c);
+    ctx.drawImage(fg, 0, 0, c.width, c.height);
+    const img = ctx.getImageData(0, 0, c.width, c.height);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+        const v = d[i + 3];
+        d[i] = d[i + 1] = d[i + 2] = v;
+        d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    return c;
+}
+/** القناع الأساسي + تعديلات الفرشاة (أسود = ممحاة، أبيض = استعادة) */
+function combineMask(base, edits, w = base.width, h = base.height) {
+    const c = makeCanvas(w, h);
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(base, 0, 0, c.width, c.height);
+    if (edits)
+        ctx.drawImage(edits, 0, 0, c.width, c.height);
+    return c;
+}
+function blurred(src, px) {
+    const c = makeCanvas(src.width, src.height);
+    const ctx = c.getContext('2d');
+    ctx.filter = `blur(${px}px)`;
+    ctx.drawImage(src, 0, 0);
+    ctx.filter = 'none';
+    return c;
+}
+/**
+ * يُنتج صورة مفرّغة نهائية (RGBA) من الأصل + القناع الخام.
+ * scale: نسبة الدقة الحالية إلى دقة العمل (للمعاينة المصغّرة).
+ */
+function refineCutout(original, rawMask, params = DEFAULT_REFINE, scale = 1) {
+    const w = original.width, h = original.height;
+    let m = makeCanvas(w, h);
+    ctx2d(m).drawImage(rawMask, 0, 0, w, h);
+    // 1) تقليص الحواف (يزيل هالة الخلفية): تمويه ثم رفع العتبة
+    const shrink = (params.shrink || 0) * scale;
+    if (shrink > 0.05)
+        m = blurred(m, shrink);
+    // 2) حدّة الحواف عبر جدول تحويل
+    const mctx = ctx2d(m);
+    const mImg = mctx.getImageData(0, 0, w, h);
+    const md = mImg.data;
+    const span = Math.max(0.02, 1 - (params.hardness || 0) * 0.95);
+    let lo = 0.5 - span / 2;
+    let hi = 0.5 + span / 2;
+    if (shrink > 0.05) {
+        lo += 0.15;
+        hi = Math.min(1, hi + 0.15);
+    }
+    const lut = new Uint8ClampedArray(256);
+    for (let i = 0; i < 256; i++)
+        lut[i] = Math.max(0, Math.min(1, (i / 255 - lo) / Math.max(0.001, hi - lo))) * 255;
+    for (let i = 0; i < md.length; i += 4)
+        md[i] = md[i + 1] = md[i + 2] = lut[md[i]];
+    mctx.putImageData(mImg, 0, 0);
+    // 3) تنعيم الحافة
+    const feather = (params.feather || 0) * scale;
+    if (feather > 0.05)
+        m = blurred(m, feather);
+    const alpha = ctx2d(m).getImageData(0, 0, w, h).data;
+    // 4) تركيب النتيجة
+    const out = makeCanvas(w, h);
+    const octx = ctx2d(out);
+    octx.drawImage(original, 0, 0, w, h);
+    const oImg = octx.getImageData(0, 0, w, h);
+    const od = oImg.data;
+    // 5) إزالة التلوّث اللوني: ألوان الحافة تُستبدل بألوان الداخل المجاورة
+    let bleed = null;
+    if (params.decontaminate) {
+        const core = makeCanvas(w, h);
+        const cctx = ctx2d(core);
+        const cImg = cctx.createImageData(w, h);
+        const cd = cImg.data;
+        for (let i = 0; i < cd.length; i += 4) {
+            const a = alpha[i];
+            if (a > 200) {
+                cd[i] = od[i];
+                cd[i + 1] = od[i + 1];
+                cd[i + 2] = od[i + 2];
+                cd[i + 3] = 255;
+            }
+        }
+        cctx.putImageData(cImg, 0, 0);
+        bleed = ctx2d(blurred(core, Math.max(2, 7 * scale))).getImageData(0, 0, w, h).data;
+    }
+    for (let i = 0; i < od.length; i += 4) {
+        const a = alpha[i];
+        if (bleed && a < 250 && bleed[i + 3] > 8) {
+            const t = 1 - a / 255;
+            od[i] = od[i] * (1 - t) + bleed[i] * t;
+            od[i + 1] = od[i + 1] * (1 - t) + bleed[i + 1] * t;
+            od[i + 2] = od[i + 2] * (1 - t) + bleed[i + 2] * t;
+        }
+        od[i + 3] = a;
+    }
+    octx.putImageData(oImg, 0, 0);
+    return out;
+}
+// ===== lib/backgroundRemoval.js =====
+// ─────────────────────────────────────────────────────────────
+// إزالة الخلفية بالكامل داخل المتصفح (Client-side)
+// ─────────────────────────────────────────────────────────────
+// المكتبة: @imgly/background-removal (ONNX Runtime + WebAssembly / WebGPU)
+// • الصورة لا تغادر جهاز المستخدم — لا يوجد أي API خارجي للمعالجة.
+// • في أول استخدام تُنزَّل ملفات النموذج وتُخزَّن في المتصفح.
+//
+// المسار المحسّن:
+//   1) النموذج يُنتج قناعاً (Mask) على نسخة بحجم العمل.
+//   2) القناع يُحسَّن (حدّة، تقليص الهالة، تنعيم، إزالة التلوّث اللوني) — lib/maskRefine.js
+//   3) يُطبَّق على الصورة بدقتها، ويُحفظ القناع لإعادة التحرير يدوياً لاحقاً.
+const QUALITY_MODES = [
+    { id: 'high', label: 'دقة عالية', model: 'isnet' },
+    { id: 'balanced', label: 'متوازن', model: 'isnet_fp16' },
+    { id: 'fast', label: 'سريع', model: 'isnet_quint8' },
+];
+const QUALITY_KEY = 'cover-studio-cut-quality';
+function getCutQuality() {
+    try {
+        return localStorage.getItem(QUALITY_KEY) || 'high';
+    }
+    catch {
+        return 'high';
+    }
+}
+function setCutQuality(q) {
+    try {
+        localStorage.setItem(QUALITY_KEY, q);
+    }
+    catch {
+        /* التخزين غير متاح */
+    }
+}
+const BG_REMOVAL_CONFIG = {
+    output: { format: 'image/png', quality: 1 },
+    // publicPath: `${typeof window !== 'undefined' ? window.location.origin : ''}/imgly/`,
+    debug: false,
+};
+let libPromise = null;
+function loadLibrary() {
+    if (!libPromise)
+        libPromise = import(IMGLY_URL).catch(() => import(IMGLY_FALLBACK));
+    return libPromise;
+}
+async function preloadBackgroundRemoval() {
+    const lib = await loadLibrary();
+    if (typeof lib.preload === 'function')
+        await lib.preload(BG_REMOVAL_CONFIG);
+}
+function describeProgress(key, current, total) {
+    const downloading = key.startsWith('fetch');
+    return {
+        phase: downloading ? 'download' : 'compute',
+        label: downloading ? 'تنزيل نموذج الذكاء الاصطناعي (مرة واحدة فقط)…' : 'جارٍ كشف الشخص/العنصر داخل المتصفح…',
+        percent: total ? Math.min(100, Math.round((current / total) * 100)) : 0,
+    };
+}
+async function toBlob(input) {
+    if (typeof input === 'string')
+        return (await fetch(input)).blob();
+    return input;
+}
+/** يُرجع الصورة بحجم العمل + قناعها الخام من النموذج */
+async function aiMask(input, onProgress, quality = getCutQuality()) {
+    const { removeBackground } = await loadLibrary();
+    onProgress?.({ phase: 'prepare', label: 'تجهيز الصورة…', percent: 0 });
+    const bitmap = await createImageBitmap(await toBlob(input));
+    const original = toWorkCanvas(bitmap);
+    bitmap.close?.();
+    const model = (QUALITY_MODES.find((q) => q.id === quality) || QUALITY_MODES[0]).model;
+    const fg = await removeBackground(await canvasToBlob(original), {
+        ...BG_REMOVAL_CONFIG,
+        model,
+        progress: (key, current, total) => onProgress?.(describeProgress(key, current, total)),
+    });
+    const fgBitmap = await createImageBitmap(fg);
+    const mask = alphaToMask(fgBitmap, original.width, original.height);
+    fgBitmap.close?.();
+    return { original, mask };
+}
+/**
+ * إزالة الخلفية مع تحسين الحواف.
+ * @returns {Promise<{blob: Blob, maskUrl: string}>}
+ */
+async function removeImageBackgroundDetailed(input, onProgress, params = DEFAULT_REFINE) {
+    const { original, mask } = await aiMask(input, onProgress);
+    onProgress?.({ phase: 'finish', label: 'تحسين الحواف وإزالة الهالة…', percent: 100 });
+    const out = refineCutout(original, mask, params, 1);
+    const blob = await trimTransparent(await canvasToBlob(out));
+    const maskUrl = URL.createObjectURL(await canvasToBlob(mask));
+    return { blob, maskUrl };
+}
+/** واجهة مبسّطة (للتوافق): تُرجع Blob للصورة المفرّغة فقط */
+async function removeImageBackground(input, onProgress) {
+    return (await removeImageBackgroundDetailed(input, onProgress)).blob;
+}
+// ===== lib/exportImage.js =====
+// ─────────────────────────────────────────────────────────────
+// الخطوة 5: تصدير الغلاف كصورة PNG عالية الدقة (pixelRatio: 2)
+// ─────────────────────────────────────────────────────────────
+/**
+ * تصدير لوحة Konva بدقة ثابتة بغض النظر عن حجم المعاينة على الشاشة.
+ * المعاينة مصغّرة بمعامل displayScale، لذلك نقسم عليه:
+ *   1000×1500 (منطقي) × 2 = 2000×3000 بكسل دائماً.
+ */
+function exportStageToBlob(stage, { pixelRatio = EXPORT_PIXEL_RATIO, mimeType = 'image/png' } = {}) {
+    const displayScale = stage.scaleX() || 1;
+    const effectiveRatio = pixelRatio / displayScale;
+    return new Promise((resolve, reject) => {
+        try {
+            stage.toBlob({
+                mimeType,
+                quality: 1,
+                pixelRatio: effectiveRatio,
+                callback: (blob) => (blob ? resolve(blob) : reject(new Error('فشل إنشاء الصورة'))),
+            });
+        }
+        catch (err) {
+            reject(err);
+        }
+    });
+}
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result).split(',')[1] || '');
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+    });
+}
+/** داخل تطبيق أندرويد: نرسل الملف على أجزاء إلى الكود الأصلي ليحفظه في الصور/التنزيلات */
+async function saveViaAndroid(blob, filename) {
+    const bridge = window.AndroidBridge;
+    const b64 = await blobToBase64(blob);
+    const id = bridge.beginFile(filename, blob.type || 'application/octet-stream');
+    const CHUNK = 512 * 1024; // مضاعف 4 حتى يُفك كل جزء مستقلاً
+    for (let i = 0; i < b64.length; i += CHUNK)
+        bridge.appendChunk(id, b64.slice(i, i + CHUNK));
+    bridge.finishFile(id);
+}
+function isAndroidApp() {
+    return typeof window !== 'undefined' && !!window.AndroidBridge;
+}
+function downloadBlob(blob, filename = 'book-cover.png') {
+    if (isAndroidApp())
+        return saveViaAndroid(blob, filename);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+}
+/**
+ * بديل HTML → Image لأي عنصر DOM (مثلاً لو بُنيت المعاينة بعناصر HTML بدل الكانفاس).
+ * ننتظر الخطوط أولاً حتى لا تُصدَّر النصوص بخط بديل.
+ */
+async function exportDomNodeToPNG(node, filename = 'book-cover.png', pixelRatio = EXPORT_PIXEL_RATIO) {
+    const { toBlob } = await import('https://esm.sh/html-to-image@1.11.11');
+    await document.fonts.ready;
+    const blob = await toBlob(node, { pixelRatio, cacheBust: true, backgroundColor: '#000' });
+    downloadBlob(blob, filename);
+    return blob;
+}
+function coverFileName(title) {
+    const safe = (title || 'غلاف').replace(/[\\/:*?"<>|\n]+/g, ' ').trim().slice(0, 60) || 'غلاف';
+    return `${safe}.png`;
+}
+// ===== lib/overlays.js =====
+// ─────────────────────────────────────────────────────────────
+// نظام الطبقات والمؤثرات (Overlays & Textures)
+// ─────────────────────────────────────────────────────────────
+// كل طبقة تُولَّد برمجياً على Canvas مستقل (بدون ملفات صور خارجية)،
+// باستخدام مولّد أرقام عشوائية ثابت البذرة حتى تبقى النتيجة نفسها بين الجلسات.
+// تُرسم الطبقة فوق التصميم في Konva مع وضع دمج (blend) وشفافية يتحكم بها المستخدم.
+// لاستبدال أي طبقة بصورة PNG حقيقية: غيّر draw لترسم الصورة عبر ctx.drawImage.
+// ───────── أدوات ─────────
+function rng(seed) {
+    let a = seed >>> 0;
+    return () => {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+const TAU = Math.PI * 2;
+function softDot(ctx, x, y, radius, color0, color1 = 'rgba(0,0,0,0)') {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    g.addColorStop(0, color0);
+    g.addColorStop(1, color1);
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, TAU);
+    ctx.fill();
+}
+function organicBlob(ctx, x, y, radius, r) {
+    const p1 = r() * TAU, p2 = r() * TAU, k1 = 2 + Math.floor(r() * 3), k2 = 5 + Math.floor(r() * 4);
+    ctx.beginPath();
+    for (let i = 0; i <= 64; i++) {
+        const a = (i / 64) * TAU;
+        const rr = radius * (1 + 0.12 * Math.sin(k1 * a + p1) + 0.06 * Math.sin(k2 * a + p2));
+        const px = x + Math.cos(a) * rr, py = y + Math.sin(a) * rr;
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath();
+}
+// ═════════ الطقس ═════════
+function drawRain(ctx, w, h, r) {
+    ctx.fillStyle = 'rgba(140,160,185,0.08)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 1700; i++) {
+        const depth = r();
+        const x = r() * w * 1.3 - w * 0.15;
+        const y = r() * h * 1.1 - h * 0.05;
+        const len = 16 + depth * 64;
+        ctx.strokeStyle = `rgba(215,228,242,${0.07 + depth * 0.42})`;
+        ctx.lineWidth = 0.4 + depth * 1.6;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(x - len * 0.22, y + len);
+        ctx.stroke();
+    }
+    // رذاذ على الأرض
+    for (let i = 0; i < 260; i++) {
+        softDot(ctx, r() * w, h * (0.86 + r() * 0.14), 1 + r() * 3, 'rgba(230,240,250,0.35)');
+    }
+}
+function drawSnow(ctx, w, h, r) {
+    for (let i = 0; i < 1200; i++) {
+        const s = r();
+        const radius = 0.6 + s * s * s * 7;
+        softDot(ctx, r() * w, r() * h, radius, `rgba(255,255,255,${0.45 + s * 0.55})`);
+    }
+}
+function drawDust(ctx, w, h, r) {
+    const g = ctx.createLinearGradient(0, h, 0, 0);
+    g.addColorStop(0, 'rgba(195,145,85,0.5)');
+    g.addColorStop(0.45, 'rgba(175,125,75,0.16)');
+    g.addColorStop(1, 'rgba(150,110,70,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    // سحب غبار أفقية
+    for (let i = 0; i < 45; i++) {
+        ctx.save();
+        ctx.translate(r() * w, h * (0.3 + r() * 0.75));
+        ctx.scale(1, 0.12 + r() * 0.1);
+        softDot(ctx, 0, 0, 200 + r() * 320, 'rgba(205,160,110,0.12)');
+        ctx.restore();
+    }
+    for (let i = 0; i < 5500; i++) {
+        const size = 0.3 + r() ** 2 * 2.4;
+        ctx.fillStyle = `rgba(238,208,165,${0.1 + r() * 0.5})`;
+        ctx.fillRect(r() * w, r() * h, size, size);
+    }
+}
+function drawSmokeFog(ctx, w, h, r) {
+    for (let i = 0; i < 80; i++) {
+        const y = h * (0.2 + r() * 0.9);
+        const shade = 190 + Math.floor(r() * 40);
+        softDot(ctx, r() * w, y, 120 + r() * 400, `rgba(${shade},${shade},${shade + 5},${0.07 + r() * 0.09})`);
+    }
+    const g = ctx.createLinearGradient(0, h, 0, h * 0.4);
+    g.addColorStop(0, 'rgba(210,210,215,0.35)');
+    g.addColorStop(1, 'rgba(210,210,215,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+}
+// ═════════ التكتشر ═════════
+function drawFilmGrain(ctx, w, h, r) {
+    const cw = ctx.canvas.width, ch = ctx.canvas.height;
+    const img = ctx.createImageData(cw, ch);
+    const d = img.data;
+    for (let i = 0; i < d.length; i += 4) {
+        const v = 128 + (r() - 0.5) * 150;
+        d[i] = d[i + 1] = d[i + 2] = v;
+        d[i + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    // شوائب وشعيرات الفيلم
+    for (let i = 0; i < 30; i++) {
+        ctx.strokeStyle = r() > 0.5 ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.6)';
+        ctx.lineWidth = 0.6 + r();
+        const x = r() * w, y = r() * h;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.bezierCurveTo(x + (r() - 0.5) * 40, y + (r() - 0.5) * 40, x + (r() - 0.5) * 40, y + (r() - 0.5) * 40, x + (r() - 0.5) * 50, y + (r() - 0.5) * 50);
+        ctx.stroke();
+    }
+}
+function drawGlassScratches(ctx, w, h, r) {
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 280; i++) {
+        const biased = r() < 0.7;
+        const ang = biased ? -0.6 + (r() - 0.5) * 0.7 : r() * Math.PI;
+        const len = 20 + r() ** 2 * 480;
+        const x = r() * w, y = r() * h;
+        const ex = x + Math.cos(ang) * len, ey = y + Math.sin(ang) * len;
+        ctx.strokeStyle = `rgba(255,255,255,${0.05 + r() * 0.35})`;
+        ctx.lineWidth = 0.3 + r() * 1.1;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo((x + ex) / 2 + (r() - 0.5) * 50, (y + ey) / 2 + (r() - 0.5) * 50, ex, ey);
+        ctx.stroke();
+    }
+    for (let i = 0; i < 120; i++)
+        softDot(ctx, r() * w, r() * h, 1 + r() * 3, 'rgba(255,255,255,0.5)');
+}
+function drawStains(ctx, w, h, r) {
+    for (let i = 0; i < 24; i++) {
+        const x = r() * w, y = r() * h, radius = 40 + r() * 230;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, radius * 1.15);
+        g.addColorStop(0, 'rgba(95,62,30,0.10)');
+        g.addColorStop(0.75, 'rgba(95,62,30,0.18)');
+        g.addColorStop(0.86, 'rgba(60,36,15,0.55)'); // حلقة القهوة
+        g.addColorStop(1, 'rgba(60,36,15,0)');
+        ctx.fillStyle = g;
+        organicBlob(ctx, x, y, radius, r);
+        ctx.fill();
+    }
+    for (let i = 0; i < 160; i++)
+        softDot(ctx, r() * w, r() * h, 2 + r() * 10, 'rgba(70,42,18,0.45)');
+}
+function drawBurntPaper(ctx, w, h, r) {
+    ctx.fillStyle = 'rgba(140,95,50,0.16)';
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 1000; i++) {
+        const side = Math.floor(r() * 4), t = r(), inward = r() ** 2.2 * 150;
+        const x = side === 0 ? t * w : side === 1 ? w - inward : side === 2 ? t * w : inward;
+        const y = side === 0 ? inward : side === 1 ? t * h : side === 2 ? h - inward : t * h;
+        const radius = 25 + r() * 95;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        g.addColorStop(0, 'rgba(14,5,0,0.75)');
+        g.addColorStop(0.6, 'rgba(60,25,5,0.32)');
+        g.addColorStop(1, 'rgba(60,25,5,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, TAU);
+        ctx.fill();
+    }
+    // ثقوب احتراق بحافة جمرية
+    for (let i = 0; i < 4; i++) {
+        const x = w * (0.1 + r() * 0.8), y = h * (0.1 + r() * 0.8), radius = 18 + r() * 50;
+        const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        g.addColorStop(0, 'rgba(0,0,0,0.95)');
+        g.addColorStop(0.65, 'rgba(15,6,0,0.9)');
+        g.addColorStop(0.8, 'rgba(190,85,20,0.55)');
+        g.addColorStop(1, 'rgba(90,40,10,0)');
+        ctx.fillStyle = g;
+        organicBlob(ctx, x, y, radius, r);
+        ctx.fill();
+    }
+}
+function drawConcrete(ctx, w, h, r) {
+    const cw = ctx.canvas.width, ch = ctx.canvas.height;
+    const layerNoise = (div, contrast, alpha) => {
+        const small = document.createElement('canvas');
+        small.width = Math.ceil(cw / div);
+        small.height = Math.ceil(ch / div);
+        const sctx = small.getContext('2d');
+        const si = sctx.createImageData(small.width, small.height);
+        for (let i = 0; i < si.data.length; i += 4) {
+            const v = 128 + (r() - 0.5) * contrast;
+            si.data[i] = si.data[i + 1] = si.data[i + 2] = v;
+            si.data[i + 3] = 255;
+        }
+        sctx.putImageData(si, 0, 0);
+        ctx.save();
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.globalAlpha = alpha;
+        ctx.imageSmoothingEnabled = true;
+        ctx.drawImage(small, 0, 0, cw, ch);
+        ctx.restore();
+    };
+    layerNoise(14, 130, 1);
+    layerNoise(4, 80, 0.5);
+    // ضجيج دقيق
+    const img = ctx.getImageData(0, 0, cw, ch);
+    for (let i = 0; i < img.data.length; i += 4) {
+        const n = (r() - 0.5) * 55;
+        img.data[i] = Math.max(0, Math.min(255, img.data[i] + n));
+        img.data[i + 1] = Math.max(0, Math.min(255, img.data[i + 1] + n));
+        img.data[i + 2] = Math.max(0, Math.min(255, img.data[i + 2] + n));
+    }
+    ctx.putImageData(img, 0, 0);
+    // مسامات وتشققات
+    for (let i = 0; i < 700; i++)
+        softDot(ctx, r() * w, r() * h, 0.8 + r() * 2.5, 'rgba(40,40,40,0.8)');
+    ctx.strokeStyle = 'rgba(30,30,30,0.6)';
+    for (let c = 0; c < 7; c++) {
+        let x = r() * w, y = r() * h;
+        ctx.lineWidth = 0.6 + r() * 1.2;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        let ang = r() * TAU;
+        for (let s = 0; s < 40; s++) {
+            ang += (r() - 0.5) * 0.9;
+            x += Math.cos(ang) * 9;
+            y += Math.sin(ang) * 9;
+            ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+}
+// ═════════ الإضاءة والظلال ═════════
+function drawVignette(ctx, w, h) {
+    const g = ctx.createRadialGradient(w / 2, h * 0.47, h * 0.22, w / 2, h * 0.47, h * 0.8);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(0.55, 'rgba(0,0,0,0.35)');
+    g.addColorStop(1, 'rgba(0,0,0,0.96)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+}
+function drawLightLeak(ctx, w, h) {
+    softDot(ctx, -60, h * 0.15, 780, 'rgba(255,110,30,0.85)');
+    softDot(ctx, w * 0.12, -90, 520, 'rgba(255,205,95,0.7)');
+    softDot(ctx, w + 70, h * 0.68, 680, 'rgba(232,40,72,0.55)');
+    softDot(ctx, w * 0.9, h * 0.97, 420, 'rgba(255,150,60,0.42)');
+}
+function drawLightRays(ctx, w, h, r) {
+    const ox = w * 0.78, oy = -h * 0.08, len = h * 1.45;
+    ctx.filter = 'blur(6px)';
+    for (let i = 0; i < 17; i++) {
+        const a = Math.PI / 2 - 0.12 + r() * 0.85;
+        const wd = 0.012 + r() * 0.045;
+        const k = 0.5 + r() * 0.5;
+        const g = ctx.createLinearGradient(ox, oy, ox + Math.cos(a) * len, oy + Math.sin(a) * len);
+        g.addColorStop(0, `rgba(255,236,192,${0.5 * k})`);
+        g.addColorStop(0.55, `rgba(255,225,170,${0.13 * k})`);
+        g.addColorStop(1, 'rgba(255,225,170,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(ox, oy);
+        ctx.lineTo(ox + Math.cos(a - wd) * len, oy + Math.sin(a - wd) * len);
+        ctx.lineTo(ox + Math.cos(a + wd) * len, oy + Math.sin(a + wd) * len);
+        ctx.closePath();
+        ctx.fill();
+    }
+    ctx.filter = 'none';
+    softDot(ctx, ox, 0, 360, 'rgba(255,230,180,0.45)');
+}
+function drawWindowShadow(ctx, w, h) {
+    const span = Math.hypot(w, h) * 1.2;
+    ctx.save();
+    ctx.translate(w / 2, h / 2);
+    ctx.rotate(-0.32);
+    ctx.filter = 'blur(6px)';
+    ctx.fillStyle = 'rgba(0,0,0,0.72)';
+    for (let y = -span / 2; y < span / 2; y += 66)
+        ctx.fillRect(-span / 2, y, span, 32); // شرائح الستارة
+    ctx.fillRect(-span * 0.06, -span / 2, 30, span); // قوائم النافذة
+    ctx.fillRect(span * 0.2, -span / 2, 30, span);
+    ctx.restore();
+    ctx.filter = 'none';
+}
+// ═════════ هندسية وتكتيكية ═════════
+function drawRandomLines(ctx, w, h, r) {
+    const edgePoint = () => {
+        const s = Math.floor(r() * 4), t = r();
+        return s === 0 ? [t * w, 0] : s === 1 ? [w, t * h] : s === 2 ? [t * w, h] : [0, t * h];
+    };
+    for (let i = 0; i < 70; i++) {
+        const [x1, y1] = edgePoint();
+        const [x2, y2] = edgePoint();
+        ctx.strokeStyle = `rgba(228,208,168,${0.08 + r() * 0.38})`;
+        ctx.lineWidth = 0.5 + r() * 1.4;
+        ctx.setLineDash(r() < 0.3 ? [4 + r() * 12, 4 + r() * 10] : []);
+        ctx.beginPath();
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
+        ctx.stroke();
+        if (r() < 0.15) {
+            const len = Math.hypot(x2 - x1, y2 - y1), nx = -(y2 - y1) / len, ny = (x2 - x1) / len;
+            ctx.setLineDash([]);
+            for (let d = 0; d < len; d += 40) {
+                const px = x1 + ((x2 - x1) * d) / len, py = y1 + ((y2 - y1) * d) / len;
+                ctx.beginPath();
+                ctx.moveTo(px - nx * 5, py - ny * 5);
+                ctx.lineTo(px + nx * 5, py + ny * 5);
+                ctx.stroke();
+            }
+        }
+    }
+    ctx.setLineDash([]);
+    for (let i = 0; i < 6; i++) {
+        ctx.strokeStyle = `rgba(228,208,168,${0.15 + r() * 0.25})`;
+        ctx.beginPath();
+        ctx.arc(r() * w, r() * h, 40 + r() * 260, r() * TAU, r() * TAU + 1 + r() * 3);
+        ctx.stroke();
+    }
+}
+function drawGrid(ctx, w, h) {
+    const minor = 50, major = 250;
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = 'rgba(190,215,195,0.09)';
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += minor) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+    }
+    for (let y = 0; y <= h; y += minor) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(190,215,195,0.3)';
+    ctx.beginPath();
+    for (let x = 0; x <= w; x += major) {
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, h);
+    }
+    for (let y = 0; y <= h; y += major) {
+        ctx.moveTo(0, y);
+        ctx.lineTo(w, y);
+    }
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(190,215,195,0.6)';
+    ctx.font = '13px ui-monospace, monospace';
+    if ('direction' in ctx)
+        ctx.direction = 'ltr';
+    for (let i = 0, x = 0; x < w; x += major, i++)
+        ctx.fillText(String.fromCharCode(65 + i), x + 6, 18);
+    for (let i = 1, y = major; y < h; y += major, i++)
+        ctx.fillText(String(i).padStart(2, '0'), 6, y - 6);
+    // شبكة تصويب
+    const cx = w * 0.66, cy = h * 0.4;
+    ctx.strokeStyle = 'rgba(210,235,215,0.45)';
+    ctx.lineWidth = 1.2;
+    [36, 70].forEach((rad) => { ctx.beginPath(); ctx.arc(cx, cy, rad, 0, TAU); ctx.stroke(); });
+    ctx.beginPath();
+    ctx.moveTo(cx - 100, cy);
+    ctx.lineTo(cx - 20, cy);
+    ctx.moveTo(cx + 20, cy);
+    ctx.lineTo(cx + 100, cy);
+    ctx.moveTo(cx, cy - 100);
+    ctx.lineTo(cx, cy - 20);
+    ctx.moveTo(cx, cy + 20);
+    ctx.lineTo(cx, cy + 100);
+    ctx.stroke();
+    ctx.fillText('N 33°30′ / E 36°18′', cx + 78, cy - 78);
+}
+function drawScanlines(ctx, w, h, r) {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    for (let y = 0; y < h; y += 4)
+        ctx.fillRect(0, y, w, 1.6);
+    for (let i = 0; i < 3; i++) {
+        const y = r() * h, bh = 50 + r() * 120;
+        const g = ctx.createLinearGradient(0, y, 0, y + bh);
+        g.addColorStop(0, 'rgba(255,255,255,0)');
+        g.addColorStop(0.5, 'rgba(255,255,255,0.06)');
+        g.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0, y, w, bh);
+    }
+}
+// خطوط كنتورية حقيقية عبر خوارزمية Marching Squares على حقل تضاريس
+const MS_SEGMENTS = {
+    1: [[3, 2]], 2: [[2, 1]], 3: [[3, 1]], 4: [[0, 1]], 5: [[0, 1], [3, 2]], 6: [[0, 2]], 7: [[3, 0]],
+    8: [[3, 0]], 9: [[0, 2]], 10: [[0, 3], [1, 2]], 11: [[0, 1]], 12: [[3, 1]], 13: [[1, 2]], 14: [[3, 2]],
+};
+function drawTopographic(ctx, w, h, r) {
+    const hills = Array.from({ length: 10 }, () => ({ x: r() * w, y: r() * h, s: 110 + r() * 260, a: r() * 1.7 - 0.5 }));
+    const field = (x, y) => {
+        let v = 0;
+        for (const hl of hills) {
+            const dx = x - hl.x, dy = y - hl.y;
+            v += hl.a * Math.exp(-(dx * dx + dy * dy) / (2 * hl.s * hl.s));
+        }
+        return v + 0.06 * Math.sin(x * 0.011 + y * 0.007);
+    };
+    const step = 6, cols = Math.ceil(w / step) + 1, rows = Math.ceil(h / step) + 1;
+    const vals = new Float32Array(cols * rows);
+    let min = Infinity, max = -Infinity;
+    for (let j = 0; j < rows; j++)
+        for (let i = 0; i < cols; i++) {
+            const v = field(i * step, j * step);
+            vals[j * cols + i] = v;
+            if (v < min)
+                min = v;
+            if (v > max)
+                max = v;
+        }
+    const levels = 30;
+    for (let L = 0; L < levels; L++) {
+        const t = min + ((max - min) * (L + 0.5)) / levels;
+        const index = L % 5 === 0;
+        ctx.strokeStyle = index ? 'rgba(215,192,150,0.48)' : 'rgba(215,192,150,0.22)';
+        ctx.lineWidth = index ? 1.6 : 0.8;
+        ctx.beginPath();
+        for (let j = 0; j < rows - 1; j++)
+            for (let i = 0; i < cols - 1; i++) {
+                const a = vals[j * cols + i], b = vals[j * cols + i + 1];
+                const c = vals[(j + 1) * cols + i + 1], d = vals[(j + 1) * cols + i];
+                const code = (a > t ? 8 : 0) | (b > t ? 4 : 0) | (c > t ? 2 : 0) | (d > t ? 1 : 0);
+                const segs = MS_SEGMENTS[code];
+                if (!segs)
+                    continue;
+                const x0 = i * step, y0 = j * step;
+                const pt = (e) => e === 0 ? [x0 + ((t - a) / (b - a)) * step, y0]
+                    : e === 1 ? [x0 + step, y0 + ((t - b) / (c - b)) * step]
+                        : e === 2 ? [x0 + ((t - d) / (c - d)) * step, y0 + step]
+                            : [x0, y0 + ((t - a) / (d - a)) * step];
+                for (const [e1, e2] of segs) {
+                    const p = pt(e1), q = pt(e2);
+                    ctx.moveTo(p[0], p[1]);
+                    ctx.lineTo(q[0], q[1]);
+                }
+            }
+        ctx.stroke();
+    }
+}
+// ═════════ زخرفية ═════════
+function drawIslamicPattern(ctx, w, h) {
+    const cell = 140;
+    ctx.strokeStyle = 'rgba(215,180,105,0.55)';
+    ctx.lineWidth = 1.3;
+    const rubElHizb = (cx, cy, R) => {
+        for (const rot of [0, Math.PI / 4]) {
+            ctx.beginPath();
+            for (let k = 0; k < 4; k++) {
+                const a = rot + k * (Math.PI / 2) + Math.PI / 4;
+                const px = cx + Math.cos(a) * R, py = cy + Math.sin(a) * R;
+                k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+            }
+            ctx.closePath();
+            ctx.stroke();
+        }
+    };
+    const star83 = (cx, cy, R) => {
+        ctx.beginPath();
+        for (let k = 0; k <= 8; k++) {
+            const a = ((k * 3) % 8) * (TAU / 8) + Math.PI / 8;
+            const px = cx + Math.cos(a) * R, py = cy + Math.sin(a) * R;
+            k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+        }
+        ctx.stroke();
+    };
+    for (let y = 0; y <= h + cell; y += cell) {
+        for (let x = 0; x <= w + cell; x += cell) {
+            rubElHizb(x, y, cell * 0.44);
+            star83(x, y, cell * 0.3);
+            ctx.beginPath();
+            ctx.arc(x, y, cell * 0.12, 0, TAU);
+            ctx.stroke();
+            rubElHizb(x + cell / 2, y + cell / 2, cell * 0.18);
+        }
+    }
+    // الشبكة القُطرية الرابطة
+    ctx.strokeStyle = 'rgba(215,180,105,0.2)';
+    ctx.beginPath();
+    for (let d = -h; d < w + h; d += cell) {
+        ctx.moveTo(d, 0);
+        ctx.lineTo(d + h, h);
+        ctx.moveTo(d + h, 0);
+        ctx.lineTo(d, h);
+    }
+    ctx.stroke();
+}
+function drawClassicFrame(ctx, w, h) {
+    const gold = 'rgba(218,184,112,0.92)';
+    ctx.strokeStyle = gold;
+    ctx.lineWidth = 4;
+    ctx.strokeRect(36, 36, w - 72, h - 72);
+    ctx.lineWidth = 1.2;
+    ctx.strokeRect(52, 52, w - 104, h - 104);
+    ctx.strokeRect(62, 62, w - 124, h - 124);
+    const diamond = (x, y, s) => {
+        ctx.beginPath();
+        ctx.moveTo(x, y - s);
+        ctx.lineTo(x + s, y);
+        ctx.lineTo(x, y + s);
+        ctx.lineTo(x - s, y);
+        ctx.closePath();
+        ctx.fillStyle = gold;
+        ctx.fill();
+    };
+    const corners = [[62, 62, 1, 1], [w - 62, 62, -1, 1], [62, h - 62, 1, -1], [w - 62, h - 62, -1, -1]];
+    for (const [cx, cy, sx, sy] of corners) {
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(cx, cy, 54, 0, TAU);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(cx, cy, 40, 0, TAU);
+        ctx.stroke();
+        diamond(cx, cy, 14);
+        for (let k = 1; k <= 3; k++) {
+            ctx.beginPath();
+            ctx.arc(cx + sx * (54 + k * 22), cy, 3, 0, TAU);
+            ctx.arc(cx, cy + sy * (54 + k * 22), 3, 0, TAU);
+            ctx.fill();
+        }
+    }
+    diamond(w / 2, 36, 12);
+    diamond(w / 2, h - 36, 12);
+    diamond(36, h / 2, 12);
+    diamond(w - 36, h / 2, 12);
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(w / 2 - 140, 80);
+    ctx.lineTo(w / 2 + 140, 80);
+    ctx.moveTo(w / 2 - 140, h - 80);
+    ctx.lineTo(w / 2 + 140, h - 80);
+    ctx.stroke();
+}
+function drawEmbers(ctx, w, h, r) {
+    for (let i = 0; i < 420; i++) {
+        const x = r() * w, y = h * (0.2 + r() * 0.85), s = r();
+        const rad = 0.8 + s * s * 3.5;
+        softDot(ctx, x, y, rad * 5, `rgba(255,${110 + Math.floor(r() * 80)},30,${0.12 + s * 0.25})`);
+        ctx.fillStyle = `rgba(255,${200 + Math.floor(r() * 55)},150,${0.5 + s * 0.5})`;
+        ctx.beginPath();
+        ctx.arc(x, y, rad, 0, TAU);
+        ctx.fill();
+    }
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 70; i++) {
+        const x = r() * w, y = h * (0.3 + r() * 0.7), len = 10 + r() * 45;
+        ctx.strokeStyle = `rgba(255,170,70,${0.2 + r() * 0.3})`;
+        ctx.lineWidth = 0.8 + r() * 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + (r() - 0.5) * 20, y - len / 2, x + (r() - 0.5) * 16, y - len);
+        ctx.stroke();
+    }
+    const g = ctx.createLinearGradient(0, h, 0, h * 0.5);
+    g.addColorStop(0, 'rgba(255,90,20,0.35)');
+    g.addColorStop(1, 'rgba(255,90,20,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+}
+function drawBokeh(ctx, w, h, r) {
+    const palette = [[255, 190, 110], [255, 140, 60], [120, 180, 255], [255, 230, 180], [200, 120, 255]];
+    for (let i = 0; i < 90; i++) {
+        const [cr, cg, cb] = palette[Math.floor(r() * palette.length)];
+        const x = r() * w, y = r() * h, rad = 10 + r() ** 2 * 70, a = 0.06 + r() * 0.2;
+        ctx.fillStyle = `rgba(${cr},${cg},${cb},${a})`;
+        ctx.beginPath();
+        ctx.arc(x, y, rad, 0, TAU);
+        ctx.fill();
+        ctx.strokeStyle = `rgba(${cr},${cg},${cb},${a * 1.4})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+}
+function drawSpotlight(ctx, w, h) {
+    ctx.fillStyle = 'rgba(0,0,0,0.88)';
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.save();
+    ctx.translate(w / 2, h * 0.5);
+    ctx.scale(1, 1.35);
+    const R = w * 0.48;
+    const g = ctx.createRadialGradient(0, 0, R * 0.25, 0, 0, R);
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+    ctx.globalCompositeOperation = 'source-over';
+}
+function drawClouds(ctx, w, h, r) {
+    for (let c = 0; c < 26; c++) {
+        const cx = r() * w * 1.2 - w * 0.1, cy = h * (r() * 0.65), spread = 120 + r() * 220;
+        for (let i = 0; i < 28; i++) {
+            const shade = 200 + Math.floor(r() * 50);
+            softDot(ctx, cx + (r() - 0.5) * spread * 2, cy + (r() - 0.5) * spread * 0.6, 50 + r() * 130, `rgba(${shade},${shade},${shade + 6},${0.05 + r() * 0.07})`);
+        }
+    }
+}
+function drawLensFlare(ctx, w, h) {
+    const sx = w * 0.82, sy = h * 0.1;
+    softDot(ctx, sx, sy, 380, 'rgba(255,220,170,0.55)');
+    softDot(ctx, sx, sy, 90, 'rgba(255,255,240,0.95)');
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.scale(6, 0.08);
+    softDot(ctx, 0, 0, 120, 'rgba(255,230,200,0.9)');
+    ctx.restore();
+    const tx = w - sx, ty = h - sy;
+    const ghosts = [[0.25, 40, 'rgba(120,200,255,0.25)'], [0.45, 70, 'rgba(255,170,90,0.18)'], [0.6, 25, 'rgba(180,255,180,0.3)'], [0.8, 110, 'rgba(255,120,200,0.12)'], [1.0, 55, 'rgba(120,160,255,0.2)']];
+    for (const [t, rad, col] of ghosts) {
+        const x = sx + (tx - sx) * t, y = sy + (ty - sy) * t;
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        ctx.arc(x, y, rad, 0, TAU);
+        ctx.fill();
+    }
+}
+function drawTornEdges(ctx, w, h, r) {
+    const pts = [];
+    const step = 6;
+    let inset = 22;
+    const jag = () => {
+        inset = Math.min(44, Math.max(10, inset + (r() - 0.5) * 8));
+        return inset + (r() - 0.5) * 6;
+    };
+    for (let x = 0; x <= w; x += step)
+        pts.push([x, jag()]);
+    for (let y = 0; y <= h; y += step)
+        pts.push([w - jag(), y]);
+    for (let x = w; x >= 0; x -= step)
+        pts.push([x, h - jag()]);
+    for (let y = h; y >= 0; y -= step)
+        pts.push([jag(), y]);
+    const trace = () => {
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+        ctx.closePath();
+    };
+    ctx.fillStyle = '#0a0908';
+    ctx.fillRect(0, 0, w, h);
+    ctx.globalCompositeOperation = 'destination-out';
+    trace();
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    // ظل داخلي يعطي عمق الورق الممزق
+    ctx.save();
+    trace();
+    ctx.clip();
+    ctx.shadowColor = 'rgba(0,0,0,0.95)';
+    ctx.shadowBlur = 34;
+    ctx.lineWidth = 24;
+    ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+    trace();
+    ctx.stroke();
+    ctx.restore();
+    // ألياف الورق على الحافة
+    ctx.strokeStyle = 'rgba(225,212,190,0.35)';
+    ctx.lineWidth = 1.4;
+    trace();
+    ctx.stroke();
+}
+function drawThinFrame(ctx, w, h) {
+    ctx.strokeStyle = 'rgba(235,225,205,0.8)';
+    ctx.lineWidth = 1.6;
+    ctx.strokeRect(40, 40, w - 80, h - 80);
+}
+// ───────── السجل ─────────
+// blend: وضع الدمج في Konva/Canvas (source-over | screen | multiply | overlay | soft-light)
+const OVERLAY_GROUPS = [
+    {
+        id: 'weather',
+        label: 'الطقس',
+        items: [
+            { id: 'rain', label: 'مطر', blend: 'screen', opacity: 0.6, draw: drawRain },
+            { id: 'snow', label: 'ثلج', blend: 'screen', opacity: 0.7, draw: drawSnow },
+            { id: 'dust', label: 'غبار', blend: 'screen', opacity: 0.55, draw: drawDust },
+            { id: 'smoke', label: 'ضباب دخاني', blend: 'screen', opacity: 0.6, draw: drawSmokeFog },
+            { id: 'clouds', label: 'غيوم', blend: 'screen', opacity: 0.55, draw: drawClouds },
+            { id: 'embers', label: 'جمر متطاير', blend: 'screen', opacity: 0.7, draw: drawEmbers },
+        ],
+    },
+    {
+        id: 'texture',
+        label: 'التكتشر',
+        items: [
+            { id: 'grain', label: 'حبيبات فيلم', blend: 'overlay', opacity: 0.35, draw: drawFilmGrain },
+            { id: 'scratches', label: 'خدوش زجاج', blend: 'screen', opacity: 0.5, draw: drawGlassScratches },
+            { id: 'stains', label: 'بقع', blend: 'multiply', opacity: 0.7, draw: drawStains },
+            { id: 'burnt', label: 'ورق محروق', blend: 'source-over', opacity: 0.8, draw: drawBurntPaper },
+            { id: 'concrete', label: 'جدار خرساني', blend: 'overlay', opacity: 0.45, draw: drawConcrete },
+        ],
+    },
+    {
+        id: 'lighting',
+        label: 'الإضاءة والظلال',
+        items: [
+            { id: 'vignette', label: 'تظليل الأطراف', blend: 'source-over', opacity: 0.8, draw: drawVignette },
+            { id: 'leak', label: 'تسريب ضوئي', blend: 'screen', opacity: 0.45, draw: drawLightLeak },
+            { id: 'rays', label: 'أشعة ضوء', blend: 'screen', opacity: 0.55, draw: drawLightRays },
+            { id: 'window', label: 'ظل نافذة', blend: 'multiply', opacity: 0.6, draw: drawWindowShadow },
+            { id: 'spotlight', label: 'بقعة ضوء', blend: 'source-over', opacity: 0.7, draw: drawSpotlight },
+            { id: 'bokeh', label: 'بوكيه', blend: 'screen', opacity: 0.5, draw: drawBokeh },
+            { id: 'flare', label: 'وهج عدسة', blend: 'screen', opacity: 0.6, draw: drawLensFlare },
+        ],
+    },
+    {
+        id: 'tactical',
+        label: 'هندسية وتكتيكية',
+        items: [
+            { id: 'lines', label: 'خطوط عشوائية', blend: 'screen', opacity: 0.5, draw: drawRandomLines },
+            { id: 'grid', label: 'شبكة إحداثيات', blend: 'screen', opacity: 0.55, draw: drawGrid },
+            { id: 'scanlines', label: 'خطوط مسح', blend: 'source-over', opacity: 0.5, draw: drawScanlines },
+            { id: 'topo', label: 'خريطة طبوغرافية', blend: 'screen', opacity: 0.45, draw: drawTopographic },
+        ],
+    },
+    {
+        id: 'decor',
+        label: 'زخارف وإطارات',
+        items: [
+            { id: 'islamic', label: 'زخارف إسلامية', blend: 'screen', opacity: 0.35, draw: drawIslamicPattern },
+            { id: 'frame', label: 'إطار كلاسيكي', blend: 'source-over', opacity: 0.85, draw: drawClassicFrame },
+            { id: 'thinframe', label: 'إطار رفيع', blend: 'source-over', opacity: 0.8, draw: drawThinFrame },
+            { id: 'torn', label: 'حواف ممزقة', blend: 'source-over', opacity: 1, draw: drawTornEdges },
+        ],
+    },
+];
+const ALL_OVERLAYS = OVERLAY_GROUPS.flatMap((g) => g.items);
+const canvasCache = new Map();
+/** يولّد الطبقة مرة واحدة ويخزّنها — الاستدعاءات التالية فورية */
+function getOverlayCanvas(id) {
+    if (canvasCache.has(id))
+        return canvasCache.get(id);
+    const def = ALL_OVERLAYS.find((o) => o.id === id);
+    if (!def)
+        return null;
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(COVER_W * OVERLAY_SCALE);
+    canvas.height = Math.round(COVER_H * OVERLAY_SCALE);
+    const ctx = canvas.getContext('2d', { willReadFrequently: id === 'concrete' });
+    ctx.scale(OVERLAY_SCALE, OVERLAY_SCALE);
+    const seed = [...id].reduce((s, ch) => s * 31 + ch.charCodeAt(0), 7);
+    def.draw(ctx, COVER_W, COVER_H, rng(seed));
+    canvasCache.set(id, canvas);
+    return canvas;
+}
+function createDefaultLayerState() {
+    const state = {};
+    for (const o of ALL_OVERLAYS)
+        state[o.id] = { enabled: false, opacity: o.opacity };
+    state.vignette.enabled = true;
+    state.grain.enabled = true;
+    return state;
+}
+// ===== lib/textEffects.js =====
+// ─────────────────────────────────────────────────────────────
+// تأثيرات النص: ذهبي معدني، محفور، توهّج، حدّ خارجي، تدرّج لوني
+// ─────────────────────────────────────────────────────────────
+// buildTextLayers تُرجع خصائص Konva للنص الأساسي + نُسخاً سفلية (underlays)
+// تُرسم خلفه لصنع تأثيرات تحتاج أكثر من ظل واحد (مثل الحفر والتوهّج القوي).
+const TEXT_EFFECTS = [
+    { id: 'none', label: 'بدون' },
+    { id: 'gold', label: 'ذهبي معدني' },
+    { id: 'engraved', label: 'محفور' },
+    { id: 'glow', label: 'توهّج' },
+    { id: 'outline', label: 'حدّ خارجي' },
+    { id: 'gradient', label: 'تدرّج لوني' },
+    { id: 'silver', label: 'فضي معدني' },
+    { id: 'extrude', label: 'ثلاثي الأبعاد' },
+    { id: 'neon', label: 'نيون' },
+    { id: 'double', label: 'حدّ مزدوج' },
+];
+const TEXT_BACKGROUNDS = [
+    { id: 'none', label: 'بدون' },
+    { id: 'bars', label: 'شريط لكل سطر' },
+    { id: 'box', label: 'صندوق' },
+    { id: 'pill', label: 'إطار بيضاوي' },
+    { id: 'plaque', label: 'لوحة زخرفية' },
+    { id: 'halo', label: 'هالة ضوئية' },
+    { id: 'underline', label: 'خط سفلي' },
+];
+const TEXT_EFFECT_DEFAULTS = {
+    visible: true,
+    letterSpacing: 0,
+    secondColor: '',
+    bg: 'none',
+    bgColor: '#7a1c1c',
+    bgOpacity: 0.85,
+    bgPadding: 18,
+    bgRadius: 4,
+    bgStroke: '#d4af6a',
+    effect: 'none',
+    color2: '#9c7426',
+    glowColor: '#d4af6a',
+    strokeColor: '#000000',
+    strokeWidth: 5,
+    outlineOnly: false,
+};
+const SILVER_STOPS = [0, '#ffffff', 0.3, '#cdd2da', 0.48, '#6b717b', 0.6, '#eef1f5', 0.84, '#9aa1ab', 1, '#4d525a'];
+const GOLD_STOPS = [0, '#fff4c8', 0.28, '#e6c46a', 0.48, '#9c7426', 0.6, '#f2d47c', 0.82, '#b8892f', 1, '#76531a'];
+function estimateHeight(t) {
+    const lines = Math.max(1, String(t.text || '').split('\n').length);
+    return lines * t.size * t.lineHeight;
+}
+function buildTextLayers(t) {
+    const h = estimateHeight(t);
+    const shadow = t.shadow
+        ? { shadowEnabled: true, shadowColor: '#000', shadowBlur: 30, shadowOpacity: 0.9, shadowOffsetX: 0, shadowOffsetY: 6 }
+        : { shadowEnabled: false };
+    const gradient = (stops) => ({
+        fillPriority: 'linear-gradient',
+        fillLinearGradientStartPoint: { x: 0, y: 0 },
+        fillLinearGradientEndPoint: { x: 0, y: h },
+        fillLinearGradientColorStops: stops,
+    });
+    switch (t.effect) {
+        case 'gold':
+            return {
+                main: { ...gradient(GOLD_STOPS), stroke: '#4a330c', strokeWidth: Math.max(1, t.size * 0.012), fillAfterStrokeEnabled: true, ...shadow },
+                under: [],
+            };
+        case 'silver':
+            return {
+                main: { ...gradient(SILVER_STOPS), stroke: '#2b2e33', strokeWidth: Math.max(1, t.size * 0.012), fillAfterStrokeEnabled: true, ...shadow },
+                under: [],
+            };
+        case 'extrude': {
+            // نص بارز ثلاثي الأبعاد: نُسخ متتالية مزاحة بلون العمق
+            const depth = Math.max(4, t.size * 0.09);
+            const steps = 10;
+            const under = [];
+            for (let i = steps; i >= 1; i--) {
+                under.push({
+                    fill: t.color2,
+                    dx: (depth * i * 0.55) / steps,
+                    dy: (depth * i) / steps,
+                    ...(i === steps ? { shadowEnabled: true, shadowColor: '#000', shadowBlur: depth * 2, shadowOpacity: 0.8, shadowOffsetY: depth * 0.6 } : {}),
+                });
+            }
+            return { main: { fill: t.color, stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1 }, under };
+        }
+        case 'neon':
+            return {
+                main: {
+                    fill: t.color,
+                    stroke: t.glowColor,
+                    strokeWidth: Math.max(1, t.size * 0.025),
+                    fillAfterStrokeEnabled: true,
+                    shadowEnabled: true,
+                    shadowColor: t.glowColor,
+                    shadowBlur: t.size * 0.3,
+                    shadowOpacity: 1,
+                    shadowOffsetX: 0,
+                    shadowOffsetY: 0,
+                },
+                under: [
+                    {
+                        fill: 'rgba(0,0,0,0)',
+                        stroke: t.glowColor,
+                        strokeWidth: Math.max(2, t.size * 0.07),
+                        shadowEnabled: true,
+                        shadowColor: t.glowColor,
+                        shadowBlur: t.size * 0.9,
+                        shadowOpacity: 1,
+                        opacity: 0.85,
+                    },
+                ],
+            };
+        case 'double':
+            return {
+                main: { fill: t.color, stroke: t.strokeColor, strokeWidth: t.strokeWidth, fillAfterStrokeEnabled: true, lineJoin: 'round' },
+                under: [{ fill: t.color2, stroke: t.color2, strokeWidth: t.strokeWidth * 3.4, lineJoin: 'round', ...shadow }],
+            };
+        case 'gradient':
+            return { main: { ...gradient([0, t.color, 1, t.color2]), ...shadow }, under: [] };
+        case 'glow': {
+            const glow = { shadowEnabled: true, shadowColor: t.glowColor, shadowOffsetX: 0, shadowOffsetY: 0, shadowOpacity: 1 };
+            return {
+                main: { fill: t.color, ...glow, shadowBlur: t.size * 0.25 },
+                under: [{ fill: t.color, ...glow, shadowBlur: t.size * 0.75, opacity: 0.9 }],
+            };
+        }
+        case 'outline':
+            return {
+                main: {
+                    fill: t.outlineOnly ? 'rgba(0,0,0,0)' : t.color,
+                    stroke: t.strokeColor,
+                    strokeWidth: t.strokeWidth,
+                    fillAfterStrokeEnabled: !t.outlineOnly,
+                    lineJoin: 'round',
+                    ...shadow,
+                },
+                under: [],
+            };
+        case 'engraved': {
+            const d = Math.max(1.5, t.size * 0.02);
+            return {
+                main: { fill: t.color, shadowEnabled: true, shadowColor: '#000', shadowBlur: d, shadowOpacity: 0.85, shadowOffsetX: 0, shadowOffsetY: -d },
+                under: [{ fill: 'rgba(255,255,255,0.28)', dy: d }],
+            };
+        }
+        default:
+            return { main: { fill: t.color, ...shadow }, under: [] };
+    }
+}
+// ===== lib/imageFilters.js =====
+// ─────────────────────────────────────────────────────────────
+// مرشحات الصور المفرَّغة (Konva Filters)
+// ─────────────────────────────────────────────────────────────
+const FILTER_PRESETS = [
+    { id: 'none', label: 'بدون' },
+    { id: 'bw', label: 'أبيض وأسود' },
+    { id: 'cinematic', label: 'تباين سينمائي' },
+    { id: 'sepia', label: 'بنّي قديم' },
+    { id: 'warm', label: 'دافئ' },
+    { id: 'cold', label: 'بارد' },
+    { id: 'mosaic', label: 'فسيفساء' },
+];
+const DEFAULT_FX = { preset: 'none', brightness: 0, contrast: 0, saturation: 0, tint: 0, tintColor: '#d4af6a', pixelSize: 0, blur: 0 };
+function buildImageFilters(fx) {
+    if (!fx)
+        return { filters: [], attrs: {} };
+    const filters = [];
+    const attrs = {};
+    let { brightness = 0, contrast = 0, saturation = 0, tint = 0, tintColor = '#d4af6a' } = fx;
+    switch (fx.preset) {
+        case 'bw':
+            filters.push(Konva.Filters.Grayscale);
+            break;
+        case 'sepia':
+            filters.push(Konva.Filters.Sepia);
+            break;
+        case 'cinematic':
+            contrast += 30;
+            saturation -= 0.6;
+            brightness -= 0.04;
+            break;
+        case 'warm':
+            if (!tint) {
+                tint = 0.18;
+                tintColor = '#ff9a3c';
+            }
+            break;
+        case 'cold':
+            if (!tint) {
+                tint = 0.18;
+                tintColor = '#3c8cff';
+            }
+            break;
+        default:
+    }
+    if (brightness) {
+        filters.push(Konva.Filters.Brighten);
+        attrs.brightness = brightness;
+    }
+    if (contrast) {
+        filters.push(Konva.Filters.Contrast);
+        attrs.contrast = contrast;
+    }
+    if (saturation && fx.preset !== 'bw') {
+        filters.push(Konva.Filters.HSL);
+        Object.assign(attrs, { saturation, hue: 0, luminance: 0 });
+    }
+    if (tint > 0) {
+        // دمج لون (مثل لون الخلفية) فوق الصورة حتى تبدو جزءاً من المشهد
+        const { r, g, b } = hexToRgb(tintColor);
+        filters.push(Konva.Filters.RGBA);
+        Object.assign(attrs, { red: r, green: g, blue: b, alpha: tint });
+    }
+    const pixel = fx.pixelSize || (fx.preset === 'mosaic' ? 12 : 0);
+    if (pixel > 1) {
+        filters.push(Konva.Filters.Pixelate);
+        attrs.pixelSize = pixel;
+    }
+    if (fx.blur > 0) {
+        filters.push(Konva.Filters.Blur);
+        attrs.blurRadius = fx.blur;
+    }
+    return { filters, attrs };
+}
+// ===== lib/templates.js =====
+// ─────────────────────────────────────────────────────────────
+// قوالب جاهزة حسب التصنيف — نقرة واحدة تضبط الخطوط والألوان والطبقات
+// (تحتفظ بنصوص المستخدم وصوره وشعاره)
+// ─────────────────────────────────────────────────────────────
+const TEMPLATE_CATEGORIES = [
+    { id: 'all', label: 'الكل' },
+    { id: 'horror', label: 'رعب' },
+    { id: 'history', label: 'تاريخ' },
+    { id: 'religious', label: 'ديني' },
+    { id: 'selfdev', label: 'تطوير ذات' },
+    { id: 'kids', label: 'أطفال' },
+    { id: 'essay', label: 'مقالات وفكر' },
+];
+const TEMPLATES = [
+    // ── رعب ──
+    {
+        id: 'horror-whisper', category: 'horror', name: 'همس الظلام', sample: 'همس الظلام',
+        paletteId: 'burgundy',
+        title: { font: 'Reem Kufi', weight: 700, size: 140, color: '#e6ddd0', effect: 'glow', glowColor: '#b3001b', y: 140, shadow: false },
+        subtitle: { font: 'Tajawal', weight: 400, size: 42, color: '#a1968a', y: 1270 },
+        layers: { vignette: 0.9, grain: 0.4, smoke: 0.5, scratches: 0.4 },
+    },
+    {
+        id: 'horror-house', category: 'horror', name: 'المنزل الأخير', sample: 'المنزل الأخير',
+        paletteId: 'ink-night',
+        title: { font: 'Lalezar', weight: 400, size: 150, color: '#ebe4d8', effect: 'outline', strokeColor: '#5c0b0b', strokeWidth: 7, y: 150, shadow: true },
+        subtitle: { font: 'Cairo', weight: 400, size: 40, color: '#9a948b', y: 1280 },
+        layers: { rain: 0.55, vignette: 0.85, grain: 0.35, window: 0.5 },
+        textAboveLayers: true,
+    },
+    // ── تاريخ ──
+    {
+        id: 'history-kingdoms', category: 'history', name: 'سجلّ الممالك', sample: 'سجلّ الممالك',
+        paletteId: 'old-copper',
+        title: { font: 'Aref Ruqaa', weight: 700, size: 135, effect: 'gold', y: 150, shadow: true },
+        subtitle: { font: 'Amiri', weight: 400, size: 46, color: '#dcc79c', y: 1240 },
+        layers: { burnt: 0.6, stains: 0.5, vignette: 0.7, frame: 0.8 },
+    },
+    {
+        id: 'history-siege', category: 'history', name: 'الحصار', sample: 'الحصار',
+        paletteId: 'sand-fog',
+        title: { font: 'Amiri', weight: 700, size: 160, color: '#2b2218', effect: 'engraved', y: 160, shadow: false },
+        subtitle: { font: 'Almarai', weight: 700, size: 40, color: '#2e261c', y: 1270, shadow: false },
+        layers: { concrete: 0.45, dust: 0.5, vignette: 0.6, topo: 0.3 },
+    },
+    // ── ديني ──
+    {
+        id: 'religious-noor', category: 'religious', name: 'نور اليقين', sample: 'نور اليقين',
+        paletteId: 'moss',
+        title: { font: 'Aref Ruqaa', weight: 700, size: 140, effect: 'gold', y: 170, shadow: true },
+        subtitle: { font: 'Amiri', weight: 400, size: 46, color: '#e3d3a8', y: 1230 },
+        layers: { islamic: 0.3, frame: 0.85, vignette: 0.6, rays: 0.4 },
+    },
+    {
+        id: 'religious-madarij', category: 'religious', name: 'مدارج', sample: 'مدارج السالكين',
+        paletteId: 'charcoal-gold',
+        title: { font: 'Amiri', weight: 700, size: 130, color: '#f2e5c2', effect: 'glow', glowColor: '#d4af6a', y: 180, shadow: false },
+        subtitle: { font: 'Tajawal', weight: 500, size: 42, color: '#cbb78c', y: 1250 },
+        layers: { islamic: 0.22, leak: 0.25, vignette: 0.75, grain: 0.2 },
+    },
+    // ── تطوير ذات ──
+    {
+        id: 'selfdev-start', category: 'selfdev', name: 'ابدأ الآن', sample: 'ابدأ الآن',
+        paletteId: 'steel-blue',
+        title: { font: 'Cairo', weight: 900, size: 160, color: '#ffffff', color2: '#d4af6a', effect: 'gradient', y: 160, shadow: true },
+        subtitle: { font: 'Tajawal', weight: 500, size: 44, color: '#c9d4df', y: 1260 },
+        layers: { rays: 0.35, grain: 0.2, vignette: 0.5 },
+    },
+    {
+        id: 'selfdev-habits', category: 'selfdev', name: 'عادات النخبة', sample: 'عادات النخبة',
+        paletteId: 'slate',
+        title: { font: 'Almarai', weight: 800, size: 135, color: '#f5efe3', effect: 'none', y: 170, shadow: true },
+        subtitle: { font: 'Almarai', weight: 400, size: 40, color: '#b9b5ae', y: 1270 },
+        layers: { lines: 0.3, grid: 0.25, vignette: 0.5 },
+    },
+    // ── أطفال ──
+    {
+        id: 'kids-adventure', category: 'kids', name: 'مغامرات سنان', sample: 'مغامرات سنان',
+        customPalette: { name: 'سماء مرحة', type: 'radial', colors: ['#2f7fd1', '#86d6ff', '#1b4f9a'] },
+        title: { font: 'Lalezar', weight: 400, size: 150, color: '#fff6d5', effect: 'outline', strokeColor: '#e0562b', strokeWidth: 12, y: 130, shadow: true },
+        subtitle: { font: 'Cairo', weight: 700, size: 44, color: '#ffffff', y: 1280 },
+        layers: { vignette: 0.2 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'kids-garden', category: 'kids', name: 'حديقة الألوان', sample: 'حديقة الألوان',
+        customPalette: { name: 'ربيع', type: 'linear', colors: ['#3fae6a', '#a6e891', '#1f6e45'] },
+        title: { font: 'Reem Kufi', weight: 700, size: 140, color: '#fff27a', color2: '#ff8a3d', effect: 'gradient', y: 140, shadow: true },
+        subtitle: { font: 'Cairo', weight: 700, size: 44, color: '#fffbe8', y: 1280 },
+        layers: { leak: 0.25 },
+        textAboveLayers: true,
+    },
+    // ── مستوحاة من أنماط التصميم: لوحة خلف العنوان، أشرطة ملونة، محراب، حواف ممزقة، إطار رفيع ──
+    {
+        id: 'plaque-violet', category: 'essay', name: 'اللوحة الزخرفية', sample: 'دروب المعرفة',
+        customPalette: { name: 'بنفسجي ملكي', type: 'linear', colors: ['#3b1d8f', '#5a34c4', '#1c0d4d'] },
+        title: { font: 'Amiri', weight: 700, size: 104, color: '#ece7de', effect: 'engraved', bg: 'plaque', bgColor: '#a08a5c', bgStroke: '#6a55b5', bgOpacity: 1, bgPadding: 34, y: 230, width: 820, shadow: false },
+        subtitle: { font: 'Amiri', weight: 700, size: 58, color: '#c9a86a', y: 470, shadow: true },
+        publisher: { visible: true, y: 70, size: 30, color: '#d8d2e8' },
+        date: { visible: true, color: '#d8c79f' },
+        layers: { grain: 0.3, stains: 0.35, vignette: 0.45 },
+    },
+    {
+        id: 'bars-dark', category: 'essay', name: 'الأشرطة الملونة', sample: 'ذاكرة المدن',
+        paletteId: 'ink-night',
+        title: { font: 'Cairo', weight: 700, size: 92, color: '#8fe0cf', bg: 'bars', bgColor: '#8a2323', bgOpacity: 0.88, bgPadding: 16, bgRadius: 0, y: 220, effect: 'none', shadow: false },
+        subtitle: { font: 'Cairo', weight: 700, size: 36, color: '#ffffff', bg: 'box', bgColor: '#2c7a5e', bgOpacity: 1, bgPadding: 10, y: 470 },
+        publisher: { visible: true },
+        date: { visible: true },
+        layers: { torn: 1, vignette: 0.6, smoke: 0.4, grain: 0.3 },
+        textAboveLayers: false,
+    },
+    {
+        id: 'mihrab-blue', category: 'religious', name: 'إطار المحراب', sample: 'سيرة الأعلام',
+        customPalette: { name: 'سماء زرقاء', type: 'radial', colors: ['#16488f', '#4f8fd6', '#0a2350'] },
+        title: { font: 'Aref Ruqaa', weight: 700, size: 150, color: '#c8102e', effect: 'outline', strokeColor: '#ffffff', strokeWidth: 5, bg: 'halo', bgColor: '#ffffff', bgOpacity: 0.55, bgPadding: 30, y: 80, shadow: true },
+        subtitle: { font: 'Aref Ruqaa', weight: 700, size: 64, color: '#ffffff', effect: 'outline', strokeColor: '#000000', strokeWidth: 4, y: 1180, shadow: true },
+        publisher: { visible: true, x: 150, y: 1370, width: 240, color: '#ffffff' },
+        date: { visible: true, x: 860, color: '#ffffff' },
+        imageStyle: { fadeBottom: 0.25, backdrop: { shape: 'mihrab', color: '#c8102e', opacity: 0.9, width: 0.95, height: 1.1, offsetY: -0.06, fade: 0.3, pattern: 0.35 } },
+        layers: { vignette: 0.45 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'torn-twotone', category: 'essay', name: 'سطران بلونين', sample: 'أسرار القلوب\nفي زمن الفتن',
+        paletteId: 'charcoal-gold',
+        title: { font: 'Cairo', weight: 900, size: 110, color: '#f2efe9', secondColor: '#4fb08c', effect: 'none', y: 200, shadow: true, lineHeight: 1.25 },
+        subtitle: { font: 'Tajawal', weight: 700, size: 40, color: '#cfc8bb', y: 520 },
+        publisher: { visible: true },
+        date: { visible: true },
+        layers: { torn: 1, grain: 0.35, vignette: 0.7, smoke: 0.3 },
+    },
+    {
+        id: 'thin-frame-green', category: 'essay', name: 'الإطار الرفيع', sample: 'تأملات في الفكر',
+        customPalette: { name: 'أخضر داكن', type: 'linear', colors: ['#1d3b30', '#2a4d3f', '#0e1f18'] },
+        title: { font: 'Reem Kufi', weight: 700, size: 120, color: '#cdb79c', effect: 'none', y: 200, shadow: true },
+        subtitle: { font: 'Tajawal', weight: 500, size: 48, color: '#c7c2b8', y: 360 },
+        tag: { visible: true, text: 'مقال' },
+        publisher: { visible: false },
+        layers: { thinframe: 0.8, concrete: 0.35, grain: 0.3 },
+    },
+    {
+        id: 'pill-gold', category: 'essay', name: 'الإطار البيضاوي', sample: 'تعليقات ولفتات',
+        paletteId: 'charcoal-gold',
+        title: { font: 'Cairo', weight: 700, size: 70, color: '#d9b26a', bg: 'pill', bgStroke: '#b8914a', bgColor: '#000000', bgOpacity: 1, bgPadding: 24, y: 250, effect: 'none', shadow: true },
+        subtitle: { font: 'Lalezar', weight: 400, size: 80, color: '#f0ede8', y: 400, shadow: true, effect: 'glow', glowColor: '#ffffff' },
+        publisher: { visible: true },
+        date: { visible: true },
+        layers: { torn: 1, vignette: 0.8, grain: 0.3 },
+    },
+    // ── قوالب سينمائية ──
+    {
+        id: 'cinema-teal', category: 'horror', name: 'ملصق سينمائي', sample: 'الليلة الأخيرة',
+        paletteId: 'steel-blue',
+        title: { font: 'Lalezar', weight: 400, size: 160, color: '#f4efe6', color2: '#7a1d10', effect: 'extrude', y: 120, shadow: false },
+        subtitle: { font: 'Cairo', weight: 700, size: 42, color: '#e6d9c4', y: 1290, shadow: true },
+        layers: { smoke: 0.5, embers: 0.6, vignette: 0.8, grain: 0.3 },
+        grade: 'tealOrange', gradeAmount: 0.7,
+        textAboveLayers: true,
+    },
+    {
+        id: 'neon-noir', category: 'horror', name: 'نيون الليل', sample: 'مدينة بلا نوم',
+        paletteId: 'night-violet',
+        title: { font: 'Reem Kufi', weight: 700, size: 140, color: '#fff3f8', glowColor: '#ff2d75', effect: 'neon', y: 160, shadow: false },
+        subtitle: { font: 'Tajawal', weight: 500, size: 42, color: '#c9b8e8', y: 1280 },
+        layers: { rain: 0.5, bokeh: 0.5, vignette: 0.7, grain: 0.25 },
+        grade: 'cold', gradeAmount: 0.45,
+        textAboveLayers: true,
+    },
+    {
+        id: 'silver-history', category: 'history', name: 'الفضّي العريق', sample: 'تاريخ الأندلس',
+        paletteId: 'slate',
+        title: { font: 'Amiri', weight: 700, size: 150, effect: 'silver', y: 150, shadow: true },
+        subtitle: { font: 'Amiri', weight: 400, size: 46, color: '#d9dde3', y: 1250 },
+        layers: { clouds: 0.4, spotlight: 0.5, grain: 0.3, frame: 0.6 },
+        grade: 'bleach', gradeAmount: 0.5,
+    },
+    {
+        id: 'double-kids', category: 'kids', name: 'المغامر الصغير', sample: 'رحلة إلى القمر',
+        customPalette: { name: 'ليل مرح', type: 'radial', colors: ['#24307a', '#4a63d6', '#141b4d'] },
+        title: { font: 'Lalezar', weight: 400, size: 150, color: '#ffe04a', strokeColor: '#c2410c', color2: '#ffffff', strokeWidth: 6, effect: 'double', y: 120, shadow: true },
+        subtitle: { font: 'Cairo', weight: 700, size: 44, color: '#ffffff', y: 1290 },
+        layers: { bokeh: 0.45, flare: 0.4 },
+        textAboveLayers: true,
+    },
+];
+const STYLE_RESET = { effect: 'none', bg: 'none', secondColor: '', rotation: 0, letterSpacing: 0 };
+/** تطبيق القالب على المستند مع الاحتفاظ بنص المستخدم وصوره */
+function applyTemplateToDoc(doc, tpl) {
+    const layers = {};
+    for (const o of ALL_OVERLAYS) {
+        const v = tpl.layers?.[o.id];
+        layers[o.id] = v !== undefined ? { enabled: true, opacity: v } : { ...doc.layers[o.id], enabled: false };
+    }
+    return {
+        ...doc,
+        paletteId: tpl.customPalette ? 'custom' : tpl.paletteId,
+        customPalette: tpl.customPalette || doc.customPalette,
+        texts: Object.fromEntries(Object.entries(doc.texts).map(([k, t]) => {
+            const style = tpl[k];
+            if (!style)
+                return [k, k === 'title' || k === 'subtitle' ? { ...t, ...STYLE_RESET } : t];
+            const { text, ...rest } = style;
+            const base = k === 'title' || k === 'subtitle' ? { ...t, ...STYLE_RESET, x: t.x } : t;
+            return [k, { ...base, ...rest, ...(text && k !== 'title' ? { text } : {}) }];
+        })),
+        images: tpl.imageStyle
+            ? doc.images.map((img) => ({ ...img, ...tpl.imageStyle, backdrop: { ...(img.backdrop || {}), ...(tpl.imageStyle.backdrop || {}) } }))
+            : doc.images,
+        layers,
+        textAboveLayers: !!tpl.textAboveLayers,
+        grade: tpl.grade ? { preset: tpl.grade, amount: tpl.gradeAmount ?? 0.6 } : { preset: 'none', amount: doc.grade?.amount ?? 0.6 },
+    };
+}
+// ===== lib/aiBackground.js =====
+// ─────────────────────────────────────────────────────────────
+// توليد خلفية من وصف نصي — عبر Pollinations.ai (مجاني، بدون مفتاح)
+// ─────────────────────────────────────────────────────────────
+// ملاحظات:
+// • هذه الميزة الوحيدة التي تتصل بخدمة خارجية (التوليد يحتاج خوادم GPU).
+//   إزالة الخلفية ما زالت تتم داخل المتصفح بالكامل.
+// • المستوى المجاني محدود بطلب واحد كل ~15 ثانية تقريباً.
+// • الوصف بالإنجليزية يعطي نتائج أدق؛ لذلك القوالب السريعة تُرسل وصفاً إنجليزياً.
+const AI_STYLE_SUFFIX = 'cinematic dark moody book cover background art, dramatic lighting, atmospheric, film grain, highly detailed, vertical composition, empty space at top for title, no text, no letters, no watermark';
+const AI_PRESETS = [
+    { label: 'مدينة مدمّرة تحت المطر ليلاً', prompt: 'ruined destroyed city at night under heavy rain, wet reflective streets, smoke' },
+    { label: 'صحراء وقمر', prompt: 'vast desert dunes under a huge full moon, lone traveler silhouette, night' },
+    { label: 'مسجد قديم عند الفجر', prompt: 'ancient mosque with minaret at dawn, golden mist, sun rays' },
+    { label: 'غابة مظلمة وضباب', prompt: 'dark haunted forest with thick fog, twisted trees, faint light' },
+    { label: 'قلعة على جبل', prompt: 'medieval fortress on a mountain cliff, stormy sky, eagles' },
+    { label: 'ساحة معركة قديمة', prompt: 'ancient battlefield with banners and dust, horsemen silhouettes, sunset' },
+    { label: 'بحر هائج وسفينة', prompt: 'stormy ocean with a lonely old sailing ship, lightning, giant waves' },
+    { label: 'مكتبة قديمة', prompt: 'old abandoned library with dusty books, candle light, cobwebs' },
+    { label: 'شارع ممطر بأضواء نيون', prompt: 'rainy narrow alley at night with neon lights, lone figure with umbrella, noir' },
+    { label: 'فضاء وكواكب', prompt: 'deep space nebula with a giant planet, stars, lone astronaut' },
+];
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+/**
+ * @returns {Promise<string>} رابط blob: للصورة المولَّدة (آمن للتصدير من الكانفاس)
+ */
+async function generateAIBackground(prompt, { seed = Math.floor(Math.random() * 1e9), width = 1000, height = 1500, enhanceStyle = true } = {}) {
+    const text = (prompt || '').trim();
+    if (!text)
+        throw new Error('اكتب وصفاً للخلفية أولاً');
+    const full = enhanceStyle ? `${text}, ${AI_STYLE_SUFFIX}` : text;
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(full)}` +
+        `?width=${width}&height=${height}&seed=${seed}&nologo=true`;
+    for (let attempt = 0; attempt < 2; attempt++) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 150000);
+        try {
+            const res = await fetch(url, { signal: controller.signal });
+            if (res.status === 429 && attempt === 0) {
+                await sleep(16000); // انتظر حد الاستخدام المجاني ثم أعد المحاولة مرة واحدة
+                continue;
+            }
+            if (!res.ok)
+                throw new Error(res.status === 429 ? 'الخدمة مشغولة — انتظر 15 ثانية وأعد المحاولة' : `فشل التوليد (رمز ${res.status})`);
+            const blob = await res.blob();
+            if (!blob.type.startsWith('image/'))
+                throw new Error('الخدمة لم تُرجع صورة، أعد المحاولة');
+            return URL.createObjectURL(blob);
+        }
+        catch (err) {
+            if (err.name === 'AbortError')
+                throw new Error('انتهت مهلة التوليد، أعد المحاولة');
+            throw err;
+        }
+        finally {
+            clearTimeout(timer);
+        }
+    }
+    throw new Error('الخدمة مشغولة — أعد المحاولة بعد قليل');
+}
+// ===== lib/assetLibrary.js =====
+// ─────────────────────────────────────────────────────────────
+// مكتبة العناصر المجانية مفتوحة المصدر
+// ─────────────────────────────────────────────────────────────
+// • الأيقونات: Iconify — أكثر من 200 ألف أيقونة من مجموعات مفتوحة المصدر
+//   (Material, Tabler, Phosphor, Game Icons…). تُحوَّل إلى PNG شفاف بأي لون.
+// • صور PNG: ويكيميديا كومنز — ملفات PNG بتراخيص حرة (CC / ملكية عامة).
+//   بعض التراخيص تتطلب ذكر صاحب العمل؛ يظهر الترخيص والمؤلف على كل صورة.
+const ICON_SUGGESTIONS = [
+    ['سيف', 'sword'], ['هلال', 'crescent'], ['مسجد', 'mosque'], ['كتاب', 'book'], ['تاج', 'crown'],
+    ['جمجمة', 'skull'], ['طائر', 'bird'], ['شجرة', 'tree'], ['نجمة', 'star'], ['ريشة', 'feather'],
+    ['درع', 'shield'], ['مفتاح', 'key'], ['عين', 'eye'], ['نار', 'fire'], ['قمر', 'moon'], ['حصان', 'horse'],
+];
+const PNG_SUGGESTIONS = [
+    ['أسد', 'lion'], ['حصان', 'horse'], ['نسر', 'eagle'], ['شجرة', 'tree'], ['قلعة', 'castle'], ['فارس', 'knight'],
+    ['سيف', 'sword'], ['ساعة', 'clock'], ['وردة', 'rose'], ['غراب', 'crow'], ['فانوس', 'lantern'], ['ذئب', 'wolf'],
+];
+/** يحوّل كلمة عربية معروفة إلى ما يقابلها بالإنجليزية (محركات البحث هذه تفهم الإنجليزية) */
+function translateQuery(q, table) {
+    const t = q.trim();
+    const hit = table.find(([ar]) => ar === t);
+    return hit ? hit[1] : t;
+}
+// ───────── Iconify ─────────
+async function searchIcons(query, limit = 64) {
+    const res = await fetch(`https://api.iconify.design/search?query=${encodeURIComponent(query)}&limit=${limit}`);
+    if (!res.ok)
+        throw new Error('تعذّر البحث في الأيقونات');
+    const json = await res.json();
+    return json.icons || [];
+}
+function iconSvgUrl(name, color = '#d4af6a') {
+    const [prefix, icon] = name.split(':');
+    return `https://api.iconify.design/${prefix}/${icon}.svg?height=512&color=${encodeURIComponent(color)}`;
+}
+/** يحوّل الأيقونة إلى PNG شفاف بدقة عالية (حتى تُصدَّر بوضوح) */
+async function iconToPngUrl(name, color, size = 1024) {
+    const svgText = await (await fetch(iconSvgUrl(name, color))).text();
+    const svgUrl = URL.createObjectURL(new Blob([svgText], { type: 'image/svg+xml' }));
+    try {
+        const img = await loadImage(svgUrl);
+        const ratio = (img.naturalWidth || 1) / (img.naturalHeight || 1);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(ratio >= 1 ? size : size * ratio);
+        canvas.height = Math.round(ratio >= 1 ? size / ratio : size);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        const blob = await new Promise((r) => canvas.toBlob(r, 'image/png'));
+        return URL.createObjectURL(blob);
+    }
+    finally {
+        URL.revokeObjectURL(svgUrl);
+    }
+}
+// ───────── ويكيميديا كومنز ─────────
+const stripHtml = (s) => (s || '').replace(/<[^>]*>/g, '').trim();
+async function searchCommonsPNG(query, limit = 40) {
+    const params = new URLSearchParams({
+        action: 'query',
+        format: 'json',
+        origin: '*',
+        generator: 'search',
+        gsrnamespace: '6',
+        gsrsearch: `${query} filemime:image/png`,
+        gsrlimit: String(limit),
+        prop: 'imageinfo',
+        iiprop: 'url|size|mime|extmetadata',
+        iiurlwidth: '330',
+    });
+    const res = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`);
+    if (!res.ok)
+        throw new Error('تعذّر البحث في ويكيميديا');
+    const json = await res.json();
+    return Object.values(json.query?.pages || {})
+        .map((p) => {
+        const ii = p.imageinfo?.[0];
+        if (!ii || ii.mime !== 'image/png')
+            return null;
+        return {
+            id: p.pageid,
+            title: p.title.replace(/^File:/, '').replace(/\.png$/i, ''),
+            thumb: ii.thumburl || ii.url,
+            full: ii.url,
+            width: ii.width,
+            license: stripHtml(ii.extmetadata?.LicenseShortName?.value) || 'ترخيص حر',
+            artist: stripHtml(ii.extmetadata?.Artist?.value).slice(0, 60),
+            page: ii.descriptionurl,
+        };
+    })
+        .filter(Boolean);
+}
+/** ينزّل نسخة مناسبة الحجم من الصورة كرابط blob: محلي */
+async function fetchCommonsImage(item) {
+    const candidates = [];
+    if (item.width > 1280 && item.thumb)
+        candidates.push(item.thumb.replace(/\/\d+px-/, '/1280px-'));
+    candidates.push(item.full);
+    for (const url of candidates) {
+        try {
+            const res = await fetch(url);
+            if (!res.ok)
+                continue;
+            return URL.createObjectURL(await res.blob());
+        }
+        catch {
+            /* جرّب الرابط التالي */
+        }
+    }
+    throw new Error('تعذّر تنزيل الصورة');
+}
+// ===== lib/project.js =====
+// ─────────────────────────────────────────────────────────────
+// حفظ المشروع وفتحه لاحقاً (ملف .cover.json يحتوي كل شيء بما فيه الصور)
+// ─────────────────────────────────────────────────────────────
+const APP_ID = 'cover-studio';
+const VERSION = 2;
+function blobToDataURL(blob) {
+    return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsDataURL(blob);
+    });
+}
+async function toDataURL(src) {
+    if (!src || src.startsWith('data:'))
+        return src;
+    return blobToDataURL(await (await fetch(src)).blob());
+}
+async function toObjectURL(src) {
+    if (!src || !src.startsWith('data:'))
+        return src;
+    return URL.createObjectURL(await (await fetch(src)).blob());
+}
+async function mapSources(doc, fn) {
+    const out = JSON.parse(JSON.stringify(doc));
+    for (const img of out.images) {
+        img.src = await fn(img.src);
+        if (img.originalSrc)
+            img.originalSrc = img.originalSrc === doc.images.find((i) => i.id === img.id)?.src ? img.src : await fn(img.originalSrc);
+    }
+    for (const img of out.images)
+        if (img.maskSrc)
+            img.maskSrc = await fn(img.maskSrc);
+    if (out.logo)
+        out.logo.src = await fn(out.logo.src);
+    if (out.background)
+        out.background.src = await fn(out.background.src);
+    return out;
+}
+async function serializeProject(doc) {
+    const embedded = await mapSources(doc, toDataURL);
+    return JSON.stringify({ app: APP_ID, version: VERSION, savedAt: new Date().toISOString(), doc: embedded });
+}
+/** يقرأ ملف المشروع ويدمجه مع القيم الافتراضية (لتوافق الملفات القديمة) */
+async function parseProject(file, defaults) {
+    let json;
+    try {
+        json = JSON.parse(await file.text());
+    }
+    catch {
+        throw new Error('الملف ليس مشروع غلاف صالحاً');
+    }
+    if (json.app !== APP_ID || !json.doc)
+        throw new Error('هذا الملف ليس من استوديو الأغلفة');
+    const d = json.doc;
+    const merged = {
+        ...defaults,
+        ...d,
+        texts: Object.fromEntries(Object.keys(defaults.texts).map((k) => [k, { ...defaults.texts[k], ...(d.texts?.[k] || {}) }])),
+        layers: { ...defaults.layers, ...(d.layers || {}) },
+        images: d.images || [],
+    };
+    return mapSources(merged, toObjectURL);
+}
+function projectFileName(title) {
+    const safe = (title || 'غلاف').replace(/[\\/:*?"<>|\n]+/g, ' ').trim().slice(0, 50) || 'غلاف';
+    return `${safe}.cover.json`;
+}
+// ===== lib/grading.js =====
+// ─────────────────────────────────────────────────────────────
+// التدرّج اللوني السينمائي (Color Grading) لكامل الغلاف
+// طبقات ألوان بأوضاع دمج تُرسم فوق التصميم — مثل LUT مبسّط
+// ─────────────────────────────────────────────────────────────
+const GRADES = [
+    { id: 'none', label: 'بدون', swatch: ['#333', '#333'] },
+    { id: 'tealOrange', label: 'سينمائي', swatch: ['#00808a', '#ff8a2a'] },
+    { id: 'cold', label: 'بارد', swatch: ['#1b3a6b', '#6aa0ff'] },
+    { id: 'warm', label: 'ذهبي دافئ', swatch: ['#5a2e00', '#ffb347'] },
+    { id: 'noir', label: 'أبيض وأسود', swatch: ['#111', '#ddd'] },
+    { id: 'bleach', label: 'باهت', swatch: ['#6d6a63', '#d8d0c0'] },
+    { id: 'crimson', label: 'قرمزي', swatch: ['#3a0008', '#e0102e'] },
+    { id: 'emerald', label: 'زمردي', swatch: ['#06321f', '#2fbf8a'] },
+    { id: 'sepia', label: 'عتيق', swatch: ['#3b2412', '#c89a5e'] },
+];
+const DEFAULT_GRADE = { preset: 'none', amount: 0.6 };
+function gradeLayers(grade, W, H) {
+    const a = grade?.amount ?? 0.6;
+    const vertical = (stops) => ({
+        fillLinearGradientStartPoint: { x: 0, y: 0 },
+        fillLinearGradientEndPoint: { x: 0, y: H },
+        fillLinearGradientColorStops: stops,
+    });
+    switch (grade?.preset) {
+        case 'tealOrange':
+            return [
+                { ...vertical([0, '#00808a', 0.55, '#1b3a4b', 1, '#ff8a2a']), blend: 'soft-light', opacity: a * 0.9 },
+                { fill: '#ff9a40', blend: 'overlay', opacity: a * 0.08 },
+            ];
+        case 'cold':
+            return [
+                { fill: '#2a6cff', blend: 'soft-light', opacity: a * 0.6 },
+                { fill: '#808080', blend: 'saturation', opacity: a * 0.3 },
+            ];
+        case 'warm':
+            return [
+                { fill: '#ffb347', blend: 'soft-light', opacity: a * 0.65 },
+                { fill: '#5a2e00', blend: 'multiply', opacity: a * 0.12 },
+            ];
+        case 'noir':
+            return [
+                { fill: '#808080', blend: 'saturation', opacity: Math.min(1, a * 1.4) },
+                { ...vertical([0, '#ffffff', 1, '#000000']), blend: 'soft-light', opacity: a * 0.35 },
+            ];
+        case 'bleach':
+            return [
+                { fill: '#808080', blend: 'saturation', opacity: a * 0.6 },
+                { fill: '#d8d0c0', blend: 'soft-light', opacity: a * 0.45 },
+            ];
+        case 'crimson':
+            return [
+                { fill: '#b0001e', blend: 'soft-light', opacity: a * 0.75 },
+                { fill: '#808080', blend: 'saturation', opacity: a * 0.25 },
+            ];
+        case 'emerald':
+            return [{ fill: '#0f8a5f', blend: 'soft-light', opacity: a * 0.75 }];
+        case 'sepia':
+            return [
+                { fill: '#808080', blend: 'saturation', opacity: a * 0.85 },
+                { fill: '#c08040', blend: 'soft-light', opacity: a * 0.7 },
+            ];
+        default:
+            return [];
+    }
+}
+// ===== hooks/useArabicFonts.js =====
+/**
+ * يحمّل الخطوط السبعة في الخلفية ويعيد رقم "نسخة" يزيد كلما اكتمل خط.
+ * يُمرَّر هذا الرقم إلى مفاتيح عُقد النص في Konva لإجبارها على إعادة القياس والرسم.
+ */
+function useArabicFonts() {
+    const [version, setVersion] = useState(0);
+    const [loadedCount, setLoadedCount] = useState(0);
+    useEffect(() => {
+        let alive = true;
+        ARABIC_FONTS.forEach((f) => {
+            loadGoogleFont(f.family).then(() => {
+                if (!alive)
+                    return;
+                setVersion((v) => v + 1);
+                setLoadedCount((c) => c + 1);
+            });
+        });
+        return () => {
+            alive = false;
+        };
+    }, []);
+    return { fontsVersion: version, allLoaded: loadedCount >= ARABIC_FONTS.length };
+}
+// ===== hooks/useHTMLImage.js =====
+/** يحوّل رابط صورة (blob: أو data:) إلى HTMLImageElement جاهز لـ Konva */
+function useHTMLImage(src) {
+    const [image, setImage] = useState(null);
+    useEffect(() => {
+        if (!src) {
+            setImage(null);
+            return;
+        }
+        let alive = true;
+        const img = new window.Image();
+        img.decoding = 'async';
+        img.onload = () => alive && setImage(img);
+        img.onerror = () => alive && setImage(null);
+        img.src = src;
+        return () => {
+            alive = false;
+        };
+    }, [src]);
+    return image;
+}
+// ===== hooks/useHistory.js =====
+const LIMIT = 80;
+const MERGE_WINDOW = 800; // ms — تحريك منزلق أو كتابة متواصلة = خطوة تراجع واحدة
+/**
+ * سجل تراجع/إعادة للتصميم كاملاً.
+ * set(updater, { key }) — التعديلات المتتالية بنفس key خلال 800ms تُدمج في خطوة واحدة.
+ */
+function useHistory(initial) {
+    const [state, setState] = useState(() => ({
+        past: [],
+        present: typeof initial === 'function' ? initial() : initial,
+        future: [],
+    }));
+    const last = useRef({ key: null, t: 0 });
+    const set = useCallback((updater, { key = null } = {}) => {
+        const now = Date.now();
+        const merge = key !== null && last.current.key === key && now - last.current.t < MERGE_WINDOW;
+        last.current = { key, t: now };
+        setState((s) => {
+            const next = typeof updater === 'function' ? updater(s.present) : updater;
+            if (next === s.present)
+                return s;
+            if (merge)
+                return { ...s, present: next, future: [] };
+            return { past: [...s.past, s.present].slice(-LIMIT), present: next, future: [] };
+        });
+    }, []);
+    const undo = useCallback(() => {
+        last.current = { key: null, t: 0 };
+        setState((s) => s.past.length ? { past: s.past.slice(0, -1), present: s.past[s.past.length - 1], future: [s.present, ...s.future] } : s);
+    }, []);
+    const redo = useCallback(() => {
+        last.current = { key: null, t: 0 };
+        setState((s) => (s.future.length ? { past: [...s.past, s.present], present: s.future[0], future: s.future.slice(1) } : s));
+    }, []);
+    return {
+        present: state.present,
+        set,
+        undo,
+        redo,
+        canUndo: state.past.length > 0,
+        canRedo: state.future.length > 0,
+    };
+}
+// ===== components/ui.jsx =====
+function Section({ title, hint, children, action }) {
+    return (React.createElement("section", { className: "rounded-2xl border border-white/5 bg-ink-800/70 p-4 space-y-4" },
+        (title || action) && (React.createElement("header", { className: "flex items-center justify-between gap-3" },
+            React.createElement("div", null,
+                React.createElement("h3", { className: "text-[13px] font-bold tracking-wide text-gold-300" }, title),
+                hint && React.createElement("p", { className: "mt-0.5 text-[11px] text-stone-500" }, hint)),
+            action)),
+        children));
+}
+function FieldLabel({ children, value }) {
+    return (React.createElement("div", { className: "mb-1.5 flex items-center justify-between text-[12px] text-stone-400" },
+        React.createElement("span", null, children),
+        value !== undefined && React.createElement("span", { className: "tabular-nums text-stone-500", dir: "ltr" }, value)));
+}
+function RangeField({ label, value, min, max, step = 1, onChange, format, disabled }) {
+    return (React.createElement("label", { className: "block" },
+        React.createElement(FieldLabel, { value: format ? format(value) : value }, label),
+        React.createElement("input", { type: "range", className: "slider", min: min, max: max, step: step, value: value, disabled: disabled, onChange: (e) => onChange(parseFloat(e.target.value)) })));
+}
+function SelectField({ label, value, onChange, options, styleFor }) {
+    return (React.createElement("label", { className: "block" },
+        label && React.createElement(FieldLabel, null, label),
+        React.createElement("select", { value: value, onChange: (e) => onChange(e.target.value), className: "w-full rounded-xl border border-white/10 bg-ink-900 px-3 py-2.5 text-sm text-stone-200 outline-none transition focus:border-gold-500/60" }, options.map((o) => (React.createElement("option", { key: o.value, value: o.value, style: styleFor?.(o) }, o.label))))));
+}
+function TextAreaField({ label, value, onChange, rows = 2, style, inputRef }) {
+    return (React.createElement("label", { className: "block" },
+        label && React.createElement(FieldLabel, null, label),
+        React.createElement("textarea", { ref: inputRef, rows: rows, value: value, onChange: (e) => onChange(e.target.value), style: style, className: "w-full resize-none rounded-xl border border-white/10 bg-ink-900 px-3 py-2.5 text-base leading-relaxed text-stone-100 outline-none transition focus:border-gold-500/60" })));
+}
+function ColorField({ label, value, onChange }) {
+    return (React.createElement("label", { className: "flex items-center justify-between gap-3" },
+        React.createElement("span", { className: "text-[12px] text-stone-400" }, label),
+        React.createElement("span", { className: "flex items-center gap-2" },
+            React.createElement("span", { className: "text-[11px] uppercase text-stone-500", dir: "ltr" }, value),
+            React.createElement("input", { type: "color", className: "swatch", value: value, onChange: (e) => onChange(e.target.value) }))));
+}
+function Toggle({ checked, onChange, label, small }) {
+    return (React.createElement("button", { type: "button", role: "switch", "aria-checked": checked, onClick: () => onChange(!checked), className: "flex items-center gap-3 text-right" },
+        React.createElement("span", { className: `relative inline-flex shrink-0 rounded-full transition ${small ? 'h-5 w-9' : 'h-6 w-11'} ${checked ? 'bg-gold-500' : 'bg-ink-600'}` },
+            React.createElement("span", { className: `absolute top-0.5 rounded-full bg-ink-950 shadow transition-all ${small ? 'h-4 w-4' : 'h-5 w-5'} ${checked ? (small ? 'right-[18px]' : 'right-[22px]') : 'right-0.5'}` })),
+        label && React.createElement("span", { className: "text-[13px] text-stone-300" }, label)));
+}
+function Button({ children, onClick, variant = 'ghost', disabled, className = '', title }) {
+    const styles = {
+        primary: 'bg-gold-400 text-ink-950 hover:bg-gold-300 font-bold',
+        ghost: 'border border-white/10 bg-ink-900 text-stone-300 hover:border-gold-500/50 hover:text-gold-200',
+        danger: 'border border-red-900/50 bg-red-950/30 text-red-300 hover:bg-red-950/60',
+    };
+    return (React.createElement("button", { type: "button", title: title, onClick: onClick, disabled: disabled, className: `rounded-xl px-3 py-2 text-[13px] transition disabled:cursor-not-allowed disabled:opacity-40 ${styles[variant]} ${className}` }, children));
+}
+function UploadDrop({ accept = 'image/*', onFile, disabled, title, subtitle }) {
+    const inputRef = useRef(null);
+    const handle = (files) => {
+        const file = files?.[0];
+        if (file && file.type.startsWith('image/'))
+            onFile(file);
+    };
+    return (React.createElement("div", { role: "button", tabIndex: 0, onClick: () => !disabled && inputRef.current?.click(), onKeyDown: (e) => e.key === 'Enter' && !disabled && inputRef.current?.click(), onDragOver: (e) => e.preventDefault(), onDrop: (e) => {
+            e.preventDefault();
+            if (!disabled)
+                handle(e.dataTransfer.files);
+        }, className: `group grid place-items-center rounded-2xl border border-dashed px-4 py-6 text-center transition ${disabled
+            ? 'cursor-wait border-white/10 opacity-50'
+            : 'cursor-pointer border-gold-600/40 hover:border-gold-400 hover:bg-gold-400/5'}` },
+        React.createElement("div", { className: "mb-2 grid h-10 w-10 place-items-center rounded-full bg-gold-400/10 text-xl text-gold-300" }, "\uFF0B"),
+        React.createElement("div", { className: "text-sm font-bold text-stone-200" }, title),
+        subtitle && React.createElement("div", { className: "mt-1 text-[11px] text-stone-500" }, subtitle),
+        React.createElement("input", { ref: inputRef, type: "file", accept: accept, hidden: true, onChange: (e) => {
+                handle(e.target.files);
+                e.target.value = '';
+            } })));
+}
+function ProgressBar({ percent, label }) {
+    return (React.createElement("div", { className: "space-y-2" },
+        React.createElement("div", { className: "flex justify-between text-[12px] text-stone-400" },
+            React.createElement("span", null, label),
+            React.createElement("span", { dir: "ltr" },
+                percent,
+                "%")),
+        React.createElement("div", { className: "h-1.5 overflow-hidden rounded-full bg-ink-600" },
+            React.createElement("div", { className: "h-full rounded-full bg-gradient-to-l from-gold-300 to-gold-600 transition-all", style: { width: `${percent}%` } }))));
+}
+// ===== components/TransformableImage.jsx =====
+/** شكل ملوّن خلف الصورة (محراب، قوس، دائرة، توهّج…) يتحرك معها */
+function Backdrop({ item }) {
+    const bd = item.backdrop;
+    if (!bd || bd.shape === 'none')
+        return null;
+    const w = item.width * bd.width;
+    const h = item.height * bd.height;
+    const y = bd.offsetY * item.height;
+    const scene = (ctx, shape) => {
+        traceBackdrop(ctx, bd.shape, w, h);
+        ctx.fillStrokeShape(shape);
+    };
+    let fill;
+    if (bd.shape === 'glow') {
+        fill = {
+            fillRadialGradientStartPoint: { x: 0, y: 0 },
+            fillRadialGradientEndPoint: { x: 0, y: 0 },
+            fillRadialGradientStartRadius: 0,
+            fillRadialGradientEndRadius: Math.max(w, h) / 2,
+            fillRadialGradientColorStops: [0, rgba(bd.color, 1), 0.45, rgba(bd.color, 0.55), 1, rgba(bd.color, 0)],
+        };
+    }
+    else if (bd.fade > 0) {
+        fill = {
+            fillLinearGradientStartPoint: { x: 0, y: -h / 2 },
+            fillLinearGradientEndPoint: { x: 0, y: h / 2 },
+            fillLinearGradientColorStops: [0, rgba(bd.color, 1), Math.max(0, 1 - bd.fade), rgba(bd.color, 1), 1, rgba(bd.color, 0)],
+        };
+    }
+    else {
+        fill = { fill: bd.color };
+    }
+    return (React.createElement(React.Fragment, null,
+        React.createElement(Shape, { y: y, sceneFunc: scene, ...fill, opacity: bd.opacity, stroke: bd.stroke ? bd.strokeColor : undefined, strokeWidth: bd.stroke ? 4 : 0, strokeEnabled: !!bd.stroke }),
+        bd.pattern > 0 && bd.shape !== 'glow' && (React.createElement(Shape, { y: y, sceneFunc: scene, fillPatternImage: getOverlayCanvas('islamic'), fillPatternRepeat: "repeat", fillPatternScale: { x: 0.55 / OVERLAY_SCALE, y: 0.55 / OVERLAY_SCALE }, opacity: bd.pattern, listening: false }))));
+}
+/**
+ * عنصر صوري (صورة/شعار) داخل مجموعة قابلة للسحب والتكبير والتدوير.
+ * المجموعة تضم: الشكل الخلفي + الصورة (مع المرشحات والتلاشي والظل/التوهّج).
+ * الإحداثيات (x, y) تمثل مركز العنصر.
+ */
+function TransformableImage({ item, onSelect, onDragEnd, onOpenProps }) {
+    const image = useHTMLImage(item.src);
+    const imgRef = useRef(null);
+    const fadeBottom = item.fadeBottom || 0;
+    const fadeEdges = item.fadeEdges || 0;
+    const source = useMemo(() => (image && (fadeBottom > 0 || fadeEdges > 0) ? makeFadedImage(image, fadeBottom, fadeEdges) : image), [image, fadeBottom, fadeEdges]);
+    const { filters, attrs } = useMemo(() => buildImageFilters(item.fx), [item.fx]);
+    const mode = item.shadowMode || (item.shadow ? 'ground' : 'none');
+    const shadow = mode === 'ground'
+        ? { shadowEnabled: true, shadowColor: '#000', shadowBlur: 45, shadowOpacity: 0.75, shadowOffsetX: 0, shadowOffsetY: 18 }
+        : mode === 'glow'
+            ? { shadowEnabled: true, shadowColor: item.glowColor || '#ffffff', shadowBlur: item.glowSize ?? 60, shadowOpacity: 1, shadowOffsetX: 0, shadowOffsetY: 0 }
+            : { shadowEnabled: false };
+    // المرشحات تعمل على نسخة مخزّنة (cache) — نعيد بناءها عند أي تغيير
+    useEffect(() => {
+        const node = imgRef.current;
+        if (!node)
+            return;
+        if (filters.length)
+            node.cache({ pixelRatio: 2 });
+        else
+            node.clearCache();
+        node.getLayer()?.batchDraw();
+    }, [source, filters, attrs, item.width, item.height, mode, item.glowColor, item.glowSize]);
+    if (!source)
+        return null;
+    return (React.createElement(Group, { id: item.id, name: "element", x: item.x, y: item.y, rotation: item.rotation, scaleX: item.scale, scaleY: item.scale, opacity: item.opacity, visible: item.visible !== false, listening: !item.locked, draggable: !item.locked, onMouseDown: (e) => onSelect(item.id, e.evt?.shiftKey), onTap: () => onSelect(item.id), onDblClick: () => onOpenProps?.(item.id), onDblTap: () => onOpenProps?.(item.id), onDragEnd: onDragEnd },
+        React.createElement(Backdrop, { item: item }),
+        React.createElement(KonvaImage, { ref: imgRef, image: source, width: item.width, height: item.height, offsetX: item.width / 2, offsetY: item.height / 2, filters: filters, ...attrs, ...shadow })));
+}
+// ===== components/CoverCanvas.jsx =====
+function paletteFill(palette) {
+    const [base, light, edge] = palette.colors;
+    if (palette.type === 'radial') {
+        return {
+            fillRadialGradientStartPoint: { x: COVER_W / 2, y: COVER_H * 0.4 },
+            fillRadialGradientEndPoint: { x: COVER_W / 2, y: COVER_H * 0.4 },
+            fillRadialGradientStartRadius: 0,
+            fillRadialGradientEndRadius: COVER_H * 0.78,
+            fillRadialGradientColorStops: [0, light, 0.55, base, 1, edge],
+        };
+    }
+    return {
+        fillLinearGradientStartPoint: { x: COVER_W * 0.1, y: 0 },
+        fillLinearGradientEndPoint: { x: COVER_W * 0.45, y: COVER_H },
+        fillLinearGradientColorStops: [0, light, 0.5, base, 1, edge],
+    };
+}
+/** صورة الخلفية الكاملة (مرفوعة أو مولّدة بالذكاء الاصطناعي) — تملأ الغلاف بنمط cover */
+function BackgroundImage({ bg, palette }) {
+    const img = useHTMLImage(bg.src);
+    if (!img)
+        return null;
+    const base = Math.max(COVER_W / img.naturalWidth, COVER_H / img.naturalHeight) * bg.scale;
+    const w = img.naturalWidth * base;
+    const h = img.naturalHeight * base;
+    const x = (COVER_W - w) / 2 + (bg.offsetX * (w - COVER_W)) / 2;
+    const y = (COVER_H - h) / 2 + (bg.offsetY * (h - COVER_H)) / 2;
+    return (React.createElement(React.Fragment, null,
+        React.createElement(KonvaImage, { name: "background", image: img, x: x, y: y, width: w, height: h, opacity: bg.opacity }),
+        bg.paletteMix > 0 && (React.createElement(Rect, { name: "background", width: COVER_W, height: COVER_H, ...paletteFill(palette), opacity: bg.paletteMix, globalCompositeOperation: bg.blend || 'soft-light' })),
+        bg.dim > 0 && React.createElement(Rect, { name: "background", width: COVER_W, height: COVER_H, fill: "#000", opacity: bg.dim })));
+}
+/** شكل خلف النص: شريط لكل سطر، صندوق، إطار بيضاوي، لوحة زخرفية، هالة، خط سفلي */
+function TextBackground({ t, lines, lh }) {
+    const type = t.bg || 'none';
+    if (type === 'none')
+        return null;
+    const pad = t.bgPadding ?? 16;
+    const color = t.bgColor || '#000000';
+    const op = t.bgOpacity ?? 0.85;
+    const glyphH = t.size * 1.15;
+    const blockW = Math.max(1, ...lines.map((l) => l.width));
+    const blockH = lines.length * lh;
+    const top = (lh - glyphH) / 2 - pad;
+    const boxH = blockH - (lh - glyphH) + pad * 2;
+    switch (type) {
+        case 'bars':
+            return lines.map((l, i) => (React.createElement(Rect, { key: i, x: -l.width / 2 - pad, y: i * lh + (lh - glyphH) / 2 - pad * 0.35, width: l.width + pad * 2, height: glyphH + pad * 0.7, fill: color, opacity: op, cornerRadius: t.bgRadius || 0 })));
+        case 'box':
+            return React.createElement(Rect, { x: -blockW / 2 - pad, y: top, width: blockW + pad * 2, height: boxH, fill: color, opacity: op, cornerRadius: t.bgRadius || 0 });
+        case 'pill':
+            return (React.createElement(Rect, { x: -blockW / 2 - pad * 1.6, y: top, width: blockW + pad * 3.2, height: boxH, cornerRadius: boxH / 2, stroke: t.bgStroke || color, strokeWidth: Math.max(1.5, t.size * 0.025), fill: rgba(color, 0.18 * op), opacity: op }));
+        case 'plaque': {
+            const w = blockW + pad * 2 + boxH * 0.3;
+            const cy = top + boxH / 2;
+            const dotX = w / 2 + boxH * 0.18 + boxH * 0.22;
+            return (React.createElement(React.Fragment, null,
+                React.createElement(Shape, { y: cy, sceneFunc: (ctx, shape) => {
+                        tracePlaque(ctx, w, boxH);
+                        ctx.fillStrokeShape(shape);
+                    }, fillLinearGradientStartPoint: { x: 0, y: -boxH / 2 }, fillLinearGradientEndPoint: { x: 0, y: boxH / 2 }, fillLinearGradientColorStops: [0, rgba(color, 1), 1, rgba(color, 0.82)], stroke: t.bgStroke, strokeWidth: Math.max(2, t.size * 0.03), opacity: op }),
+                React.createElement(Circle, { x: -dotX, y: cy, radius: boxH * 0.07, fill: t.bgStroke || color, opacity: op }),
+                React.createElement(Circle, { x: dotX, y: cy, radius: boxH * 0.07, fill: t.bgStroke || color, opacity: op })));
+        }
+        case 'halo':
+            return (React.createElement(Ellipse, { x: 0, y: blockH / 2, radiusX: blockW * 0.62 + pad * 2, radiusY: blockH * 0.85 + pad * 2, fillRadialGradientStartPoint: { x: 0, y: 0 }, fillRadialGradientEndPoint: { x: 0, y: 0 }, fillRadialGradientStartRadius: 0, fillRadialGradientEndRadius: blockW * 0.62 + pad * 2, fillRadialGradientColorStops: [0, rgba(color, op), 0.55, rgba(color, op * 0.45), 1, rgba(color, 0)], listening: false }));
+        case 'underline': {
+            const y = blockH - (lh - glyphH) / 2 + pad * 0.4;
+            return React.createElement(Rect, { x: -blockW / 2, y: y, width: blockW, height: Math.max(3, t.size * 0.05), fill: color, opacity: op, cornerRadius: 2 });
+        }
+        default:
+            return null;
+    }
+}
+/** مجموعة نص كاملة: الخلفية + الطبقات السفلية للتأثير + النص (أو كل سطر بلونه) */
+function TextGroup({ id, t, fontsVersion, onSelect, onDragEnd, onOpenProps }) {
+    const lines = useMemo(() => measureLines(t), 
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [t.text, t.font, t.weight, t.size, t.width, t.letterSpacing, fontsVersion]);
+    const lh = t.size * t.lineHeight;
+    const perLine = !!t.secondColor && lines.length > 1;
+    const pieces = perLine
+        ? lines.map((l, i) => ({ text: l.text, y: i * lh, color: i === 0 ? t.color : t.secondColor }))
+        : [{ text: t.text, y: 0, color: t.color }];
+    const k = `${id}-${t.font}-${t.weight}-${t.effect}-${perLine}-${fontsVersion}`;
+    const common = {
+        fontFamily: t.font,
+        fontStyle: String(t.weight),
+        fontSize: t.size,
+        lineHeight: t.lineHeight,
+        letterSpacing: t.letterSpacing || 0,
+        align: 'center',
+        width: t.width,
+        offsetX: t.width / 2,
+        x: 0,
+        wrap: perLine ? 'none' : 'word',
+    };
+    return (React.createElement(Group, { id: `text-${id}`, x: t.x, y: t.y, rotation: t.rotation || 0, opacity: t.opacity ?? 1, name: "element", visible: t.visible !== false, listening: !t.locked, draggable: !t.locked, onMouseDown: (e) => onSelect(`text-${id}`, e.evt?.shiftKey), onTap: () => onSelect(`text-${id}`), onDblClick: () => onOpenProps?.(`text-${id}`), onDblTap: () => onOpenProps?.(`text-${id}`), onDragEnd: onDragEnd },
+        React.createElement(TextBackground, { t: t, lines: lines, lh: lh }),
+        pieces.map((p, pi) => {
+            const { main, under } = buildTextLayers({ ...t, text: p.text, color: p.color });
+            return [
+                ...under.map(({ dy = 0, dx = 0, ...u }, i) => (React.createElement(Text, { key: `${k}-${pi}-u${i}`, ...common, text: p.text, x: dx, y: p.y + dy, ...u, listening: false }))),
+                React.createElement(Text, { key: `${k}-${pi}`, ...common, text: p.text, y: p.y, ...main }),
+            ];
+        })));
+}
+const SAFE_MARGIN = 60;
+const SNAP = 8;
+const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, logo, palette, background, layers, grade, textAboveLayers, selectedIds, onSelect, onCommit, onOpenProps, fontsVersion, snapping = true }, ref) {
+    const wrapRef = useRef(null);
+    const stageRef = useRef(null);
+    const layerRef = useRef(null);
+    const trRef = useRef(null);
+    const snapTargets = useRef(null);
+    const [fit, setFit] = useState(0.4);
+    const [zoom, setZoom] = useState(1);
+    const [guides, setGuides] = useState([]);
+    const scale = fit * zoom;
+    // ملاءمة المعاينة للمساحة المتاحة
+    useEffect(() => {
+        const el = wrapRef.current;
+        if (!el)
+            return;
+        const doFit = () => {
+            const pad = el.clientWidth < 700 ? 24 : 64;
+            setFit(Math.max(0.08, Math.min((el.clientWidth - pad) / COVER_W, (el.clientHeight - pad) / COVER_H)));
+        };
+        doFit();
+        const ro = new ResizeObserver(doFit);
+        ro.observe(el);
+        return () => ro.disconnect();
+    }, []);
+    // Ctrl + عجلة الفأرة للتكبير
+    useEffect(() => {
+        const el = wrapRef.current;
+        if (!el)
+            return;
+        const onWheel = (e) => {
+            if (!e.ctrlKey && !e.metaKey)
+                return;
+            e.preventDefault();
+            setZoom((z) => Math.min(4, Math.max(0.3, +(z * (e.deltaY < 0 ? 1.1 : 0.9)).toFixed(3))));
+        };
+        el.addEventListener('wheel', onWheel, { passive: false });
+        return () => el.removeEventListener('wheel', onWheel);
+    }, []);
+    const findNode = (id) => stageRef.current?.findOne(`#${id}`);
+    const selectedNodes = () => selectedIds.map(findNode).filter(Boolean);
+    // ربط أداة التحويل بالعناصر المحددة (غير المقفلة)
+    useEffect(() => {
+        const tr = trRef.current;
+        if (!tr)
+            return;
+        tr.nodes(selectedIds.map(findNode).filter((n) => n && n.listening() && n.visible()));
+        tr.getLayer()?.batchDraw();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedIds, images, logo, texts, fontsVersion]);
+    const readPatch = (node) => {
+        const id = node.id();
+        const patch = { x: node.x(), y: node.y(), rotation: node.rotation() };
+        if (!id.startsWith('text-'))
+            patch.scale = Math.max(0.05, node.scaleX());
+        return { id, patch };
+    };
+    const handleDragEnd = (e) => {
+        setGuides([]);
+        snapTargets.current = null;
+        const node = e.target;
+        const nodes = new Set([node]);
+        if (selectedIds.includes(node.id()))
+            selectedNodes().forEach((n) => nodes.add(n));
+        onCommit([...nodes].map(readPatch));
+    };
+    // ── المحاذاة الذكية أثناء السحب ──
+    const elementIds = [
+        ...images.map((i) => i.id),
+        ...(logo ? ['logo'] : []),
+        ...Object.keys(texts).filter((k) => texts[k].visible !== false).map((k) => `text-${k}`),
+    ];
+    const handleDragStart = (e) => {
+        if (!snapping || selectedIds.length > 1 || !e.target.id())
+            return;
+        const layer = layerRef.current;
+        const vs = [0, SAFE_MARGIN, COVER_W / 2, COVER_W - SAFE_MARGIN, COVER_W];
+        const hs = [0, SAFE_MARGIN, COVER_H / 2, COVER_H - SAFE_MARGIN, COVER_H];
+        for (const id of elementIds) {
+            if (id === e.target.id())
+                continue;
+            const n = findNode(id);
+            if (!n || !n.visible())
+                continue;
+            const r = n.getClientRect({ relativeTo: layer, skipShadow: true });
+            vs.push(r.x, r.x + r.width / 2, r.x + r.width);
+            hs.push(r.y, r.y + r.height / 2, r.y + r.height);
+        }
+        snapTargets.current = { vs, hs };
+    };
+    const handleDragMove = (e) => {
+        const t = snapTargets.current;
+        const node = e.target;
+        if (!t || !node.id())
+            return;
+        const r = node.getClientRect({ relativeTo: layerRef.current, skipShadow: true });
+        const best = (edges, targets) => {
+            let res = null;
+            for (const ed of edges)
+                for (const tg of targets) {
+                    const d = tg - ed;
+                    if (Math.abs(d) <= SNAP && (!res || Math.abs(d) < Math.abs(res.d)))
+                        res = { d, pos: tg };
+                }
+            return res;
+        };
+        const bx = best([r.x, r.x + r.width / 2, r.x + r.width], t.vs);
+        const by = best([r.y, r.y + r.height / 2, r.y + r.height], t.hs);
+        const g = [];
+        if (bx) {
+            node.x(node.x() + bx.d);
+            g.push({ v: true, pos: bx.pos });
+        }
+        if (by) {
+            node.y(node.y() + by.d);
+            g.push({ v: false, pos: by.pos });
+        }
+        setGuides(g);
+    };
+    useImperativeHandle(ref, () => ({
+        getStage: () => stageRef.current,
+        async exportPNG() {
+            const stage = stageRef.current;
+            const tr = trRef.current;
+            const previous = tr ? tr.nodes() : [];
+            tr?.nodes([]);
+            setGuides([]);
+            stage.draw();
+            try {
+                return await exportStageToBlob(stage, { pixelRatio: 2 });
+            }
+            finally {
+                tr?.nodes(previous);
+                stage.draw();
+            }
+        },
+        /** محاذاة العناصر المحددة إلى الغلاف */
+        align(type) {
+            const layer = layerRef.current;
+            const patches = selectedNodes().map((n) => {
+                const r = n.getClientRect({ relativeTo: layer, skipShadow: true });
+                let dx = 0, dy = 0;
+                if (type === 'centerH')
+                    dx = COVER_W / 2 - (r.x + r.width / 2);
+                if (type === 'centerV')
+                    dy = COVER_H / 2 - (r.y + r.height / 2);
+                if (type === 'left')
+                    dx = SAFE_MARGIN - r.x;
+                if (type === 'right')
+                    dx = COVER_W - SAFE_MARGIN - (r.x + r.width);
+                if (type === 'top')
+                    dy = SAFE_MARGIN - r.y;
+                if (type === 'bottom')
+                    dy = COVER_H - SAFE_MARGIN - (r.y + r.height);
+                return { id: n.id(), patch: { x: n.x() + dx, y: n.y() + dy } };
+            });
+            if (patches.length)
+                onCommit(patches);
+        },
+    }));
+    const overlays = useMemo(() => ALL_OVERLAYS.filter((o) => layers[o.id]?.enabled).map((o) => ({
+        id: o.id,
+        blend: o.blend,
+        opacity: layers[o.id].opacity,
+        canvas: getOverlayCanvas(o.id),
+    })), [layers]);
+    const grading = gradeLayers(grade, COVER_W, COVER_H);
+    const selectedTexts = selectedIds.some((id) => id.startsWith('text-'));
+    const textNodes = Object.entries(texts).map(([key, t]) => (React.createElement(TextGroup, { key: key, id: key, t: t, fontsVersion: fontsVersion, onSelect: onSelect, onDragEnd: handleDragEnd, onOpenProps: onOpenProps })));
+    const handleStageDown = (e) => {
+        const target = e.target;
+        if (target === target.getStage() || target.name() === 'background')
+            onSelect(null);
+    };
+    const zoomStep = (dir) => {
+        const next = dir > 0 ? ZOOMS.find((z) => z > zoom + 0.001) ?? ZOOMS[ZOOMS.length - 1] : [...ZOOMS].reverse().find((z) => z < zoom - 0.001) ?? ZOOMS[0];
+        setZoom(next);
+    };
+    return (React.createElement(React.Fragment, null,
+        React.createElement("div", { ref: wrapRef, className: "scroll-thin absolute inset-0 overflow-auto" },
+            React.createElement("div", { className: "flex min-h-full min-w-full items-center justify-center p-3 lg:p-8", style: { width: 'max-content', height: 'max-content' } },
+                React.createElement("div", { className: "shrink-0 shadow-cover", style: { width: COVER_W * scale, height: COVER_H * scale } },
+                    React.createElement(Stage, { ref: stageRef, width: COVER_W * scale, height: COVER_H * scale, scaleX: scale, scaleY: scale, onMouseDown: handleStageDown, onTouchStart: handleStageDown },
+                        React.createElement(Layer, { ref: layerRef, onDragStart: handleDragStart, onDragMove: handleDragMove },
+                            React.createElement(Rect, { name: "background", x: 0, y: 0, width: COVER_W, height: COVER_H, ...paletteFill(palette) }),
+                            background && React.createElement(BackgroundImage, { bg: background, palette: palette }),
+                            images.map((img) => (React.createElement(TransformableImage, { key: img.id, item: img, onSelect: onSelect, onDragEnd: handleDragEnd, onOpenProps: onOpenProps }))),
+                            logo && React.createElement(TransformableImage, { item: logo, onSelect: onSelect, onDragEnd: handleDragEnd, onOpenProps: onOpenProps }),
+                            !textAboveLayers && textNodes,
+                            overlays.map((o) => (React.createElement(KonvaImage, { key: o.id, image: o.canvas, x: 0, y: 0, width: COVER_W, height: COVER_H, opacity: o.opacity, globalCompositeOperation: o.blend, listening: false }))),
+                            grading.map(({ blend, ...g }, i) => (React.createElement(Rect, { key: `grade-${i}`, x: 0, y: 0, width: COVER_W, height: COVER_H, ...g, globalCompositeOperation: blend, listening: false }))),
+                            textAboveLayers && textNodes,
+                            React.createElement(Transformer, { ref: trRef, rotateEnabled: true, keepRatio: true, enabledAnchors: selectedTexts ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right'], anchorFill: "#d4af6a", anchorStroke: "#0d0b09", anchorSize: 12, anchorCornerRadius: 6, borderStroke: "#d4af6a", borderDash: [6, 4], rotateAnchorOffset: 36, rotationSnaps: [0, 45, 90, 135, 180, 225, 270, 315], rotationSnapTolerance: 4, onTransformEnd: () => onCommit(selectedNodes().map(readPatch)), boundBoxFunc: (oldBox, newBox) => (newBox.width < 20 || newBox.height < 20 ? oldBox : newBox) })),
+                        React.createElement(Layer, { listening: false }, guides.map((g, i) => (React.createElement(Line, { key: i, points: g.v ? [g.pos, 0, g.pos, COVER_H] : [0, g.pos, COVER_W, g.pos], stroke: "#ff3d7f", strokeWidth: 1.2 / scale, dash: [6 / scale, 4 / scale] })))))))),
+        React.createElement("div", { className: "absolute bottom-2 left-2 z-10 flex items-center gap-1 lg:bottom-4 lg:left-4 rounded-xl border border-white/10 bg-ink-900/90 p-1 text-[12px] text-stone-300 backdrop-blur" },
+            React.createElement("button", { type: "button", onClick: () => zoomStep(-1), className: "h-7 w-7 rounded-lg hover:bg-white/10", title: "\u062A\u0635\u063A\u064A\u0631" }, "\u2212"),
+            React.createElement("span", { className: "w-12 text-center tabular-nums", dir: "ltr" },
+                Math.round(zoom * 100),
+                "%"),
+            React.createElement("button", { type: "button", onClick: () => zoomStep(1), className: "h-7 w-7 rounded-lg hover:bg-white/10", title: "\u062A\u0643\u0628\u064A\u0631" }, "+"),
+            React.createElement("button", { type: "button", onClick: () => setZoom(1), className: "rounded-lg px-2 py-1 hover:bg-white/10", title: "\u0645\u0644\u0627\u0621\u0645\u0629 \u0627\u0644\u0634\u0627\u0634\u0629" }, "\u0645\u0644\u0627\u0621\u0645\u0629"))));
+});
+// ===== components/tabs/TemplatesTab.jsx =====
+const GOLD_CSS = 'linear-gradient(180deg,#fff4c8 0%,#e6c46a 30%,#9c7426 50%,#f2d47c 62%,#b8892f 85%,#76531a 100%)';
+function bgStyle(t) {
+    switch (t.bg) {
+        case 'bars':
+        case 'box':
+            return { background: t.bgColor, padding: '1px 6px', borderRadius: t.bgRadius || 0, boxDecorationBreak: 'clone', WebkitBoxDecorationBreak: 'clone' };
+        case 'plaque':
+            return { background: t.bgColor, padding: '2px 10px', borderRadius: 6, border: `1px solid ${t.bgStroke}` };
+        case 'pill':
+            return { border: `1px solid ${t.bgStroke}`, padding: '1px 10px', borderRadius: 999 };
+        case 'halo':
+            return { textShadow: `0 0 14px ${t.bgColor}` };
+        default:
+            return {};
+    }
+}
+function titleStyle(t) {
+    const base = { fontFamily: `"${t.font}"`, fontWeight: t.weight, lineHeight: 1.25 };
+    switch (t.effect) {
+        case 'gold':
+            return { ...base, backgroundImage: GOLD_CSS, WebkitBackgroundClip: 'text', color: 'transparent' };
+        case 'gradient':
+            return { ...base, backgroundImage: `linear-gradient(180deg,${t.color},${t.color2})`, WebkitBackgroundClip: 'text', color: 'transparent' };
+        case 'glow':
+            return { ...base, color: t.color, textShadow: `0 0 10px ${t.glowColor}, 0 0 22px ${t.glowColor}` };
+        case 'outline':
+            return { ...base, color: t.color, WebkitTextStroke: `${Math.max(1, t.strokeWidth / 5)}px ${t.strokeColor}`, paintOrder: 'stroke fill' };
+        case 'engraved':
+            return { ...base, color: t.color, textShadow: '0 1px 0 rgba(255,255,255,.3), 0 -1px 1px rgba(0,0,0,.8)' };
+        default:
+            return { ...base, color: t.color, textShadow: '0 2px 8px rgba(0,0,0,.8)' };
+    }
+}
+function TemplatesTab({ onApplyTemplate, activeTemplateId }) {
+    const [cat, setCat] = useState('all');
+    const list = cat === 'all' ? TEMPLATES : TEMPLATES.filter((t) => t.category === cat);
+    return (React.createElement(Section, { title: "\u0627\u0644\u0642\u0648\u0627\u0644\u0628 \u0627\u0644\u062C\u0627\u0647\u0632\u0629", hint: "\u0646\u0642\u0631\u0629 \u0648\u0627\u062D\u062F\u0629 \u062A\u0636\u0628\u0637 \u0627\u0644\u062E\u0637\u0648\u0637 \u0648\u0627\u0644\u0623\u0644\u0648\u0627\u0646 \u0648\u0627\u0644\u0637\u0628\u0642\u0627\u062A \u2014 \u0646\u0635\u0648\u0635\u0643 \u0648\u0635\u0648\u0631\u0643 \u062A\u0628\u0642\u0649 \u0643\u0645\u0627 \u0647\u064A\u060C \u0648\u064A\u0645\u0643\u0646\u0643 \u0627\u0644\u062A\u0631\u0627\u062C\u0639 \u0628\u0640 Ctrl+Z" },
+        React.createElement("div", { className: "flex flex-wrap gap-1.5" }, TEMPLATE_CATEGORIES.map((c) => (React.createElement("button", { key: c.id, type: "button", onClick: () => setCat(c.id), className: `rounded-full px-3 py-1 text-[12px] transition ${cat === c.id ? 'bg-gold-400 font-bold text-ink-950' : 'border border-white/10 bg-ink-900 text-stone-400 hover:text-stone-200'}` }, c.label)))),
+        React.createElement("div", { className: "grid grid-cols-2 gap-3" }, list.map((tpl) => {
+            const palette = tpl.customPalette ? tpl.customPalette : getPalette(tpl.paletteId);
+            const category = TEMPLATE_CATEGORIES.find((c) => c.id === tpl.category)?.label;
+            return (React.createElement("button", { key: tpl.id, type: "button", onClick: () => onApplyTemplate(tpl), className: `group overflow-hidden rounded-xl border text-right transition ${activeTemplateId === tpl.id ? 'border-gold-400 ring-2 ring-gold-400/30' : 'border-white/10 hover:border-gold-500/50'}` },
+                React.createElement("div", { className: "relative flex aspect-[2/3] flex-col items-center justify-between overflow-hidden px-2 py-4 text-center", style: { background: paletteToCss(palette), boxShadow: 'inset 0 0 50px rgba(0,0,0,.6)' } },
+                    tpl.layers?.frame && React.createElement("div", { className: "pointer-events-none absolute inset-2 rounded-sm border border-gold-400/60" }),
+                    tpl.layers?.thinframe && React.createElement("div", { className: "pointer-events-none absolute inset-2 border border-white/50" }),
+                    tpl.layers?.torn && React.createElement("div", { className: "pointer-events-none absolute inset-0", style: { boxShadow: 'inset 0 0 0 5px #0a0908, inset 0 0 18px 8px rgba(0,0,0,.9)' } }),
+                    tpl.imageStyle?.backdrop?.shape === 'mihrab' && (React.createElement("div", { className: "pointer-events-none absolute bottom-0 left-1/2 h-[55%] w-[55%] -translate-x-1/2 rounded-t-[50%] opacity-80", style: { background: `linear-gradient(${tpl.imageStyle.backdrop.color}, transparent)` } })),
+                    tpl.tag?.visible && (React.createElement("div", { className: "absolute right-2 top-2 bg-stone-300 px-1.5 text-[8px] font-bold text-stone-900" }, tpl.tag.text || 'مقال')),
+                    React.createElement("div", { className: "relative z-10 whitespace-pre-line text-[20px]" },
+                        React.createElement("span", { style: { ...titleStyle({ color: '#fff', color2: '#fff', glowColor: '#fff', strokeColor: '#000', strokeWidth: 5, ...tpl.title }), ...bgStyle(tpl.title) } }, tpl.title.secondColor ? (React.createElement(React.Fragment, null,
+                            tpl.sample.split('\n')[0],
+                            '\n',
+                            React.createElement("span", { style: { color: tpl.title.secondColor } }, tpl.sample.split('\n')[1]))) : (tpl.sample))),
+                    React.createElement("div", { className: "relative z-10 text-[9px] opacity-80", style: { fontFamily: `"${tpl.subtitle.font}"`, color: tpl.subtitle.color } }, "\u0627\u0633\u0645 \u0627\u0644\u0645\u0624\u0644\u0641")),
+                React.createElement("div", { className: "flex items-center justify-between bg-ink-900 px-2.5 py-2" },
+                    React.createElement("span", { className: "text-[12px] text-stone-200" }, tpl.name),
+                    React.createElement("span", { className: "text-[10px] text-stone-500" }, category))));
+        }))));
+}
+// ===== components/tabs/TypographyTab.jsx =====
+const fontOptions = ARABIC_FONTS.map((f) => ({ value: f.family, label: f.label }));
+const TEXT_SLOTS = [
+    { id: 'title', label: 'عنوان الكتاب', hint: 'خط زخرفي فخم: عارف رقعة، أميري، ريم كوفي' },
+    { id: 'subtitle', label: 'النص الفرعي / المؤلف', hint: 'خط حديث: تجوال، القاهرة، المراعي' },
+    { id: 'tag', label: 'وسم صغير', hint: 'مثل: مقال، رواية، الجزء الأول — يوضع في زاوية الغلاف' },
+    { id: 'publisher', label: 'دار النشر', hint: 'أسفل الغلاف — يمكن إضافة سطر لاتيني متباعد الأحرف' },
+    { id: 'date', label: 'التاريخ', hint: 'الشهر والسنة الهجرية — زاوية الغلاف السفلية' },
+];
+function ChipGroup({ items, value, onChange, cols = 3 }) {
+    return (React.createElement("div", { className: `grid gap-1.5 ${cols === 4 ? 'grid-cols-4' : 'grid-cols-3'}` }, items.map((it) => (React.createElement("button", { key: it.id, type: "button", onClick: () => onChange(it.id), className: `rounded-lg px-1.5 py-2 text-[11.5px] transition ${value === it.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-800 text-stone-400 hover:text-stone-200'}` }, it.label)))));
+}
+function TextBlockEditor({ slot, value, onChange, onSelect, open, onToggleOpen, focusSignal }) {
+    const id = slot.id;
+    const font = getFontMeta(value.font);
+    const weightOptions = (font?.weights || [400]).map((w) => ({ value: String(w), label: WEIGHT_LABELS[w] || w }));
+    const set = (patch) => onChange(id, patch);
+    const visible = value.visible !== false;
+    const boxRef = useRef(null);
+    const textRef = useRef(null);
+    // النقر المزدوج على النص في الغلاف ← افتح خصائصه وركّز على حقل الكتابة
+    useEffect(() => {
+        if (!focusSignal || !open)
+            return;
+        boxRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        const t = setTimeout(() => {
+            textRef.current?.focus();
+            textRef.current?.select();
+        }, 250);
+        return () => clearTimeout(t);
+    }, [focusSignal, open]);
+    return (React.createElement("section", { ref: boxRef, className: `scroll-mt-4 rounded-2xl border bg-ink-800/70 ${open ? 'border-gold-500/30' : 'border-white/5'}` },
+        React.createElement("header", { className: "flex items-center justify-between gap-2 p-3" },
+            React.createElement("button", { type: "button", onClick: onToggleOpen, className: "flex min-w-0 flex-1 items-center gap-2 text-right" },
+                React.createElement("span", { className: `text-[10px] text-stone-500 transition ${open ? 'rotate-90' : ''}` }, "\u25C0"),
+                React.createElement("span", { className: "min-w-0" },
+                    React.createElement("span", { className: `block text-[13px] font-bold ${visible ? 'text-gold-300' : 'text-stone-500'}` }, slot.label),
+                    React.createElement("span", { className: "block truncate text-[11px] text-stone-500" }, value.text.replace(/\n/g, ' · ') || '—'))),
+            React.createElement(Toggle, { checked: visible, onChange: (v) => set({ visible: v }), small: true })),
+        open && (React.createElement("div", { className: "space-y-4 border-t border-white/5 p-4" },
+            React.createElement("p", { className: "text-[11px] text-stone-500" }, slot.hint),
+            React.createElement(TextAreaField, { inputRef: textRef, value: value.text, rows: id === 'title' || id === 'subtitle' ? 2 : 2, onChange: (text) => set({ text }), style: { fontFamily: `"${value.font}"`, fontWeight: value.weight } }),
+            id === 'date' && (React.createElement(Button, { onClick: () => set({ text: hijriNow() }), className: "w-full text-[12px]" }, "\u0625\u062F\u0631\u0627\u062C \u0627\u0644\u0634\u0647\u0631 \u0648\u0627\u0644\u0633\u0646\u0629 \u0627\u0644\u0647\u062C\u0631\u064A\u0629 \u0627\u0644\u062D\u0627\u0644\u064A\u0629")),
+            React.createElement("div", { className: "grid grid-cols-[1fr_110px] gap-3" },
+                React.createElement(SelectField, { label: "\u0627\u0644\u062E\u0637", value: value.font, options: fontOptions, styleFor: (o) => ({ fontFamily: `"${o.value}"` }), onChange: (fontName) => set({ font: fontName, weight: closestWeight(fontName, value.weight) }) }),
+                React.createElement(SelectField, { label: "\u0627\u0644\u0648\u0632\u0646", value: String(value.weight), options: weightOptions, onChange: (w) => set({ weight: Number(w) }) })),
+            React.createElement(RangeField, { label: "\u0627\u0644\u062D\u062C\u0645", min: 12, max: 260, value: value.size, onChange: (size) => set({ size }), format: (v) => `${v}px` }),
+            React.createElement(RangeField, { label: "\u062A\u0628\u0627\u0639\u062F \u0627\u0644\u0623\u0633\u0637\u0631", min: 0.8, max: 2.2, step: 0.05, value: value.lineHeight, onChange: (lineHeight) => set({ lineHeight }), format: (v) => v.toFixed(2) }),
+            React.createElement(RangeField, { label: "\u0639\u0631\u0636 \u0635\u0646\u062F\u0648\u0642 \u0627\u0644\u0646\u0635", min: 120, max: COVER_W, step: 10, value: value.width, onChange: (width) => set({ width }) }),
+            React.createElement(RangeField, { label: "\u0627\u0644\u0645\u0648\u0636\u0639 \u0627\u0644\u0623\u0641\u0642\u064A", min: 0, max: COVER_W, value: Math.round(value.x), onChange: (x) => set({ x }) }),
+            React.createElement(RangeField, { label: "\u0627\u0644\u0645\u0648\u0636\u0639 \u0627\u0644\u0639\u0645\u0648\u062F\u064A", min: 0, max: COVER_H - 20, value: Math.round(value.y), onChange: (y) => set({ y }) }),
+            React.createElement(RangeField, { label: "\u0627\u0644\u062A\u062F\u0648\u064A\u0631", min: -30, max: 30, value: Math.round(value.rotation || 0), onChange: (rotation) => set({ rotation }), format: (v) => `${v}°` }),
+            React.createElement(RangeField, { label: "\u062A\u0628\u0627\u0639\u062F \u0627\u0644\u0623\u062D\u0631\u0641 (\u0644\u0644\u0646\u0635 \u0627\u0644\u0644\u0627\u062A\u064A\u0646\u064A \u0641\u0642\u0637)", min: 0, max: 40, value: value.letterSpacing || 0, onChange: (letterSpacing) => set({ letterSpacing }) }),
+            React.createElement(ColorField, { label: value.effect === 'gradient' ? 'لون البداية' : 'اللون', value: value.color, onChange: (color) => set({ color }) }),
+            React.createElement("div", { className: "flex items-center justify-between gap-3" },
+                React.createElement(Toggle, { checked: !!value.secondColor, onChange: (on) => set({ secondColor: on ? '#5fb39a' : '' }), label: "\u0644\u0648\u0646 \u0645\u062E\u062A\u0644\u0641 \u0644\u0644\u0633\u0637\u0631 \u0627\u0644\u062B\u0627\u0646\u064A", small: true }),
+                value.secondColor && (React.createElement("input", { type: "color", className: "swatch", value: value.secondColor, onChange: (e) => set({ secondColor: e.target.value }) }))),
+            React.createElement("div", { className: "space-y-3 rounded-xl border border-white/5 bg-ink-900/60 p-3" },
+                React.createElement(FieldLabel, null, "\u0634\u0643\u0644 \u062E\u0644\u0641 \u0627\u0644\u0646\u0635"),
+                React.createElement(ChipGroup, { items: TEXT_BACKGROUNDS, value: value.bg || 'none', onChange: (bg) => set({ bg }), cols: 4 }),
+                value.bg && value.bg !== 'none' && (React.createElement(React.Fragment, null,
+                    React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0634\u0643\u0644", value: value.bgColor, onChange: (bgColor) => set({ bgColor }) }),
+                    (value.bg === 'pill' || value.bg === 'plaque') && (React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0625\u0637\u0627\u0631", value: value.bgStroke, onChange: (bgStroke) => set({ bgStroke }) })),
+                    React.createElement(RangeField, { label: "\u0627\u0644\u0634\u0641\u0627\u0641\u064A\u0629", min: 0.05, max: 1, step: 0.01, value: value.bgOpacity, onChange: (bgOpacity) => set({ bgOpacity }), format: (v) => `${Math.round(v * 100)}%` }),
+                    React.createElement(RangeField, { label: "\u0627\u0644\u0647\u0627\u0645\u0634", min: 0, max: 60, value: value.bgPadding, onChange: (bgPadding) => set({ bgPadding }) }),
+                    (value.bg === 'bars' || value.bg === 'box') && (React.createElement(RangeField, { label: "\u0627\u0633\u062A\u062F\u0627\u0631\u0629 \u0627\u0644\u0632\u0648\u0627\u064A\u0627", min: 0, max: 40, value: value.bgRadius || 0, onChange: (bgRadius) => set({ bgRadius }) }))))),
+            React.createElement("div", { className: "space-y-3 rounded-xl border border-white/5 bg-ink-900/60 p-3" },
+                React.createElement(FieldLabel, null, "\u062A\u0623\u062B\u064A\u0631 \u0627\u0644\u0646\u0635"),
+                React.createElement(ChipGroup, { items: TEXT_EFFECTS, value: value.effect, onChange: (effect) => set({ effect }) }),
+                value.effect === 'gradient' && React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0646\u0647\u0627\u064A\u0629", value: value.color2, onChange: (color2) => set({ color2 }) }),
+                (value.effect === 'glow' || value.effect === 'neon') && (React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u062A\u0648\u0647\u0651\u062C", value: value.glowColor, onChange: (glowColor) => set({ glowColor }) })),
+                value.effect === 'extrude' && React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0639\u0645\u0642", value: value.color2, onChange: (color2) => set({ color2 }) }),
+                value.effect === 'double' && (React.createElement(React.Fragment, null,
+                    React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u062D\u062F\u0651 \u0627\u0644\u062F\u0627\u062E\u0644\u064A", value: value.strokeColor, onChange: (strokeColor) => set({ strokeColor }) }),
+                    React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u062D\u062F\u0651 \u0627\u0644\u062E\u0627\u0631\u062C\u064A", value: value.color2, onChange: (color2) => set({ color2 }) }),
+                    React.createElement(RangeField, { label: "\u0627\u0644\u0633\u0645\u0627\u0643\u0629", min: 1, max: 16, value: value.strokeWidth, onChange: (strokeWidth) => set({ strokeWidth }) }))),
+                value.effect === 'outline' && (React.createElement(React.Fragment, null,
+                    React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u062D\u062F\u0651", value: value.strokeColor, onChange: (strokeColor) => set({ strokeColor }) }),
+                    React.createElement(RangeField, { label: "\u0633\u0645\u0627\u0643\u0629 \u0627\u0644\u062D\u062F\u0651", min: 1, max: 24, value: value.strokeWidth, onChange: (strokeWidth) => set({ strokeWidth }) }),
+                    React.createElement(Toggle, { checked: !!value.outlineOnly, onChange: (outlineOnly) => set({ outlineOnly }), label: "\u062D\u062F\u0651 \u0641\u0642\u0637 (\u0646\u0635 \u0645\u0641\u0631\u063A)", small: true }))),
+                value.effect === 'engraved' && React.createElement("p", { className: "text-[11px] text-stone-500" }, "\u064A\u0628\u062F\u0648 \u0623\u0641\u0636\u0644 \u0628\u0644\u0648\u0646 \u0646\u0635 \u0623\u063A\u0645\u0642 \u0642\u0644\u064A\u0644\u0627\u064B \u0645\u0646 \u0627\u0644\u062E\u0644\u0641\u064A\u0629.")),
+            React.createElement("div", { className: "flex items-center justify-between" },
+                React.createElement(Toggle, { checked: !!value.shadow, onChange: (shadow) => set({ shadow }), label: "\u0638\u0644 \u0633\u064A\u0646\u0645\u0627\u0626\u064A", small: true }),
+                React.createElement("div", { className: "flex gap-2" },
+                    React.createElement(Button, { onClick: () => set({ x: COVER_W / 2, rotation: 0 }), className: "!px-2.5 text-[11px]" }, "\u062A\u0648\u0633\u064A\u0637"),
+                    React.createElement(Button, { onClick: () => onSelect(`text-${id}`), className: "!px-2.5 text-[11px]" }, "\u062A\u062D\u062F\u064A\u062F")))))));
+}
+function TypographyTab({ texts, onChangeText, onSelect, openSlot, onOpenSlot, focusSignal }) {
+    const [localOpen, setLocalOpen] = useState('title');
+    const open = openSlot !== undefined ? openSlot : localOpen;
+    const setOpen = onOpenSlot || setLocalOpen;
+    return (React.createElement(React.Fragment, null,
+        TEXT_SLOTS.filter((s) => texts[s.id]).map((slot) => (React.createElement(TextBlockEditor, { key: slot.id, slot: slot, value: texts[slot.id], onChange: onChangeText, onSelect: onSelect, open: open === slot.id, onToggleOpen: () => setOpen(open === slot.id ? null : slot.id), focusSignal: open === slot.id ? focusSignal : 0 }))),
+        React.createElement(Section, null,
+            React.createElement("p", { className: "text-[11px] leading-relaxed text-stone-500" }, "\u0627\u0633\u062D\u0628 \u0623\u064A \u0646\u0635 \u0645\u0628\u0627\u0634\u0631\u0629 \u0639\u0644\u0649 \u0627\u0644\u063A\u0644\u0627\u0641. \u0627\u0644\u0645\u0641\u062A\u0627\u062D \u0628\u062C\u0627\u0646\u0628 \u0643\u0644 \u0646\u0635 \u064A\u064F\u0638\u0647\u0631\u0647 \u0623\u0648 \u064A\u062E\u0641\u064A\u0647. \u062A\u0628\u0627\u0639\u062F \u0627\u0644\u0623\u062D\u0631\u0641 \u064A\u0641\u0643\u0651\u0643 \u0627\u0644\u062D\u0631\u0648\u0641 \u0627\u0644\u0639\u0631\u0628\u064A\u0629\u060C \u0641\u0627\u0633\u062A\u062E\u062F\u0645\u0647 \u0644\u0644\u0646\u0635 \u0627\u0644\u0644\u0627\u062A\u064A\u0646\u064A \u0641\u0642\u0637."))));
+}
+// ===== components/tabs/CompositingTab.jsx =====
+function FiltersEditor({ item, paletteLight, onChange }) {
+    const fx = { ...DEFAULT_FX, ...(item.fx || {}) };
+    const set = (patch) => onChange(item.id, { fx: { ...fx, ...patch } });
+    return (React.createElement("div", { className: "space-y-3 rounded-xl border border-white/5 bg-ink-900/60 p-3" },
+        React.createElement(FieldLabel, null, "\u0627\u0644\u0645\u0631\u0634\u062D\u0627\u062A"),
+        React.createElement("div", { className: "grid grid-cols-3 gap-1.5" }, FILTER_PRESETS.map((p) => (React.createElement("button", { key: p.id, type: "button", onClick: () => set({ preset: p.id }), className: `rounded-lg px-2 py-2 text-[12px] transition ${fx.preset === p.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-800 text-stone-400 hover:text-stone-200'}` }, p.label)))),
+        React.createElement(RangeField, { label: "\u0627\u0644\u0633\u0637\u0648\u0639", min: -0.5, max: 0.5, step: 0.01, value: fx.brightness, onChange: (brightness) => set({ brightness }), format: (v) => Math.round(v * 100) }),
+        React.createElement(RangeField, { label: "\u0627\u0644\u062A\u0628\u0627\u064A\u0646", min: -50, max: 60, value: fx.contrast, onChange: (contrast) => set({ contrast }) }),
+        React.createElement(RangeField, { label: "\u0627\u0644\u062A\u0634\u0628\u0651\u0639", min: -2, max: 1, step: 0.05, value: fx.saturation, onChange: (saturation) => set({ saturation }), format: (v) => v.toFixed(2) }),
+        React.createElement(RangeField, { label: "\u062F\u0645\u062C \u0627\u0644\u0644\u0648\u0646", min: 0, max: 0.7, step: 0.01, value: fx.tint, onChange: (tint) => set({ tint }), format: (v) => `${Math.round(v * 100)}%` }),
+        React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u062F\u0645\u062C", value: fx.tintColor, onChange: (tintColor) => set({ tintColor }) }),
+        React.createElement(RangeField, { label: "\u0641\u0633\u064A\u0641\u0633\u0627\u0621 (\u0628\u0643\u0633\u0644\u0629)", min: 0, max: 40, value: fx.pixelSize || 0, onChange: (pixelSize) => set({ pixelSize }) }),
+        React.createElement(RangeField, { label: "\u0636\u0628\u0627\u0628\u064A\u0629", min: 0, max: 30, value: fx.blur || 0, onChange: (blur) => set({ blur }) }),
+        React.createElement("div", { className: "grid grid-cols-2 gap-2" },
+            React.createElement(Button, { onClick: () => set({ tintColor: paletteLight, tint: Math.max(fx.tint, 0.25) }), className: "text-[12px]" }, "\u2726 \u062F\u0645\u062C \u0645\u0639 \u0644\u0648\u0646 \u0627\u0644\u062E\u0644\u0641\u064A\u0629"),
+            React.createElement(Button, { onClick: () => onChange(item.id, { fx: { ...DEFAULT_FX } }), className: "text-[12px]" }, "\u0625\u0639\u0627\u062F\u0629 \u0627\u0644\u0636\u0628\u0637"))));
+}
+function Chips({ items, value, onChange }) {
+    return (React.createElement("div", { className: "grid grid-cols-4 gap-1.5" }, items.map((it) => (React.createElement("button", { key: it.id, type: "button", onClick: () => onChange(it.id), className: `rounded-lg px-1 py-2 text-[11.5px] transition ${value === it.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-800 text-stone-400 hover:text-stone-200'}` }, it.label)))));
+}
+const SHADOW_MODES = [
+    { id: 'none', label: 'بدون' },
+    { id: 'ground', label: 'ظل أرضي' },
+    { id: 'glow', label: 'توهّج خلفي' },
+];
+/** الظل/التوهّج + تلاشي الحواف + الشكل الملوّن خلف العنصر */
+function AppearanceEditor({ item, onChange, paletteLight }) {
+    const mode = item.shadowMode || (item.shadow ? 'ground' : 'none');
+    const bd = { ...DEFAULT_BACKDROP, ...(item.backdrop || {}) };
+    const setBd = (patch) => onChange(item.id, { backdrop: { ...bd, ...patch } });
+    const pickShape = (shape) => {
+        const def = BACKDROP_SHAPES.find((b) => b.id === shape);
+        setBd(def && def.w ? { shape, width: def.w, height: def.h, offsetY: def.y } : { shape });
+    };
+    return (React.createElement(React.Fragment, null,
+        React.createElement("div", { className: "space-y-3 rounded-xl border border-white/5 bg-ink-900/60 p-3" },
+            React.createElement(FieldLabel, null, "\u0627\u0644\u0638\u0644 \u0648\u0627\u0644\u062A\u0648\u0647\u0651\u062C"),
+            React.createElement("div", { className: "grid grid-cols-3 gap-1.5" }, SHADOW_MODES.map((m) => (React.createElement("button", { key: m.id, type: "button", onClick: () => onChange(item.id, { shadowMode: m.id, shadow: m.id === 'ground' }), className: `rounded-lg px-1 py-2 text-[12px] transition ${mode === m.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-800 text-stone-400 hover:text-stone-200'}` }, m.label)))),
+            mode === 'glow' && (React.createElement(React.Fragment, null,
+                React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u062A\u0648\u0647\u0651\u062C", value: item.glowColor || '#ffffff', onChange: (glowColor) => onChange(item.id, { glowColor }) }),
+                React.createElement(RangeField, { label: "\u0642\u0648\u0629 \u0627\u0644\u062A\u0648\u0647\u0651\u062C", min: 10, max: 150, value: item.glowSize ?? 60, onChange: (glowSize) => onChange(item.id, { glowSize }) }))),
+            React.createElement(RangeField, { label: "\u062A\u0644\u0627\u0634\u064A \u0627\u0644\u0623\u0633\u0641\u0644 (\u062F\u0645\u062C \u0645\u0639 \u0627\u0644\u062E\u0644\u0641\u064A\u0629)", min: 0, max: 0.8, step: 0.01, value: item.fadeBottom || 0, onChange: (fadeBottom) => onChange(item.id, { fadeBottom }), format: (v) => `${Math.round(v * 100)}%` }),
+            React.createElement(RangeField, { label: "\u062A\u0644\u0627\u0634\u064A \u0627\u0644\u0623\u0637\u0631\u0627\u0641", min: 0, max: 0.9, step: 0.01, value: item.fadeEdges || 0, onChange: (fadeEdges) => onChange(item.id, { fadeEdges }), format: (v) => `${Math.round(v * 100)}%` })),
+        React.createElement("div", { className: "space-y-3 rounded-xl border border-white/5 bg-ink-900/60 p-3" },
+            React.createElement(FieldLabel, null, "\u0634\u0643\u0644 \u0645\u0644\u0648\u0651\u0646 \u062E\u0644\u0641 \u0627\u0644\u0639\u0646\u0635\u0631"),
+            React.createElement(Chips, { items: BACKDROP_SHAPES, value: bd.shape, onChange: pickShape }),
+            bd.shape !== 'none' && (React.createElement(React.Fragment, null,
+                React.createElement("div", { className: "flex items-center gap-2" },
+                    React.createElement("div", { className: "flex-1" },
+                        React.createElement(ColorField, { label: "\u0627\u0644\u0644\u0648\u0646", value: bd.color, onChange: (color) => setBd({ color }) })),
+                    React.createElement(Button, { onClick: () => setBd({ color: paletteLight }), className: "!px-2 text-[11px]" }, "\u0644\u0648\u0646 \u0627\u0644\u062E\u0644\u0641\u064A\u0629")),
+                React.createElement(RangeField, { label: "\u0627\u0644\u0634\u0641\u0627\u0641\u064A\u0629", min: 0.05, max: 1, step: 0.01, value: bd.opacity, onChange: (opacity) => setBd({ opacity }), format: (v) => `${Math.round(v * 100)}%` }),
+                React.createElement(RangeField, { label: "\u0627\u0644\u0639\u0631\u0636", min: 0.3, max: 2.5, step: 0.01, value: bd.width, onChange: (width) => setBd({ width }), format: (v) => `${Math.round(v * 100)}%` }),
+                React.createElement(RangeField, { label: "\u0627\u0644\u0627\u0631\u062A\u0641\u0627\u0639", min: 0.3, max: 2.5, step: 0.01, value: bd.height, onChange: (height) => setBd({ height }), format: (v) => `${Math.round(v * 100)}%` }),
+                React.createElement(RangeField, { label: "\u0625\u0632\u0627\u062D\u0629 \u0639\u0645\u0648\u062F\u064A\u0629", min: -0.8, max: 0.8, step: 0.01, value: bd.offsetY, onChange: (offsetY) => setBd({ offsetY }), format: (v) => Math.round(v * 100) }),
+                bd.shape !== 'glow' && (React.createElement(React.Fragment, null,
+                    React.createElement(RangeField, { label: "\u062A\u0644\u0627\u0634\u064A \u0627\u0644\u0634\u0643\u0644 \u0645\u0646 \u0627\u0644\u0623\u0633\u0641\u0644", min: 0, max: 0.9, step: 0.01, value: bd.fade, onChange: (fade) => setBd({ fade }), format: (v) => `${Math.round(v * 100)}%` }),
+                    React.createElement(RangeField, { label: "\u0632\u062E\u0631\u0641\u0629 \u062F\u0627\u062E\u0644 \u0627\u0644\u0634\u0643\u0644", min: 0, max: 1, step: 0.01, value: bd.pattern, onChange: (pattern) => setBd({ pattern }), format: (v) => `${Math.round(v * 100)}%` }),
+                    React.createElement(Toggle, { checked: !!bd.stroke, onChange: (stroke) => setBd({ stroke }), label: "\u0625\u0637\u0627\u0631 \u0630\u0647\u0628\u064A \u062D\u0648\u0644 \u0627\u0644\u0634\u0643\u0644", small: true }),
+                    bd.stroke && React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0625\u0637\u0627\u0631", value: bd.strokeColor, onChange: (strokeColor) => setBd({ strokeColor }) }))))))));
+}
+function CompositingTab({ images, selectedId, onSelect, onAddImage, onChangeNode, onRemoveImage, onMoveImage, autoColors, onToggleAutoColors, onSuggestColors, paletteLight, onOpenCutout, focusSignal, }) {
+    const [autoRemove, setAutoRemove] = useState(true);
+    const [quality, setQuality] = useState(getCutQuality);
+    const editorRef = useRef(null);
+    const [job, setJob] = useState({ status: 'idle', label: '', percent: 0, error: null });
+    const busy = job.status === 'working';
+    const selected = images.find((i) => i.id === selectedId);
+    // النقر المزدوج على صورة في الغلاف ← انتقل مباشرة إلى خصائصها
+    useEffect(() => {
+        if (focusSignal && editorRef.current)
+            editorRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, [focusSignal, selectedId]);
+    const runRemoval = async (input) => {
+        setJob({ status: 'working', label: 'تحميل محرك التفريغ…', percent: 0, error: null });
+        try {
+            const { blob, maskUrl } = await removeImageBackgroundDetailed(input, (p) => setJob((j) => ({ ...j, label: p.label, percent: p.percent })));
+            setJob({ status: 'done', label: '', percent: 100, error: null });
+            return { src: URL.createObjectURL(blob), maskSrc: maskUrl };
+        }
+        catch (err) {
+            console.error(err);
+            setJob({ status: 'error', label: '', percent: 0, error: err?.message || 'خطأ غير معروف' });
+            return null;
+        }
+    };
+    const handleFile = async (file) => {
+        const originalUrl = URL.createObjectURL(file);
+        if (!autoRemove) {
+            onAddImage(originalUrl, { name: file.name, cutout: false, originalSrc: originalUrl });
+            return;
+        }
+        const res = await runRemoval(file);
+        onAddImage(res?.src || originalUrl, { name: file.name, cutout: !!res, originalSrc: originalUrl, maskSrc: res?.maskSrc });
+    };
+    const removeFromSelected = async () => {
+        if (!selected)
+            return;
+        const res = await runRemoval(selected.originalSrc || selected.src);
+        if (res)
+            onChangeNode(selected.id, { src: res.src, maskSrc: res.maskSrc, cutout: true, originalSrc: selected.originalSrc || selected.src });
+    };
+    return (React.createElement(React.Fragment, null,
+        React.createElement(Section, { title: "\u0631\u0641\u0639 \u0635\u0648\u0631\u0629", hint: "\u0634\u062E\u0635\u060C \u0639\u0646\u0635\u0631\u060C \u0645\u0628\u0646\u0649\u2026 \u062A\u064F\u0641\u0631\u064E\u0651\u063A \u062F\u0627\u062E\u0644 \u0645\u062A\u0635\u0641\u062D\u0643 \u062F\u0648\u0646 \u0631\u0641\u0639\u0647\u0627 \u0644\u0623\u064A \u062E\u0627\u062F\u0645" },
+            React.createElement(UploadDrop, { onFile: handleFile, disabled: busy, title: busy ? 'جارٍ المعالجة…' : 'اسحب الصورة هنا أو اضغط للاختيار', subtitle: "PNG \u00B7 JPG \u00B7 WEBP" }),
+            React.createElement(Toggle, { checked: autoRemove, onChange: setAutoRemove, label: "\u0625\u0632\u0627\u0644\u0629 \u0627\u0644\u062E\u0644\u0641\u064A\u0629 \u062A\u0644\u0642\u0627\u0626\u064A\u0627\u064B (AI \u062F\u0627\u062E\u0644 \u0627\u0644\u0645\u062A\u0635\u0641\u062D)", small: true }),
+            autoRemove && (React.createElement("div", null,
+                React.createElement(FieldLabel, null, "\u062C\u0648\u062F\u0629 \u0627\u0644\u0642\u0635"),
+                React.createElement("div", { className: "grid grid-cols-3 gap-1.5" }, QUALITY_MODES.map((q) => (React.createElement("button", { key: q.id, type: "button", onClick: () => {
+                        setQuality(q.id);
+                        setCutQuality(q.id);
+                    }, className: `rounded-lg py-2 text-[12px] transition ${quality === q.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-800 text-stone-400 hover:text-stone-200'}` }, q.label)))))),
+            React.createElement(Toggle, { checked: autoColors, onChange: onToggleAutoColors, label: "\u0627\u0642\u062A\u0631\u0627\u062D \u0627\u0644\u0623\u0644\u0648\u0627\u0646 \u062A\u0644\u0642\u0627\u0626\u064A\u0627\u064B \u0645\u0646 \u0627\u0644\u0635\u0648\u0631\u0629", small: true }),
+            busy && React.createElement(ProgressBar, { percent: job.percent, label: job.label }),
+            job.status === 'error' && (React.createElement("p", { className: "rounded-xl border border-red-900/50 bg-red-950/30 p-3 text-[12px] text-red-300" },
+                "\u062A\u0639\u0630\u0651\u0631 \u0627\u0644\u062A\u0641\u0631\u064A\u063A: ",
+                job.error,
+                ". \u062A\u0623\u0643\u062F \u0645\u0646 \u0627\u0644\u0627\u062A\u0635\u0627\u0644 \u0639\u0646\u062F \u0623\u0648\u0644 \u0627\u0633\u062A\u062E\u062F\u0627\u0645 \u0644\u062A\u0646\u0632\u064A\u0644 \u0627\u0644\u0646\u0645\u0648\u0630\u062C.")),
+            React.createElement("p", { className: "text-[11px] leading-relaxed text-stone-500" }, "\u0623\u0648\u0644 \u062A\u0641\u0631\u064A\u063A \u064A\u0633\u062A\u063A\u0631\u0642 \u0648\u0642\u062A\u0627\u064B \u0623\u0637\u0648\u0644 \u0644\u062A\u0646\u0632\u064A\u0644 \u0627\u0644\u0646\u0645\u0648\u0630\u062C \u0645\u0631\u0629 \u0648\u0627\u062D\u062F\u0629\u060C \u062B\u0645 \u064A\u064F\u062E\u0632\u064E\u0651\u0646 \u0641\u064A \u0627\u0644\u0645\u062A\u0635\u0641\u062D.")),
+        images.length > 0 && (React.createElement(Section, { title: "\u0627\u0644\u0639\u0646\u0627\u0635\u0631 \u0639\u0644\u0649 \u0627\u0644\u063A\u0644\u0627\u0641", hint: "\u0627\u0636\u063A\u0637 \u0639\u0646\u0635\u0631\u0627\u064B \u0644\u062A\u062D\u062F\u064A\u062F\u0647\u060C \u0623\u0648 \u062D\u062F\u0651\u062F\u0647 \u0645\u0628\u0627\u0634\u0631\u0629 \u0639\u0644\u0649 \u0627\u0644\u0643\u0627\u0646\u0641\u0627\u0633" },
+            React.createElement("div", { className: "grid grid-cols-4 gap-2" }, images.map((img) => (React.createElement("button", { key: img.id, type: "button", title: img.credit || img.name, onClick: () => onSelect(img.id), className: `relative aspect-square overflow-hidden rounded-xl border bg-[conic-gradient(#1f1b16_25%,#15120f_0_50%,#1f1b16_0_75%,#15120f_0)] bg-[length:12px_12px] transition ${img.id === selectedId ? 'border-gold-400 ring-2 ring-gold-400/30' : 'border-white/10 hover:border-white/30'}` },
+                React.createElement("img", { src: img.src, alt: img.name, className: "h-full w-full object-contain p-1" }),
+                img.cutout && (React.createElement("span", { className: "absolute bottom-1 right-1 rounded bg-gold-500 px-1 text-[9px] font-bold text-ink-950" }, "\u0634\u0641\u0627\u0641\u0629")))))))),
+        selected && (React.createElement("div", { ref: editorRef, className: "scroll-mt-4" },
+            React.createElement(Section, { title: "\u062A\u062D\u0631\u064A\u0631 \u0627\u0644\u0639\u0646\u0635\u0631 \u0627\u0644\u0645\u062D\u062F\u062F", hint: "\u0646\u0642\u0631\u062A\u0627\u0646 \u0639\u0644\u0649 \u0623\u064A \u0635\u0648\u0631\u0629 \u0641\u064A \u0627\u0644\u063A\u0644\u0627\u0641 \u062A\u0641\u062A\u062D \u062E\u0635\u0627\u0626\u0635\u0647\u0627 \u0647\u0646\u0627 \u0645\u0628\u0627\u0634\u0631\u0629" },
+                React.createElement(Button, { variant: "primary", onClick: () => onOpenCutout(selected.id), className: "w-full" }, "\u2702 \u062A\u062D\u0633\u064A\u0646 \u0627\u0644\u0642\u0635 \u064A\u062F\u0648\u064A\u0627\u064B (\u0645\u0645\u062D\u0627\u0629 / \u0627\u0633\u062A\u0639\u0627\u062F\u0629 / \u0627\u0644\u062D\u0648\u0627\u0641)"),
+                React.createElement(RangeField, { label: "\u0627\u0644\u062D\u062C\u0645", min: 0.1, max: 3, step: 0.01, value: selected.scale, onChange: (scale) => onChangeNode(selected.id, { scale }), format: (v) => `${Math.round(v * 100)}%` }),
+                React.createElement(RangeField, { label: "\u0627\u0644\u062A\u062F\u0648\u064A\u0631", min: -180, max: 180, value: Math.round(selected.rotation), onChange: (rotation) => onChangeNode(selected.id, { rotation }), format: (v) => `${v}°` }),
+                React.createElement(RangeField, { label: "\u0627\u0644\u0634\u0641\u0627\u0641\u064A\u0629", min: 0, max: 1, step: 0.01, value: selected.opacity, onChange: (opacity) => onChangeNode(selected.id, { opacity }), format: (v) => `${Math.round(v * 100)}%` }),
+                React.createElement(AppearanceEditor, { item: selected, onChange: onChangeNode, paletteLight: paletteLight }),
+                React.createElement(FiltersEditor, { item: selected, paletteLight: paletteLight, onChange: onChangeNode }),
+                React.createElement("div", { className: "grid grid-cols-2 gap-2" },
+                    React.createElement(Button, { onClick: () => onMoveImage(selected.id, 1) }, "\u2B06 \u0625\u0644\u0649 \u0627\u0644\u0623\u0645\u0627\u0645"),
+                    React.createElement(Button, { onClick: () => onMoveImage(selected.id, -1) }, "\u2B07 \u0625\u0644\u0649 \u0627\u0644\u062E\u0644\u0641"),
+                    React.createElement(Button, { onClick: () => onSuggestColors(selected.src), className: "col-span-2" }, "\uD83C\uDFA8 \u0627\u0642\u062A\u0631\u0627\u062D \u0623\u0644\u0648\u0627\u0646 \u0627\u0644\u063A\u0644\u0627\u0641 \u0645\u0646 \u0647\u0630\u0647 \u0627\u0644\u0635\u0648\u0631\u0629"),
+                    !selected.cutout && (React.createElement(Button, { variant: "primary", onClick: removeFromSelected, disabled: busy, className: "col-span-2" }, "\u2726 \u0625\u0632\u0627\u0644\u0629 \u062E\u0644\u0641\u064A\u0629 \u0647\u0630\u0647 \u0627\u0644\u0635\u0648\u0631\u0629")),
+                    selected.cutout && selected.originalSrc && selected.originalSrc !== selected.src && (React.createElement(Button, { onClick: () => onChangeNode(selected.id, { src: selected.originalSrc, cutout: false }), className: "col-span-2" }, "\u0627\u0633\u062A\u0639\u0627\u062F\u0629 \u0627\u0644\u0635\u0648\u0631\u0629 \u0627\u0644\u0623\u0635\u0644\u064A\u0629")),
+                    React.createElement(Button, { variant: "danger", onClick: () => onRemoveImage(selected.id), className: "col-span-2" }, "\u062D\u0630\u0641 \u0627\u0644\u0639\u0646\u0635\u0631")),
+                selected.credit && React.createElement("p", { className: "text-[11px] leading-relaxed text-stone-500" },
+                    "\u0627\u0644\u0645\u0635\u062F\u0631: ",
+                    selected.credit))))));
+}
+// ===== components/tabs/LibraryTab.jsx =====
+function LibraryTab({ onAddImage }) {
+    const [mode, setMode] = useState('icons'); // icons | png
+    const [query, setQuery] = useState('');
+    const [color, setColor] = useState('#d4af6a');
+    const [results, setResults] = useState([]);
+    const [status, setStatus] = useState({ loading: false, error: null, adding: null });
+    const suggestions = mode === 'icons' ? ICON_SUGGESTIONS : PNG_SUGGESTIONS;
+    const search = async (q) => {
+        const term = translateQuery(q, suggestions);
+        if (!term)
+            return;
+        setStatus({ loading: true, error: null, adding: null });
+        try {
+            const list = mode === 'icons' ? await searchIcons(term) : await searchCommonsPNG(term);
+            setResults(list);
+            setStatus({
+                loading: false,
+                adding: null,
+                error: list.length ? null : 'لا توجد نتائج — جرّب كلمة إنجليزية (مثل: sword, lion, moon)',
+            });
+        }
+        catch (err) {
+            setStatus({ loading: false, error: err.message, adding: null });
+        }
+    };
+    useEffect(() => {
+        setResults([]);
+        setStatus({ loading: false, error: null, adding: null });
+    }, [mode]);
+    const addIcon = async (name) => {
+        setStatus((s) => ({ ...s, adding: name }));
+        try {
+            const src = await iconToPngUrl(name, color);
+            await onAddImage(src, { name, cutout: true, credit: `أيقونة ${name.split(':')[0]} عبر Iconify (مفتوحة المصدر)`, suggestColors: false });
+        }
+        catch {
+            setStatus((s) => ({ ...s, error: 'تعذّر إضافة الأيقونة' }));
+        }
+        finally {
+            setStatus((s) => ({ ...s, adding: null }));
+        }
+    };
+    const addPng = async (item) => {
+        setStatus((s) => ({ ...s, adding: item.id }));
+        try {
+            const src = await fetchCommonsImage(item);
+            const credit = `${item.title} — ${item.artist || 'ويكيميديا كومنز'} (${item.license})`;
+            await onAddImage(src, { name: item.title, cutout: true, credit });
+        }
+        catch (err) {
+            setStatus((s) => ({ ...s, error: err.message }));
+        }
+        finally {
+            setStatus((s) => ({ ...s, adding: null }));
+        }
+    };
+    return (React.createElement(React.Fragment, null,
+        React.createElement(Section, { title: "\u0645\u0643\u062A\u0628\u0629 \u0627\u0644\u0639\u0646\u0627\u0635\u0631 \u0627\u0644\u0645\u062C\u0627\u0646\u064A\u0629", hint: "\u0623\u064A\u0642\u0648\u0646\u0627\u062A \u0648\u0635\u0648\u0631 PNG \u0634\u0641\u0627\u0641\u0629 \u0645\u0646 \u0645\u0635\u0627\u062F\u0631 \u0645\u0641\u062A\u0648\u062D\u0629" },
+            React.createElement("div", { className: "grid grid-cols-2 gap-1 rounded-xl bg-ink-900 p-1" }, [['icons', 'أيقونات'], ['png', 'صور PNG']].map(([id, label]) => (React.createElement("button", { key: id, type: "button", onClick: () => setMode(id), className: `rounded-lg py-2 text-[13px] transition ${mode === id ? 'bg-gold-400 font-bold text-ink-950' : 'text-stone-400'}` }, label)))),
+            React.createElement("form", { className: "flex gap-2", onSubmit: (e) => {
+                    e.preventDefault();
+                    search(query);
+                } },
+                React.createElement("input", { value: query, onChange: (e) => setQuery(e.target.value), placeholder: mode === 'icons' ? 'ابحث: sword, crown, moon…' : 'ابحث: lion, castle, rose…', className: "min-w-0 flex-1 rounded-xl border border-white/10 bg-ink-900 px-3 py-2.5 text-sm text-stone-100 outline-none placeholder:text-stone-600 focus:border-gold-500/60" }),
+                React.createElement("button", { type: "submit", className: "rounded-xl bg-gold-400 px-4 text-sm font-bold text-ink-950 hover:bg-gold-300" }, "\u0628\u062D\u062B")),
+            React.createElement("div", { className: "flex flex-wrap gap-1.5" }, suggestions.map(([ar, en]) => (React.createElement("button", { key: en, type: "button", onClick: () => {
+                    setQuery(ar);
+                    search(en);
+                }, className: "rounded-full border border-white/10 bg-ink-900 px-2.5 py-1 text-[11px] text-stone-400 transition hover:border-gold-500/50 hover:text-gold-200" }, ar)))),
+            mode === 'icons' && React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0623\u064A\u0642\u0648\u0646\u0629", value: color, onChange: setColor }),
+            status.loading && React.createElement("p", { className: "text-[12px] text-stone-400" }, "\u062C\u0627\u0631\u064D \u0627\u0644\u0628\u062D\u062B\u2026"),
+            status.error && React.createElement("p", { className: "text-[12px] text-red-300" }, status.error)),
+        results.length > 0 && (React.createElement(Section, { title: `النتائج (${results.length})`, hint: "\u0627\u0636\u063A\u0637 \u0639\u0644\u0649 \u0623\u064A \u0639\u0646\u0635\u0631 \u0644\u0625\u0636\u0627\u0641\u062A\u0647 \u0625\u0644\u0649 \u0627\u0644\u063A\u0644\u0627\u0641" },
+            mode === 'icons' ? (React.createElement("div", { className: "grid grid-cols-6 gap-1.5" }, results.map((name) => (React.createElement("button", { key: name, type: "button", title: name, disabled: !!status.adding, onClick: () => addIcon(name), className: `grid aspect-square place-items-center rounded-lg border bg-ink-900 p-1.5 transition hover:border-gold-400 ${status.adding === name ? 'animate-pulse border-gold-400' : 'border-white/5'}` },
+                React.createElement("img", { src: iconSvgUrl(name, color), alt: name, loading: "lazy", className: "h-full w-full object-contain" })))))) : (React.createElement("div", { className: "grid grid-cols-3 gap-2" }, results.map((item) => (React.createElement("button", { key: item.id, type: "button", title: `${item.title}\n${item.artist}\n${item.license}`, disabled: !!status.adding, onClick: () => addPng(item), className: `overflow-hidden rounded-lg border bg-[conic-gradient(#1f1b16_25%,#15120f_0_50%,#1f1b16_0_75%,#15120f_0)] bg-[length:12px_12px] text-right transition hover:border-gold-400 ${status.adding === item.id ? 'animate-pulse border-gold-400' : 'border-white/5'}` },
+                React.createElement("img", { src: item.thumb, alt: item.title, loading: "lazy", className: "aspect-square w-full object-contain p-1" }),
+                React.createElement("div", { className: "truncate bg-ink-900 px-1.5 py-1 text-[9px] text-stone-500", dir: "ltr" }, item.license)))))),
+            React.createElement("p", { className: "text-[11px] leading-relaxed text-stone-500" }, mode === 'icons'
+                ? 'الأيقونات من مجموعات مفتوحة المصدر عبر Iconify، وتُضاف كـ PNG شفاف بدقة 1024px.'
+                : 'الصور من ويكيميديا كومنز بتراخيص حرة. بعضها يشترط ذكر اسم المؤلف — يظهر المصدر عند تحديد العنصر.')))));
+}
+// ===== components/tabs/LogoTab.jsx =====
+const MARGIN = 90;
+const POSITIONS = [
+    ['top', 'right'], ['top', 'center'], ['top', 'left'],
+    ['middle', 'right'], ['middle', 'center'], ['middle', 'left'],
+    ['bottom', 'right'], ['bottom', 'center'], ['bottom', 'left'],
+];
+function positionFor(logo, v, hz) {
+    const w = logo.width * logo.scale;
+    const h = logo.height * logo.scale;
+    const x = hz === 'left' ? MARGIN + w / 2 : hz === 'right' ? COVER_W - MARGIN - w / 2 : COVER_W / 2;
+    const y = v === 'top' ? MARGIN + h / 2 : v === 'bottom' ? COVER_H - MARGIN - h / 2 : COVER_H / 2;
+    return { x, y, rotation: 0 };
+}
+function LogoTab({ logo, onSetLogo, onChangeNode, onRemoveLogo, onSelect }) {
+    return (React.createElement(React.Fragment, null,
+        React.createElement(Section, { title: "\u0634\u0639\u0627\u0631 \u062F\u0627\u0631 \u0627\u0644\u0646\u0634\u0631", hint: "\u064A\u064F\u0641\u0636\u064E\u0651\u0644 PNG \u0628\u062E\u0644\u0641\u064A\u0629 \u0634\u0641\u0627\u0641\u0629" },
+            React.createElement(UploadDrop, { accept: "image/png,image/svg+xml,image/webp", onFile: (file) => onSetLogo(URL.createObjectURL(file)), title: logo ? 'استبدال الشعار' : 'رفع الشعار', subtitle: "PNG \u0634\u0641\u0627\u0641 \u00B7 SVG \u00B7 WEBP" })),
+        logo && (React.createElement(Section, { title: "\u0627\u0644\u0645\u0648\u0642\u0639 \u0648\u0627\u0644\u062D\u062C\u0645", action: React.createElement(Button, { onClick: () => onSelect('logo'), className: "!px-2.5 !py-1 text-[11px]" }, "\u062A\u062D\u062F\u064A\u062F \u0639\u0644\u0649 \u0627\u0644\u063A\u0644\u0627\u0641") },
+            React.createElement("div", null,
+                React.createElement("div", { className: "mb-2 text-[12px] text-stone-400" }, "\u0645\u0648\u0636\u0639 \u0633\u0631\u064A\u0639"),
+                React.createElement("div", { className: "mx-auto grid w-40 grid-cols-3 gap-1.5 rounded-xl border border-white/10 bg-ink-900 p-2", style: { aspectRatio: '2 / 3' } }, POSITIONS.map(([v, hz]) => (React.createElement("button", { key: `${v}-${hz}`, type: "button", title: `${v} ${hz}`, onClick: () => onChangeNode('logo', positionFor(logo, v, hz)), className: "grid place-items-center rounded-md bg-white/5 transition hover:bg-gold-400/30" },
+                    React.createElement("span", { className: "h-1.5 w-1.5 rounded-full bg-gold-400" })))))),
+            React.createElement(RangeField, { label: "\u0627\u0644\u062D\u062C\u0645", min: 0.1, max: 3, step: 0.01, value: logo.scale, onChange: (scale) => onChangeNode('logo', { scale }), format: (v) => `${Math.round(v * 100)}%` }),
+            React.createElement(RangeField, { label: "\u0627\u0644\u062A\u062F\u0648\u064A\u0631", min: -180, max: 180, value: Math.round(logo.rotation), onChange: (rotation) => onChangeNode('logo', { rotation }), format: (v) => `${v}°` }),
+            React.createElement(RangeField, { label: "\u0627\u0644\u0634\u0641\u0627\u0641\u064A\u0629", min: 0, max: 1, step: 0.01, value: logo.opacity, onChange: (opacity) => onChangeNode('logo', { opacity }), format: (v) => `${Math.round(v * 100)}%` }),
+            React.createElement(AppearanceEditor, { item: logo, onChange: onChangeNode, paletteLight: "#d4af6a" }),
+            React.createElement(Button, { variant: "danger", onClick: onRemoveLogo, className: "w-full" }, "\u0625\u0632\u0627\u0644\u0629 \u0627\u0644\u0634\u0639\u0627\u0631")))));
+}
+// ===== components/tabs/PalettesTab.jsx =====
+const BLEND_OPTIONS = [
+    { value: 'soft-light', label: 'ضوء ناعم' },
+    { value: 'overlay', label: 'تراكب' },
+    { value: 'multiply', label: 'تعتيم (ضرب)' },
+    { value: 'color', label: 'تلوين' },
+    { value: 'source-over', label: 'عادي' },
+];
+function AIGenerator({ onResult }) {
+    const [prompt, setPrompt] = useState('');
+    const [enhance, setEnhance] = useState(true);
+    const [state, setState] = useState({ busy: false, error: null, started: 0 });
+    const run = async (text) => {
+        setState({ busy: true, error: null, started: Date.now() });
+        try {
+            const url = await generateAIBackground(text, { enhanceStyle: enhance });
+            onResult(url);
+            setState({ busy: false, error: null, started: 0 });
+        }
+        catch (err) {
+            setState({ busy: false, error: err.message, started: 0 });
+        }
+    };
+    return (React.createElement(Section, { title: "\u2726 \u062A\u0648\u0644\u064A\u062F \u062E\u0644\u0641\u064A\u0629 \u0628\u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064A", hint: "\u0627\u0643\u062A\u0628 \u0648\u0635\u0641 \u0627\u0644\u0645\u0634\u0647\u062F\u060C \u0623\u0648 \u0627\u062E\u062A\u0631 \u0641\u0643\u0631\u0629 \u062C\u0627\u0647\u0632\u0629" },
+        React.createElement("textarea", { rows: 3, value: prompt, onChange: (e) => setPrompt(e.target.value), placeholder: "\u0645\u062B\u0627\u0644: ruined city at night under heavy rain \u2014 \u0623\u0648 \u0628\u0627\u0644\u0639\u0631\u0628\u064A\u0629: \u0645\u062F\u064A\u0646\u0629 \u0645\u062F\u0645\u0651\u0631\u0629 \u062A\u062D\u062A \u0627\u0644\u0645\u0637\u0631 \u0644\u064A\u0644\u0627\u064B", className: "w-full resize-none rounded-xl border border-white/10 bg-ink-900 px-3 py-2.5 text-sm leading-relaxed text-stone-100 outline-none placeholder:text-stone-600 focus:border-gold-500/60" }),
+        React.createElement("div", { className: "flex flex-wrap gap-1.5" }, AI_PRESETS.map((p) => (React.createElement("button", { key: p.label, type: "button", disabled: state.busy, onClick: () => {
+                setPrompt(p.prompt);
+                run(p.prompt);
+            }, className: "rounded-full border border-white/10 bg-ink-900 px-2.5 py-1 text-[11px] text-stone-400 transition hover:border-gold-500/50 hover:text-gold-200 disabled:opacity-40" }, p.label)))),
+        React.createElement(Toggle, { checked: enhance, onChange: setEnhance, label: "\u0625\u0636\u0627\u0641\u0629 \u0637\u0627\u0628\u0639 \u0633\u064A\u0646\u0645\u0627\u0626\u064A \u062F\u0627\u0643\u0646 \u0644\u0644\u0648\u0635\u0641 \u062A\u0644\u0642\u0627\u0626\u064A\u0627\u064B", small: true }),
+        React.createElement(Button, { variant: "primary", onClick: () => run(prompt), disabled: state.busy || !prompt.trim(), className: "w-full" }, state.busy ? 'جارٍ التوليد… (قد يستغرق 15–60 ثانية)' : 'توليد الخلفية'),
+        state.busy && (React.createElement("div", { className: "h-1.5 overflow-hidden rounded-full bg-ink-600" },
+            React.createElement("div", { className: "h-full w-1/3 animate-pulse rounded-full bg-gold-400" }))),
+        state.error && React.createElement("p", { className: "rounded-xl border border-red-900/50 bg-red-950/30 p-3 text-[12px] text-red-300" }, state.error),
+        React.createElement("p", { className: "text-[11px] leading-relaxed text-stone-500" }, "\u064A\u062A\u0645 \u0627\u0644\u062A\u0648\u0644\u064A\u062F \u0639\u0628\u0631 \u062E\u062F\u0645\u0629 Pollinations \u0627\u0644\u0645\u062C\u0627\u0646\u064A\u0629 (\u062A\u062D\u062A\u0627\u062C \u0625\u0646\u062A\u0631\u0646\u062A). \u0627\u0644\u0648\u0635\u0641 \u0628\u0627\u0644\u0625\u0646\u062C\u0644\u064A\u0632\u064A\u0629 \u064A\u0639\u0637\u064A \u0646\u062A\u0627\u0626\u062C \u0623\u062F\u0642. \u0643\u0644 \u0636\u063A\u0637\u0629 \u062A\u0639\u0637\u064A \u0635\u0648\u0631\u0629 \u0645\u062E\u062A\u0644\u0641\u0629.")));
+}
+function PalettesTab({ paletteId, customPalette, onChangePalette, background, onSetBackground, onChangeBackground, onRemoveBackground, onSuggestColors, }) {
+    const options = [
+        ...(customPalette ? [{ value: 'custom', label: `★ ${customPalette.name || 'نمط مخصص'}` }] : []),
+        ...PALETTES.map((p, i) => ({ value: p.id, label: `${i + 1}. ${p.name}` })),
+    ];
+    return (React.createElement(React.Fragment, null,
+        React.createElement(AIGenerator, { onResult: (src) => onSetBackground(src, { generated: true }) }),
+        React.createElement(Section, { title: "\u0635\u0648\u0631\u0629 \u062E\u0644\u0641\u064A\u0629 \u0643\u0627\u0645\u0644\u0629", hint: "\u0627\u0631\u0641\u0639 \u0635\u0648\u0631\u0629 \u0644\u062A\u0645\u0644\u0623 \u0627\u0644\u063A\u0644\u0627\u0641 \u0628\u062F\u0644 \u0627\u0644\u062A\u062F\u0631\u0651\u062C \u0627\u0644\u0644\u0648\u0646\u064A" },
+            React.createElement(UploadDrop, { onFile: (file) => onSetBackground(URL.createObjectURL(file)), title: background ? 'استبدال صورة الخلفية' : 'رفع صورة خلفية', subtitle: "JPG \u00B7 PNG \u00B7 WEBP" }),
+            background && (React.createElement(React.Fragment, null,
+                React.createElement(RangeField, { label: "\u0627\u0644\u062A\u0643\u0628\u064A\u0631", min: 1, max: 3, step: 0.01, value: background.scale, onChange: (scale) => onChangeBackground({ scale }), format: (v) => `${Math.round(v * 100)}%` }),
+                React.createElement(RangeField, { label: "\u0625\u0632\u0627\u062D\u0629 \u0623\u0641\u0642\u064A\u0629", min: -1, max: 1, step: 0.01, value: background.offsetX, onChange: (offsetX) => onChangeBackground({ offsetX }), format: (v) => Math.round(v * 100) }),
+                React.createElement(RangeField, { label: "\u0625\u0632\u0627\u062D\u0629 \u0639\u0645\u0648\u062F\u064A\u0629", min: -1, max: 1, step: 0.01, value: background.offsetY, onChange: (offsetY) => onChangeBackground({ offsetY }), format: (v) => Math.round(v * 100) }),
+                React.createElement(RangeField, { label: "\u062A\u0639\u062A\u064A\u0645 \u0627\u0644\u0635\u0648\u0631\u0629", min: 0, max: 0.9, step: 0.01, value: background.dim, onChange: (dim) => onChangeBackground({ dim }), format: (v) => `${Math.round(v * 100)}%` }),
+                React.createElement(RangeField, { label: "\u0645\u0632\u062C \u0627\u0644\u0646\u0645\u0637 \u0627\u0644\u0644\u0648\u0646\u064A \u0641\u0648\u0642\u0647\u0627", min: 0, max: 1, step: 0.01, value: background.paletteMix, onChange: (paletteMix) => onChangeBackground({ paletteMix }), format: (v) => `${Math.round(v * 100)}%` }),
+                React.createElement(SelectField, { label: "\u0637\u0631\u064A\u0642\u0629 \u0627\u0644\u0645\u0632\u062C", value: background.blend, options: BLEND_OPTIONS, onChange: (blend) => onChangeBackground({ blend }) }),
+                React.createElement("div", { className: "grid grid-cols-2 gap-2" },
+                    React.createElement(Button, { onClick: () => onSuggestColors(background.src), className: "text-[12px]" }, "\uD83C\uDFA8 \u0623\u0644\u0648\u0627\u0646 \u0645\u0646 \u0627\u0644\u062E\u0644\u0641\u064A\u0629"),
+                    React.createElement(Button, { variant: "danger", onClick: onRemoveBackground, className: "text-[12px]" }, "\u0625\u0632\u0627\u0644\u0629 \u0627\u0644\u062E\u0644\u0641\u064A\u0629"))))),
+        React.createElement(Section, { title: "\u0627\u0644\u0646\u0645\u0637 \u0627\u0644\u0644\u0648\u0646\u064A", hint: "17 \u0646\u0645\u0637\u0627\u064B \u062F\u0627\u0643\u0646\u0627\u064B \u0648\u062A\u0631\u0627\u0628\u064A\u0627\u064B + \u0627\u0644\u0646\u0645\u0637 \u0627\u0644\u0645\u0642\u062A\u0631\u062D \u0645\u0646 \u0635\u0648\u0631\u0643" },
+            React.createElement(SelectField, { value: paletteId, onChange: onChangePalette, options: options }),
+            React.createElement("div", { className: "grid grid-cols-3 gap-2.5" },
+                customPalette && (React.createElement(PaletteCard, { palette: { id: 'custom', ...customPalette }, active: paletteId === 'custom', onClick: () => onChangePalette('custom'), star: true })),
+                PALETTES.map((p) => (React.createElement(PaletteCard, { key: p.id, palette: p, active: p.id === paletteId, onClick: () => onChangePalette(p.id) })))))));
+}
+function PaletteCard({ palette, active, onClick, star }) {
+    return (React.createElement("button", { type: "button", onClick: onClick, className: `overflow-hidden rounded-xl border text-right transition ${active ? 'border-gold-400 ring-2 ring-gold-400/30' : 'border-white/10 hover:border-white/30'}` },
+        React.createElement("div", { className: "aspect-[2/3]", style: { background: paletteToCss(palette) } }),
+        React.createElement("div", { className: "truncate bg-ink-900 px-2 py-1.5 text-[11px] text-stone-300" },
+            star && '★ ',
+            palette.name)));
+}
+// ===== components/tabs/LayersTab.jsx =====
+function LayersTab({ layers, onChangeLayer, onResetLayers, textAboveLayers, onToggleTextAbove, grade, onChangeGrade }) {
+    return (React.createElement(React.Fragment, null,
+        React.createElement(Section, { title: "\u0627\u0644\u062A\u062F\u0631\u0651\u062C \u0627\u0644\u0644\u0648\u0646\u064A \u0627\u0644\u0633\u064A\u0646\u0645\u0627\u0626\u064A", hint: "\u064A\u0644\u0648\u0651\u0646 \u0627\u0644\u063A\u0644\u0627\u0641 \u0643\u0627\u0645\u0644\u0627\u064B \u0643\u0645\u0627 \u0641\u064A \u0623\u0641\u0644\u0627\u0645 \u0627\u0644\u0633\u064A\u0646\u0645\u0627" },
+            React.createElement("div", { className: "grid grid-cols-3 gap-2" }, GRADES.map((g) => (React.createElement("button", { key: g.id, type: "button", onClick: () => onChangeGrade({ preset: g.id }), className: `overflow-hidden rounded-xl border text-center transition ${grade.preset === g.id ? 'border-gold-400 ring-2 ring-gold-400/30' : 'border-white/10 hover:border-white/30'}` },
+                React.createElement("div", { className: "h-8", style: { background: `linear-gradient(135deg, ${g.swatch[0]}, ${g.swatch[1]})` } }),
+                React.createElement("div", { className: "bg-ink-900 py-1 text-[11px] text-stone-300" }, g.label))))),
+            grade.preset !== 'none' && (React.createElement(RangeField, { label: "\u0642\u0648\u0629 \u0627\u0644\u062A\u062F\u0631\u0651\u062C", min: 0.05, max: 1, step: 0.01, value: grade.amount, onChange: (amount) => onChangeGrade({ amount }), format: (v) => `${Math.round(v * 100)}%` }))),
+        React.createElement(Section, { title: "\u0627\u0644\u0637\u0628\u0642\u0627\u062A \u0648\u0627\u0644\u0645\u0624\u062B\u0631\u0627\u062A", hint: "\u062A\u064F\u0637\u0628\u064E\u0651\u0642 \u0641\u0648\u0642 \u0627\u0644\u062A\u0635\u0645\u064A\u0645 \u0628\u0627\u0644\u0643\u0627\u0645\u0644 \u0628\u0623\u0648\u0636\u0627\u0639 \u062F\u0645\u062C \u0633\u064A\u0646\u0645\u0627\u0626\u064A\u0629", action: React.createElement(Button, { onClick: onResetLayers, className: "!px-2.5 !py-1 text-[11px]" }, "\u0625\u064A\u0642\u0627\u0641 \u0627\u0644\u0643\u0644") },
+            React.createElement(Toggle, { checked: textAboveLayers, onChange: onToggleTextAbove, label: "\u0625\u0628\u0642\u0627\u0621 \u0627\u0644\u0646\u0635\u0648\u0635 \u0641\u0648\u0642 \u0627\u0644\u0645\u0624\u062B\u0631\u0627\u062A (\u0648\u0636\u0648\u062D \u0623\u0639\u0644\u0649)", small: true })),
+        OVERLAY_GROUPS.map((group) => (React.createElement(Section, { key: group.id, title: group.label },
+            React.createElement("div", { className: "space-y-3" }, group.items.map((item) => {
+                const state = layers[item.id];
+                return (React.createElement("div", { key: item.id, className: `rounded-xl border p-3 transition ${state.enabled ? 'border-gold-500/30 bg-gold-400/5' : 'border-white/5 bg-ink-900/60'}` },
+                    React.createElement("div", { className: "flex items-center justify-between gap-3" },
+                        React.createElement(Toggle, { checked: state.enabled, onChange: (enabled) => onChangeLayer(item.id, { enabled }), label: item.label, small: true }),
+                        React.createElement("span", { className: "text-[11px] tabular-nums text-stone-500", dir: "ltr" },
+                            Math.round(state.opacity * 100),
+                            "%")),
+                    React.createElement("input", { type: "range", className: "slider mt-3", min: 0, max: 1, step: 0.01, value: state.opacity, disabled: !state.enabled, onChange: (e) => onChangeLayer(item.id, { opacity: parseFloat(e.target.value) }) })));
+            })))))));
+}
+// ===== components/tabs/ElementsTab.jsx =====
+function IconBtn({ children, onClick, active, title, disabled }) {
+    return (React.createElement("button", { type: "button", title: title, disabled: disabled, onClick: (e) => {
+            e.stopPropagation();
+            onClick();
+        }, className: `grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[13px] transition disabled:opacity-25 ${active ? 'text-gold-300' : 'text-stone-500 hover:bg-white/5 hover:text-stone-200'}` }, children));
+}
+function Row({ selected, onClick, thumb, label, sub, visible, locked, onToggleVisible, onToggleLock, extra }) {
+    return (React.createElement("div", { role: "button", tabIndex: 0, onClick: onClick, className: `flex items-center gap-2 rounded-xl border px-2 py-1.5 transition ${selected ? 'border-gold-400/60 bg-gold-400/10' : 'border-transparent hover:bg-white/5'} ${visible ? '' : 'opacity-50'}` },
+        React.createElement("div", { className: "grid h-9 w-9 shrink-0 place-items-center overflow-hidden rounded-lg bg-[conic-gradient(#1f1b16_25%,#15120f_0_50%,#1f1b16_0_75%,#15120f_0)] bg-[length:10px_10px] text-[13px] text-gold-300" }, thumb),
+        React.createElement("div", { className: "min-w-0 flex-1" },
+            React.createElement("div", { className: "truncate text-[12.5px] text-stone-200" }, label),
+            sub && React.createElement("div", { className: "truncate text-[10.5px] text-stone-500" }, sub)),
+        extra,
+        React.createElement(IconBtn, { onClick: onToggleLock, active: locked, title: locked ? 'فك القفل' : 'قفل (يمنع التحريك)' }, locked ? '🔒' : '🔓'),
+        React.createElement(IconBtn, { onClick: onToggleVisible, active: visible, title: visible ? 'إخفاء' : 'إظهار' }, visible ? '👁' : '◌')));
+}
+function ElementsTab({ texts, images, logo, selectedIds, onSelect, onChangeText, onChangeNode, onMoveImage, onRemoveImage, onDuplicate }) {
+    const isSel = (id) => selectedIds.includes(id);
+    const pick = (id, e) => onSelect(id, e?.shiftKey);
+    const ordered = [...images].reverse(); // الأعلى أولاً
+    return (React.createElement(React.Fragment, null,
+        React.createElement(Section, { title: "\u0627\u0644\u0639\u0646\u0627\u0635\u0631", hint: "\u0627\u0636\u063A\u0637 \u0644\u0644\u062A\u062D\u062F\u064A\u062F \u00B7 Shift \u0644\u0644\u062A\u062D\u062F\u064A\u062F \u0627\u0644\u0645\u062A\u0639\u062F\u062F \u00B7 \u0627\u0644\u0642\u0641\u0644 \u064A\u0645\u0646\u0639 \u0627\u0644\u062A\u062D\u0631\u064A\u0643 \u0628\u0627\u0644\u062E\u0637\u0623" },
+            React.createElement("div", { className: "space-y-1" },
+                React.createElement("div", { className: "px-1 pb-1 text-[11px] font-bold text-stone-500" }, "\u0627\u0644\u0646\u0635\u0648\u0635"),
+                TEXT_SLOTS.filter((s) => texts[s.id]).map((slot) => {
+                    const t = texts[slot.id];
+                    const id = `text-${slot.id}`;
+                    return (React.createElement(Row, { key: slot.id, selected: isSel(id), onClick: (e) => t.visible !== false && pick(id, e), thumb: React.createElement("span", { style: { fontFamily: `"${t.font}"`, color: t.color } }, "\u0623"), label: slot.label, sub: t.text.replace(/\n/g, ' · '), visible: t.visible !== false, locked: !!t.locked, onToggleVisible: () => onChangeText(slot.id, { visible: t.visible === false }), onToggleLock: () => onChangeText(slot.id, { locked: !t.locked }) }));
+                }),
+                logo && (React.createElement(React.Fragment, null,
+                    React.createElement("div", { className: "px-1 pb-1 pt-3 text-[11px] font-bold text-stone-500" }, "\u0627\u0644\u0634\u0639\u0627\u0631"),
+                    React.createElement(Row, { selected: isSel('logo'), onClick: (e) => pick('logo', e), 
+                        // eslint-disable-next-line @next/next/no-img-element
+                        thumb: React.createElement("img", { src: logo.src, alt: "", className: "h-full w-full object-contain p-0.5" }), label: "\u0627\u0644\u0634\u0639\u0627\u0631", visible: logo.visible !== false, locked: !!logo.locked, onToggleVisible: () => onChangeNode('logo', { visible: logo.visible === false }), onToggleLock: () => onChangeNode('logo', { locked: !logo.locked }) }))),
+                React.createElement("div", { className: "px-1 pb-1 pt-3 text-[11px] font-bold text-stone-500" },
+                    "\u0627\u0644\u0635\u0648\u0631 \u0648\u0627\u0644\u0639\u0646\u0627\u0635\u0631 (",
+                    images.length,
+                    ")"),
+                ordered.length === 0 && React.createElement("p", { className: "px-1 text-[11px] text-stone-600" }, "\u0644\u0627 \u062A\u0648\u062C\u062F \u0635\u0648\u0631 \u0628\u0639\u062F \u2014 \u0623\u0636\u0641\u0647\u0627 \u0645\u0646 \u062A\u0628\u0648\u064A\u0628 \u00AB\u0627\u0644\u0635\u0648\u0631\u00BB \u0623\u0648 \u00AB\u0627\u0644\u0645\u0643\u062A\u0628\u0629\u00BB."),
+                ordered.map((img, i) => (React.createElement(Row, { key: img.id, selected: isSel(img.id), onClick: (e) => pick(img.id, e), 
+                    // eslint-disable-next-line @next/next/no-img-element
+                    thumb: React.createElement("img", { src: img.src, alt: "", className: "h-full w-full object-contain p-0.5" }), label: img.name, sub: img.backdrop?.shape && img.backdrop.shape !== 'none' ? 'مع شكل خلفي' : img.cutout ? 'شفافة' : 'صورة', visible: img.visible !== false, locked: !!img.locked, onToggleVisible: () => onChangeNode(img.id, { visible: img.visible === false }), onToggleLock: () => onChangeNode(img.id, { locked: !img.locked }), extra: React.createElement(React.Fragment, null,
+                        React.createElement(IconBtn, { onClick: () => onMoveImage(img.id, 1), disabled: i === 0, title: "\u0644\u0644\u0623\u0645\u0627\u0645" }, "\u25B2"),
+                        React.createElement(IconBtn, { onClick: () => onMoveImage(img.id, -1), disabled: i === ordered.length - 1, title: "\u0644\u0644\u062E\u0644\u0641" }, "\u25BC"),
+                        React.createElement(IconBtn, { onClick: () => onDuplicate([img.id]), title: "\u062A\u0643\u0631\u0627\u0631 (Ctrl+D)" }, "\u29C9"),
+                        React.createElement(IconBtn, { onClick: () => onRemoveImage(img.id), title: "\u062D\u0630\u0641" }, "\u2715")) }))))),
+        React.createElement(Section, { title: "\u0627\u062E\u062A\u0635\u0627\u0631\u0627\u062A \u0644\u0648\u062D\u0629 \u0627\u0644\u0645\u0641\u0627\u062A\u064A\u062D" },
+            React.createElement("div", { className: "grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11.5px] text-stone-400" }, [
+                ['Ctrl+Z / Ctrl+Y', 'تراجع / إعادة'],
+                ['Ctrl+C / Ctrl+V', 'نسخ / لصق'],
+                ['Ctrl+D', 'تكرار'],
+                ['الأسهم', 'تحريك 1px'],
+                ['Shift+الأسهم', 'تحريك 10px'],
+                ['Shift+نقر', 'تحديد متعدد'],
+                ['Ctrl+A', 'تحديد الكل'],
+                ['Ctrl+عجلة', 'تكبير المعاينة'],
+                ['Delete', 'حذف / إخفاء'],
+                ['Ctrl+S', 'حفظ المشروع'],
+            ].map(([k, v]) => (React.createElement("div", { key: k, className: "contents" },
+                React.createElement("span", { className: "font-mono text-[10.5px] text-gold-300", dir: "ltr" }, k),
+                React.createElement("span", null, v))))))));
+}
+// ===== components/ControlPanel.jsx =====
+const TABS = [
+    { id: 'templates', label: 'القوالب', icon: '★' },
+    { id: 'elements', label: 'العناصر', icon: '❏' },
+    { id: 'typography', label: 'النصوص', icon: 'ت' },
+    { id: 'compositing', label: 'الصور', icon: '◐' },
+    { id: 'library', label: 'المكتبة', icon: '✚' },
+    { id: 'palettes', label: 'الخلفيات', icon: '▦' },
+    { id: 'layers', label: 'المؤثرات', icon: '☰' },
+    { id: 'logo', label: 'الشعار', icon: '◈' },
+];
+function ControlPanel(props) {
+    const [localTab, setLocalTab] = useState('templates');
+    const tab = props.activeTab || localTab;
+    const setTab = props.onTabChange || setLocalTab;
+    const activeLayers = Object.values(props.layers).filter((l) => l.enabled).length;
+    return (React.createElement("aside", { className: "flex h-[46%] w-full shrink-0 flex-col border-t border-white/10 bg-ink-900 lg:h-auto lg:w-[420px] lg:border-l lg:border-t-0 lg:border-white/5" },
+        React.createElement("nav", { className: "grid grid-cols-4 gap-0.5 border-b border-white/5 p-1.5" }, TABS.map((t) => (React.createElement("button", { key: t.id, type: "button", onClick: () => setTab(t.id), className: `relative flex items-center justify-center gap-1.5 rounded-xl px-1 py-2 text-[12px] transition ${tab === t.id ? 'bg-gold-400/10 text-gold-300' : 'text-stone-500 hover:bg-white/5 hover:text-stone-300'}` },
+            React.createElement("span", { className: "text-base leading-none" }, t.icon),
+            t.label,
+            t.id === 'layers' && activeLayers > 0 && (React.createElement("span", { className: "absolute left-0.5 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-gold-500 px-1 text-[9px] font-bold text-ink-950" }, activeLayers)))))),
+        React.createElement("div", { className: "scroll-thin flex-1 space-y-4 overflow-y-auto p-4" },
+            tab === 'elements' && (React.createElement(ElementsTab, { texts: props.texts, images: props.images, logo: props.logo, selectedIds: props.selectedIds, onSelect: props.onSelect, onChangeText: props.onChangeText, onChangeNode: props.onChangeNode, onMoveImage: props.onMoveImage, onRemoveImage: props.onRemoveImage, onDuplicate: props.onDuplicate })),
+            tab === 'templates' && React.createElement(TemplatesTab, { onApplyTemplate: props.onApplyTemplate, activeTemplateId: props.activeTemplateId }),
+            tab === 'typography' && (React.createElement(TypographyTab, { texts: props.texts, onChangeText: props.onChangeText, onSelect: props.onSelect, openSlot: props.openSlot, onOpenSlot: props.onOpenSlot, focusSignal: props.focusSignal })),
+            tab === 'compositing' && (React.createElement(CompositingTab, { images: props.images, selectedId: props.selectedId, onSelect: props.onSelect, onAddImage: props.onAddImage, onChangeNode: props.onChangeNode, onRemoveImage: props.onRemoveImage, onMoveImage: props.onMoveImage, autoColors: props.autoColors, onToggleAutoColors: props.onToggleAutoColors, onSuggestColors: props.onSuggestColors, paletteLight: props.paletteLight, onOpenCutout: props.onOpenCutout, focusSignal: props.focusSignal })),
+            tab === 'library' && React.createElement(LibraryTab, { onAddImage: props.onAddImage }),
+            tab === 'palettes' && (React.createElement(PalettesTab, { paletteId: props.paletteId, customPalette: props.customPalette, onChangePalette: props.onChangePalette, background: props.background, onSetBackground: props.onSetBackground, onChangeBackground: props.onChangeBackground, onRemoveBackground: props.onRemoveBackground, onSuggestColors: props.onSuggestColors })),
+            tab === 'layers' && (React.createElement(LayersTab, { layers: props.layers, onChangeLayer: props.onChangeLayer, onResetLayers: props.onResetLayers, textAboveLayers: props.textAboveLayers, onToggleTextAbove: props.onToggleTextAbove, grade: props.grade, onChangeGrade: props.onChangeGrade })),
+            tab === 'logo' && (React.createElement(LogoTab, { logo: props.logo, onSetLogo: props.onSetLogo, onChangeNode: props.onChangeNode, onRemoveLogo: props.onRemoveLogo, onSelect: props.onSelect })))));
+}
+// ===== components/SelectionToolbar.jsx =====
+const ALIGN = [
+    { id: 'right', icon: '⇥', title: 'محاذاة لليمين' },
+    { id: 'centerH', icon: '⇔', title: 'توسيط أفقي' },
+    { id: 'left', icon: '⇤', title: 'محاذاة لليسار' },
+    { id: 'top', icon: '⤒', title: 'محاذاة للأعلى' },
+    { id: 'centerV', icon: '⇕', title: 'توسيط عمودي' },
+    { id: 'bottom', icon: '⤓', title: 'محاذاة للأسفل' },
+];
+function Btn({ children, onClick, title, danger, active }) {
+    return (React.createElement("button", { type: "button", title: title, onClick: onClick, className: `grid h-8 min-w-8 place-items-center rounded-lg px-1.5 text-[14px] transition ${danger ? 'text-red-300 hover:bg-red-950/60' : active ? 'bg-gold-400/20 text-gold-300' : 'text-stone-300 hover:bg-white/10 hover:text-gold-200'}` }, children));
+}
+/** شريط عائم يظهر فوق المعاينة عند تحديد عنصر أو أكثر */
+function SelectionToolbar({ count, label, onAlign, onDuplicate, onDelete, onLock, onDeselect, canDuplicate, snapping, onToggleSnapping }) {
+    return (React.createElement("div", { className: "scroll-thin absolute left-1/2 top-2 z-20 flex max-w-[96%] -translate-x-1/2 items-center gap-0.5 overflow-x-auto rounded-2xl lg:top-4 border border-white/10 bg-ink-900/95 p-1 shadow-2xl backdrop-blur" },
+        React.createElement("span", { className: "px-2 text-[11.5px] text-gold-300" }, count > 1 ? `${count} عناصر` : label),
+        React.createElement("span", { className: "mx-0.5 h-5 w-px bg-white/10" }),
+        ALIGN.map((a) => (React.createElement(Btn, { key: a.id, title: a.title, onClick: () => onAlign(a.id) }, a.icon))),
+        React.createElement("span", { className: "mx-0.5 h-5 w-px bg-white/10" }),
+        React.createElement(Btn, { title: snapping ? 'المحاذاة الذكية مفعّلة' : 'المحاذاة الذكية معطّلة', onClick: onToggleSnapping, active: snapping }, "\uD83E\uDDF2"),
+        canDuplicate && React.createElement(Btn, { title: "\u062A\u0643\u0631\u0627\u0631 (Ctrl+D)", onClick: onDuplicate }, "\u29C9"),
+        React.createElement(Btn, { title: "\u0642\u0641\u0644", onClick: onLock }, "\uD83D\uDD12"),
+        React.createElement(Btn, { title: "\u062D\u0630\u0641 / \u0625\u062E\u0641\u0627\u0621 (Delete)", onClick: onDelete, danger: true }, "\uD83D\uDDD1"),
+        React.createElement(Btn, { title: "\u0625\u0644\u063A\u0627\u0621 \u0627\u0644\u062A\u062D\u062F\u064A\u062F (Esc)", onClick: onDeselect }, "\u2715")));
+}
+// ===== components/QuickWizard.jsx =====
+/**
+ * معالج الغلاف السريع: العنوان + المؤلف + النوع (+ صورة / خلفية AI اختيارية)
+ * ← يصمّم الغلاف كاملاً بنقرة واحدة.
+ */
+function QuickWizard({ onRun, onClose }) {
+    const [title, setTitle] = useState('');
+    const [author, setAuthor] = useState('');
+    const [category, setCategory] = useState('horror');
+    const [file, setFile] = useState(null);
+    const [removeBg, setRemoveBg] = useState(true);
+    const [useAI, setUseAI] = useState(false);
+    const [aiPrompt, setAiPrompt] = useState(AI_PRESETS[0].prompt);
+    const [progress, setProgress] = useState(null);
+    const busy = !!progress;
+    const run = async () => {
+        setProgress({ label: 'جارٍ التصميم…', percent: 5 });
+        try {
+            await onRun({ title: title.trim(), author: author.trim(), category, file, removeBg, aiPrompt: useAI ? aiPrompt : '' }, (label, percent) => setProgress({ label, percent: percent ?? 50 }));
+            onClose();
+        }
+        catch (err) {
+            setProgress(null);
+            alert(err?.message || 'حدث خطأ');
+        }
+    };
+    const input = 'w-full rounded-xl border border-white/10 bg-ink-900 px-4 py-3 text-[15px] text-stone-100 outline-none placeholder:text-stone-600 focus:border-gold-500/60';
+    return (React.createElement("div", { className: "fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" },
+        React.createElement("div", { className: "scroll-thin max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-gold-500/20 bg-ink-900 p-6 shadow-2xl" },
+            React.createElement("div", { className: "mb-5 flex items-start justify-between gap-4" },
+                React.createElement("div", null,
+                    React.createElement("h2", { className: "text-xl font-bold text-gold-300" }, "\u2726 \u0627\u0644\u0645\u0639\u0627\u0644\u062C \u0627\u0644\u0633\u0631\u064A\u0639"),
+                    React.createElement("p", { className: "mt-1 text-[13px] text-stone-400" }, "\u0627\u0643\u062A\u0628 \u0628\u064A\u0627\u0646\u0627\u062A \u0643\u062A\u0627\u0628\u0643 \u0648\u0627\u062E\u062A\u0631 \u0646\u0648\u0639\u0647\u060C \u0648\u0633\u0646\u0635\u0645\u0651\u0645 \u0627\u0644\u063A\u0644\u0627\u0641 \u0644\u0643 \u2014 \u062B\u0645 \u0639\u062F\u0651\u0644 \u0645\u0627 \u062A\u0634\u0627\u0621.")),
+                !busy && (React.createElement("button", { type: "button", onClick: onClose, className: "rounded-lg px-2 py-1 text-stone-500 hover:bg-white/5 hover:text-stone-200" }, "\u2715"))),
+            React.createElement("div", { className: "space-y-4" },
+                React.createElement("label", { className: "block" },
+                    React.createElement("span", { className: "mb-1.5 block text-[12px] text-stone-400" }, "\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u0643\u062A\u0627\u0628"),
+                    React.createElement("input", { className: input, value: title, onChange: (e) => setTitle(e.target.value), placeholder: "\u0645\u062B\u0627\u0644: \u0638\u0644\u0627\u0644 \u0627\u0644\u0645\u062F\u064A\u0646\u0629 \u0627\u0644\u0623\u062E\u064A\u0631\u0629", autoFocus: true })),
+                React.createElement("label", { className: "block" },
+                    React.createElement("span", { className: "mb-1.5 block text-[12px] text-stone-400" }, "\u0627\u0633\u0645 \u0627\u0644\u0645\u0624\u0644\u0641 \u0623\u0648 \u0627\u0644\u0639\u0646\u0648\u0627\u0646 \u0627\u0644\u0641\u0631\u0639\u064A"),
+                    React.createElement("input", { className: input, value: author, onChange: (e) => setAuthor(e.target.value), placeholder: "\u0645\u062B\u0627\u0644: \u0631\u0648\u0627\u064A\u0629 \u2014 \u0623\u062D\u0645\u062F \u0645\u062D\u0645\u062F" })),
+                React.createElement("div", null,
+                    React.createElement("span", { className: "mb-1.5 block text-[12px] text-stone-400" }, "\u0646\u0648\u0639 \u0627\u0644\u0643\u062A\u0627\u0628"),
+                    React.createElement("div", { className: "grid grid-cols-3 gap-2" }, TEMPLATE_CATEGORIES.filter((c) => c.id !== 'all').map((c) => (React.createElement("button", { key: c.id, type: "button", onClick: () => setCategory(c.id), className: `rounded-xl py-2.5 text-[13px] transition ${category === c.id ? 'bg-gold-400 font-bold text-ink-950' : 'border border-white/10 bg-ink-800 text-stone-300 hover:border-gold-500/40'}` }, c.label))))),
+                React.createElement("div", { className: "rounded-2xl border border-white/5 bg-ink-800/60 p-4" },
+                    React.createElement("span", { className: "mb-2 block text-[12px] text-stone-400" }, "\u0635\u0648\u0631\u0629 \u0631\u0626\u064A\u0633\u064A\u0629 (\u0627\u062E\u062A\u064A\u0627\u0631\u064A) \u2014 \u0634\u062E\u0635 \u0623\u0648 \u0639\u0646\u0635\u0631"),
+                    React.createElement("label", { className: "flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-gold-600/40 px-4 py-3 hover:border-gold-400" },
+                        React.createElement("span", { className: "text-lg text-gold-300" }, "\uFF0B"),
+                        React.createElement("span", { className: "truncate text-[13px] text-stone-300" }, file ? file.name : 'اختر صورة'),
+                        React.createElement("input", { type: "file", accept: "image/*", hidden: true, onChange: (e) => setFile(e.target.files?.[0] || null) })),
+                    file && (React.createElement("div", { className: "mt-3" },
+                        React.createElement(Toggle, { checked: removeBg, onChange: setRemoveBg, label: "\u0625\u0632\u0627\u0644\u0629 \u062E\u0644\u0641\u064A\u0629 \u0627\u0644\u0635\u0648\u0631\u0629 \u062A\u0644\u0642\u0627\u0626\u064A\u0627\u064B", small: true })))),
+                React.createElement("div", { className: "rounded-2xl border border-white/5 bg-ink-800/60 p-4" },
+                    React.createElement(Toggle, { checked: useAI, onChange: setUseAI, label: "\u062A\u0648\u0644\u064A\u062F \u062E\u0644\u0641\u064A\u0629 \u0628\u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064A (\u0627\u062E\u062A\u064A\u0627\u0631\u064A)", small: true }),
+                    useAI && (React.createElement("div", { className: "mt-3 space-y-2" },
+                        React.createElement("select", { value: aiPrompt, onChange: (e) => setAiPrompt(e.target.value), className: "w-full rounded-xl border border-white/10 bg-ink-900 px-3 py-2.5 text-sm text-stone-200 outline-none" }, AI_PRESETS.map((p) => (React.createElement("option", { key: p.label, value: p.prompt }, p.label)))),
+                        React.createElement("p", { className: "text-[11px] text-stone-500" }, "\u064A\u0633\u062A\u063A\u0631\u0642 15\u201360 \u062B\u0627\u0646\u064A\u0629 \u0648\u064A\u062D\u062A\u0627\u062C \u0625\u0646\u062A\u0631\u0646\u062A.")))),
+                busy ? (React.createElement(ProgressBar, { percent: progress.percent, label: progress.label })) : (React.createElement("button", { type: "button", onClick: run, className: "w-full rounded-2xl bg-gradient-to-l from-gold-300 to-gold-500 py-3.5 text-[15px] font-bold text-ink-950 shadow-[0_10px_40px_rgba(212,175,106,.3)] transition hover:brightness-110" }, "\u0635\u0645\u0651\u0645 \u0627\u0644\u063A\u0644\u0627\u0641")),
+                !busy && (React.createElement("button", { type: "button", onClick: onClose, className: "w-full text-[12px] text-stone-500 hover:text-stone-300" }, "\u062A\u062E\u0637\u064E\u0651 \u0648\u0627\u0628\u062F\u0623 \u0628\u063A\u0644\u0627\u0641 \u0641\u0627\u0631\u063A"))))));
+}
+// ===== components/CutoutEditor.jsx =====
+const PREVIEW_MAX = 1000;
+const UNDO_LIMIT = 10;
+const BACKDROPS = [
+    { id: 'checker', label: 'شفاف' },
+    { id: '#000000', label: 'أسود' },
+    { id: '#ffffff', label: 'أبيض' },
+    { id: '#c8102e', label: 'أحمر' },
+    { id: '#1e6bd6', label: 'أزرق' },
+];
+/**
+ * محرر القص اليدوي: فرشاة ممحاة/استعادة + تحسين الحواف + إعادة الكشف بدقة عالية.
+ * يحفظ: الصورة المفرّغة + القناع (لإعادة التحرير لاحقاً).
+ */
+function CutoutEditor({ item, onSave, onClose }) {
+    const viewRef = useRef(null);
+    const work = useRef({ original: null, base: null, edits: null, prevOriginal: null, scale: 1 });
+    const undoStack = useRef([]);
+    const drawing = useRef(null);
+    const raf = useRef(0);
+    const [status, setStatus] = useState({ loading: true, label: 'تحميل الصورة…', percent: 0, error: null });
+    const [params, setParams] = useState({ ...DEFAULT_REFINE, ...(item.cutParams || {}) });
+    const [tool, setTool] = useState('erase');
+    const [brush, setBrush] = useState(40);
+    const [softness, setSoftness] = useState(0.5);
+    const [backdrop, setBackdrop] = useState('checker');
+    const [showMask, setShowMask] = useState(false);
+    const [undoCount, setUndoCount] = useState(0);
+    const [saving, setSaving] = useState(false);
+    const [cursor, setCursor] = useState(null);
+    // ── رسم المعاينة (مخفّضة الدقة لسرعة الاستجابة) ──
+    const render = useCallback(() => {
+        cancelAnimationFrame(raf.current);
+        raf.current = requestAnimationFrame(() => {
+            const w = work.current;
+            const view = viewRef.current;
+            if (!w.original || !view)
+                return;
+            const pw = w.prevOriginal.width, ph = w.prevOriginal.height;
+            if (view.width !== pw)
+                view.width = pw;
+            if (view.height !== ph)
+                view.height = ph;
+            const ctx = view.getContext('2d');
+            ctx.clearRect(0, 0, pw, ph);
+            const mask = combineMask(w.base, w.edits, pw, ph);
+            if (showMask) {
+                ctx.drawImage(mask, 0, 0);
+                return;
+            }
+            ctx.drawImage(refineCutout(w.prevOriginal, mask, params, w.scale), 0, 0);
+        });
+    }, [params, showMask]);
+    useEffect(() => {
+        render();
+    }, [render]);
+    const setupFrom = (original, base) => {
+        const scale = Math.min(1, PREVIEW_MAX / Math.max(original.width, original.height));
+        work.current = {
+            original,
+            base,
+            edits: makeCanvas(original.width, original.height),
+            prevOriginal: toWorkCanvas(original, Math.max(original.width, original.height) * scale),
+            scale,
+        };
+        undoStack.current = [];
+        setUndoCount(0);
+    };
+    const runAI = async (quality) => {
+        setStatus({ loading: true, label: 'تحميل محرك التفريغ…', percent: 0, error: null });
+        try {
+            const { original, mask } = await aiMask(item.originalSrc || item.src, (p) => setStatus((s) => ({ ...s, label: p.label, percent: p.percent })), quality);
+            setupFrom(original, mask);
+            setStatus({ loading: false, label: '', percent: 100, error: null });
+            render();
+        }
+        catch (err) {
+            setStatus({ loading: false, label: '', percent: 0, error: err?.message || 'تعذّر الكشف' });
+        }
+    };
+    // ── التحميل الأولي ──
+    useEffect(() => {
+        let alive = true;
+        (async () => {
+            try {
+                if (item.maskSrc) {
+                    const original = toWorkCanvas(await loadImage(item.originalSrc || item.src));
+                    const maskImg = await loadImage(item.maskSrc);
+                    const base = makeCanvas(original.width, original.height);
+                    base.getContext('2d').drawImage(maskImg, 0, 0, base.width, base.height);
+                    if (!alive)
+                        return;
+                    setupFrom(original, base);
+                    setStatus({ loading: false, label: '', percent: 100, error: null });
+                    render();
+                }
+                else if (item.cutout && !item.originalSrc) {
+                    // لدينا الصورة المفرّغة فقط (من المكتبة مثلاً) — نستخدم شفافيتها كقناع
+                    const img = await loadImage(item.src);
+                    const original = toWorkCanvas(img);
+                    if (!alive)
+                        return;
+                    setupFrom(original, alphaToMask(original, original.width, original.height));
+                    setStatus({ loading: false, label: '', percent: 100, error: null });
+                    render();
+                }
+                else {
+                    await runAI(getCutQuality());
+                }
+            }
+            catch (err) {
+                if (alive)
+                    setStatus({ loading: false, label: '', percent: 0, error: err?.message || 'تعذّر تحميل الصورة' });
+            }
+        })();
+        return () => {
+            alive = false;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    // ── الفرشاة ──
+    const toWork = (e) => {
+        const rect = viewRef.current.getBoundingClientRect();
+        const w = work.current.original;
+        return {
+            x: ((e.clientX - rect.left) / rect.width) * w.width,
+            y: ((e.clientY - rect.top) / rect.height) * w.height,
+            ratio: w.width / rect.width,
+        };
+    };
+    const stamp = (x, y, radius) => {
+        const ctx = work.current.edits.getContext('2d');
+        const color = tool === 'erase' ? '0,0,0' : '255,255,255';
+        const g = ctx.createRadialGradient(x, y, 0, x, y, radius);
+        g.addColorStop(0, `rgba(${color},1)`);
+        g.addColorStop(Math.max(0.01, 1 - softness), `rgba(${color},1)`);
+        g.addColorStop(1, `rgba(${color},0)`);
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+    };
+    const onPointerDown = (e) => {
+        if (status.loading || !work.current.edits)
+            return;
+        e.currentTarget.setPointerCapture(e.pointerId);
+        const ed = work.current.edits;
+        undoStack.current.push(ed.getContext('2d').getImageData(0, 0, ed.width, ed.height));
+        if (undoStack.current.length > UNDO_LIMIT)
+            undoStack.current.shift();
+        setUndoCount(undoStack.current.length);
+        const p = toWork(e);
+        drawing.current = p;
+        stamp(p.x, p.y, (brush / 2) * p.ratio);
+        render();
+    };
+    const onPointerMove = (e) => {
+        const rect = viewRef.current?.getBoundingClientRect();
+        if (rect)
+            setCursor({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        if (!drawing.current)
+            return;
+        const p = toWork(e);
+        const last = drawing.current;
+        const radius = (brush / 2) * p.ratio;
+        const dist = Math.hypot(p.x - last.x, p.y - last.y);
+        const steps = Math.max(1, Math.ceil(dist / (radius * 0.3)));
+        for (let i = 1; i <= steps; i++)
+            stamp(last.x + ((p.x - last.x) * i) / steps, last.y + ((p.y - last.y) * i) / steps, radius);
+        drawing.current = p;
+        render();
+    };
+    const onPointerUp = () => {
+        drawing.current = null;
+    };
+    const undo = () => {
+        const snap = undoStack.current.pop();
+        if (!snap)
+            return;
+        work.current.edits.getContext('2d').putImageData(snap, 0, 0);
+        setUndoCount(undoStack.current.length);
+        render();
+    };
+    const clearEdits = () => {
+        const ed = work.current.edits;
+        if (!ed)
+            return;
+        undoStack.current.push(ed.getContext('2d').getImageData(0, 0, ed.width, ed.height));
+        ed.getContext('2d').clearRect(0, 0, ed.width, ed.height);
+        setUndoCount(undoStack.current.length);
+        render();
+    };
+    const save = async () => {
+        setSaving(true);
+        try {
+            const w = work.current;
+            const mask = combineMask(w.base, w.edits);
+            const out = refineCutout(w.original, mask, params, 1);
+            const blob = await trimTransparent(await canvasToBlob(out));
+            const maskBlob = await canvasToBlob(mask);
+            onSave({ src: URL.createObjectURL(blob), maskSrc: URL.createObjectURL(maskBlob), cutParams: params, cutout: true });
+        }
+        finally {
+            setSaving(false);
+        }
+    };
+    // اختصارات داخل المحرر
+    useEffect(() => {
+        const onKey = (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
+                e.preventDefault();
+                e.stopPropagation();
+                undo();
+            }
+            if (e.key === 'Escape')
+                onClose();
+            if (e.code === 'KeyE')
+                setTool('erase');
+            if (e.code === 'KeyR')
+                setTool('restore');
+            if (e.code === 'BracketLeft')
+                setBrush((b) => Math.max(4, b - 6));
+            if (e.code === 'BracketRight')
+                setBrush((b) => Math.min(300, b + 6));
+        };
+        window.addEventListener('keydown', onKey, true);
+        return () => window.removeEventListener('keydown', onKey, true);
+    });
+    const checker = 'conic-gradient(#2a2622 25%, #1b1815 0 50%, #2a2622 0 75%, #1b1815 0) 0 0 / 22px 22px';
+    const setP = (patch) => setParams((p) => ({ ...p, ...patch }));
+    return (React.createElement("div", { className: "fixed inset-0 z-50 flex flex-col-reverse bg-black/85 backdrop-blur-sm lg:flex-row" },
+        React.createElement("aside", { className: "scroll-thin flex h-[48%] w-full shrink-0 flex-col gap-4 overflow-y-auto border-t border-white/10 bg-ink-900 p-4 lg:h-auto lg:w-[330px] lg:border-l lg:border-t-0 lg:p-5" },
+            React.createElement("div", null,
+                React.createElement("h2", { className: "text-lg font-bold text-gold-300" }, "\u2702 \u0645\u062D\u0631\u0631 \u0627\u0644\u0642\u0635"),
+                React.createElement("p", { className: "mt-1 text-[12px] leading-relaxed text-stone-400" }, "\u0627\u0645\u0633\u062D \u0645\u0627 \u062A\u0628\u0642\u0651\u0649 \u0645\u0646 \u0627\u0644\u062E\u0644\u0641\u064A\u0629 \u0628\u0627\u0644\u0645\u0645\u062D\u0627\u0629\u060C \u0648\u0627\u0633\u062A\u0631\u062C\u0639 \u0645\u0627 \u062D\u064F\u0630\u0641 \u062E\u0637\u0623\u064B \u0628\u0623\u062F\u0627\u0629 \u0627\u0644\u0627\u0633\u062A\u0639\u0627\u062F\u0629.")),
+            React.createElement("div", { className: "grid grid-cols-2 gap-2" }, [['erase', '⌫ ممحاة', 'E'], ['restore', '🖌 استعادة', 'R']].map(([id, label, key]) => (React.createElement("button", { key: id, type: "button", onClick: () => setTool(id), className: `rounded-xl py-2.5 text-[13px] transition ${tool === id ? 'bg-gold-400 font-bold text-ink-950' : 'border border-white/10 bg-ink-800 text-stone-300'}` },
+                label,
+                " ",
+                React.createElement("span", { className: "text-[10px] opacity-60" },
+                    "(",
+                    key,
+                    ")"))))),
+            React.createElement(RangeField, { label: "\u062D\u062C\u0645 \u0627\u0644\u0641\u0631\u0634\u0627\u0629  ( [ \u0648 ] )", min: 4, max: 300, value: brush, onChange: setBrush, format: (v) => `${v}px` }),
+            React.createElement(RangeField, { label: "\u0646\u0639\u0648\u0645\u0629 \u0627\u0644\u0641\u0631\u0634\u0627\u0629", min: 0, max: 0.95, step: 0.01, value: softness, onChange: setSoftness, format: (v) => `${Math.round(v * 100)}%` }),
+            React.createElement("div", { className: "grid grid-cols-2 gap-2" },
+                React.createElement("button", { type: "button", onClick: undo, disabled: !undoCount, className: "rounded-xl border border-white/10 bg-ink-800 py-2 text-[12px] text-stone-300 disabled:opacity-30" },
+                    "\u21B6 \u062A\u0631\u0627\u062C\u0639 (",
+                    undoCount,
+                    ")"),
+                React.createElement("button", { type: "button", onClick: clearEdits, className: "rounded-xl border border-white/10 bg-ink-800 py-2 text-[12px] text-stone-300" }, "\u0645\u0633\u062D \u062A\u0639\u062F\u064A\u0644\u0627\u062A \u0627\u0644\u0641\u0631\u0634\u0627\u0629")),
+            React.createElement("div", { className: "space-y-3 rounded-2xl border border-white/5 bg-ink-800/60 p-3" },
+                React.createElement("div", { className: "text-[12px] font-bold text-stone-300" }, "\u062A\u062D\u0633\u064A\u0646 \u0627\u0644\u062D\u0648\u0627\u0641"),
+                React.createElement(RangeField, { label: "\u062D\u062F\u0651\u0629 \u0627\u0644\u062D\u0648\u0627\u0641", min: 0, max: 1, step: 0.01, value: params.hardness, onChange: (hardness) => setP({ hardness }), format: (v) => `${Math.round(v * 100)}%` }),
+                React.createElement(RangeField, { label: "\u062A\u0642\u0644\u064A\u0635 \u0627\u0644\u062D\u0648\u0627\u0641 (\u064A\u0632\u064A\u0644 \u0627\u0644\u0647\u0627\u0644\u0629)", min: 0, max: 8, step: 0.1, value: params.shrink, onChange: (shrink) => setP({ shrink }), format: (v) => `${v.toFixed(1)}px` }),
+                React.createElement(RangeField, { label: "\u062A\u0646\u0639\u064A\u0645 \u0627\u0644\u062D\u0627\u0641\u0629", min: 0, max: 6, step: 0.1, value: params.feather, onChange: (feather) => setP({ feather }), format: (v) => `${v.toFixed(1)}px` }),
+                React.createElement(Toggle, { checked: params.decontaminate, onChange: (decontaminate) => setP({ decontaminate }), label: "\u0625\u0632\u0627\u0644\u0629 \u0627\u0644\u0647\u0627\u0644\u0629 \u0627\u0644\u0644\u0648\u0646\u064A\u0629 \u062D\u0648\u0644 \u0627\u0644\u0634\u0639\u0631 \u0648\u0627\u0644\u062D\u0648\u0627\u0641", small: true }),
+                React.createElement("button", { type: "button", onClick: () => setParams({ ...DEFAULT_REFINE }), className: "text-[11px] text-stone-500 hover:text-stone-300" }, "\u0625\u0639\u0627\u062F\u0629 \u0627\u0644\u0642\u064A\u0645 \u0627\u0644\u0627\u0641\u062A\u0631\u0627\u0636\u064A\u0629")),
+            React.createElement("div", { className: "space-y-2 rounded-2xl border border-white/5 bg-ink-800/60 p-3" },
+                React.createElement("div", { className: "text-[12px] font-bold text-stone-300" }, "\u0625\u0639\u0627\u062F\u0629 \u0627\u0644\u0643\u0634\u0641 \u0628\u0627\u0644\u0630\u0643\u0627\u0621 \u0627\u0644\u0627\u0635\u0637\u0646\u0627\u0639\u064A"),
+                React.createElement("div", { className: "grid grid-cols-3 gap-1.5" }, QUALITY_MODES.map((q) => (React.createElement("button", { key: q.id, type: "button", disabled: status.loading, onClick: () => {
+                        setCutQuality(q.id);
+                        runAI(q.id);
+                    }, className: "rounded-lg border border-white/10 bg-ink-900 py-2 text-[11.5px] text-stone-300 hover:border-gold-500/50 disabled:opacity-30" }, q.label)))),
+                React.createElement("p", { className: "text-[10.5px] text-stone-500" }, "\u064A\u064F\u0644\u063A\u064A \u062A\u0639\u062F\u064A\u0644\u0627\u062A \u0627\u0644\u0641\u0631\u0634\u0627\u0629 \u0648\u064A\u0639\u064A\u062F \u0627\u0644\u0643\u0634\u0641 \u0645\u0646 \u0627\u0644\u0635\u0648\u0631\u0629 \u0627\u0644\u0623\u0635\u0644\u064A\u0629.")),
+            React.createElement("div", { className: "space-y-2" },
+                React.createElement("div", { className: "text-[12px] text-stone-400" }, "\u062E\u0644\u0641\u064A\u0629 \u0627\u0644\u0645\u0639\u0627\u064A\u0646\u0629"),
+                React.createElement("div", { className: "flex flex-wrap gap-1.5" }, BACKDROPS.map((b) => (React.createElement("button", { key: b.id, type: "button", onClick: () => setBackdrop(b.id), className: `rounded-lg px-2.5 py-1 text-[11px] ${backdrop === b.id ? 'bg-gold-400 text-ink-950' : 'border border-white/10 text-stone-400'}` }, b.label)))),
+                React.createElement(Toggle, { checked: showMask, onChange: setShowMask, label: "\u0639\u0631\u0636 \u0627\u0644\u0642\u0646\u0627\u0639 (\u0623\u0628\u064A\u0636 = \u064A\u0628\u0642\u0649)", small: true })),
+            React.createElement("div", { className: "mt-auto grid grid-cols-2 gap-2 pt-2" },
+                React.createElement("button", { type: "button", onClick: save, disabled: status.loading || saving || !!status.error, className: "rounded-xl bg-gold-400 py-3 text-[14px] font-bold text-ink-950 hover:bg-gold-300 disabled:opacity-40" }, saving ? 'جارٍ الحفظ…' : '✓ حفظ القص'),
+                React.createElement("button", { type: "button", onClick: onClose, className: "rounded-xl border border-white/10 py-3 text-[14px] text-stone-300 hover:bg-white/5" }, "\u0625\u0644\u063A\u0627\u0621"))),
+        React.createElement("main", { className: "relative grid min-h-0 min-w-0 flex-1 place-items-center p-3 lg:p-6" },
+            status.loading && (React.createElement("div", { className: "w-80 rounded-2xl border border-white/10 bg-ink-900 p-5" },
+                React.createElement(ProgressBar, { percent: status.percent, label: status.label }))),
+            status.error && React.createElement("div", { className: "rounded-2xl border border-red-900/50 bg-red-950/40 p-5 text-red-200" }, status.error),
+            React.createElement("div", { className: `relative max-h-full max-w-full ${status.loading || status.error ? 'hidden' : ''}`, style: { background: backdrop === 'checker' ? checker : backdrop, lineHeight: 0 } },
+                React.createElement("canvas", { ref: viewRef, className: "block max-h-[calc(52dvh-24px)] max-w-full touch-none lg:max-h-[calc(100vh-48px)]", style: { cursor: 'none' }, onPointerDown: onPointerDown, onPointerMove: onPointerMove, onPointerUp: onPointerUp, onPointerLeave: () => {
+                        onPointerUp();
+                        setCursor(null);
+                    } }),
+                cursor && work.current.original && (React.createElement("div", { className: "pointer-events-none absolute rounded-full border-2", style: {
+                        left: cursor.x,
+                        top: cursor.y,
+                        width: brush,
+                        height: brush,
+                        transform: 'translate(-50%, -50%)',
+                        borderColor: tool === 'erase' ? '#ff4d6d' : '#4dffa6',
+                        boxShadow: '0 0 0 1px rgba(0,0,0,.6)',
+                    } }))))));
+}
+// ===== components/App.jsx =====
+const uid = (prefix) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+const DEFAULT_TEXTS = {
+    title: {
+        ...TEXT_EFFECT_DEFAULTS,
+        text: 'ظلال المدينة الأخيرة',
+        font: 'Aref Ruqaa',
+        weight: 700,
+        size: 128,
+        lineHeight: 1.15,
+        color: '#ecd9a6',
+        width: 880,
+        x: COVER_W / 2,
+        y: 150,
+        rotation: 0,
+        shadow: true,
+    },
+    subtitle: {
+        ...TEXT_EFFECT_DEFAULTS,
+        text: 'رواية\nاسم المؤلف',
+        font: 'Tajawal',
+        weight: 500,
+        size: 46,
+        lineHeight: 1.6,
+        color: '#cdbb95',
+        width: 760,
+        x: COVER_W / 2,
+        y: 1250,
+        rotation: 0,
+        shadow: true,
+    },
+    tag: {
+        ...TEXT_EFFECT_DEFAULTS,
+        visible: false,
+        text: 'رواية',
+        font: 'Tajawal',
+        weight: 700,
+        size: 30,
+        lineHeight: 1.2,
+        color: '#1a1714',
+        width: 220,
+        x: COVER_W - 150,
+        y: 62,
+        rotation: 0,
+        shadow: false,
+        bg: 'box',
+        bgColor: '#cfc6b6',
+        bgOpacity: 1,
+        bgPadding: 14,
+        bgRadius: 2,
+    },
+    publisher: {
+        ...TEXT_EFFECT_DEFAULTS,
+        visible: false,
+        text: 'اسم دار النشر',
+        font: 'Amiri',
+        weight: 400,
+        size: 30,
+        lineHeight: 1.4,
+        color: '#bdb3a3',
+        width: 420,
+        x: COVER_W / 2,
+        y: 1385,
+        rotation: 0,
+        shadow: true,
+    },
+    date: {
+        ...TEXT_EFFECT_DEFAULTS,
+        visible: false,
+        text: hijriNow(),
+        font: 'Tajawal',
+        weight: 700,
+        size: 40,
+        lineHeight: 1.05,
+        color: '#e8e1d4',
+        width: 260,
+        x: COVER_W - 160,
+        y: 1350,
+        rotation: 0,
+        shadow: true,
+    },
+};
+const createDefaultDoc = () => ({
+    texts: DEFAULT_TEXTS,
+    images: [],
+    logo: null,
+    paletteId: 'ink-night',
+    customPalette: null,
+    background: null,
+    layers: createDefaultLayerState(),
+    textAboveLayers: false,
+    grade: { ...DEFAULT_GRADE },
+    templateId: null,
+});
+const SLOT_LABELS = { title: 'العنوان', subtitle: 'النص الفرعي', tag: 'الوسم', publisher: 'دار النشر', date: 'التاريخ' };
+const WIZARD_KEY = 'cover-studio-wizard-seen';
+function HeaderButton({ children, onClick, disabled, title }) {
+    return (React.createElement("button", { type: "button", onClick: onClick, disabled: disabled, title: title, className: "whitespace-nowrap rounded-xl border border-white/10 bg-ink-800 px-3 py-2 text-[13px] text-stone-300 transition hover:border-gold-500/50 hover:text-gold-200 disabled:cursor-not-allowed disabled:opacity-30" }, children));
+}
+function App() {
+    const canvasRef = useRef(null);
+    const openRef = useRef(null);
+    const { fontsVersion, allLoaded } = useArabicFonts();
+    const { present: doc, set: setDoc, undo, redo, canUndo, canRedo } = useHistory(createDefaultDoc);
+    const [selection, setSelection] = useState([]);
+    const selectedId = selection[selection.length - 1] || null;
+    const [snapping, setSnapping] = useState(true);
+    const [showWizard, setShowWizard] = useState(() => {
+        try {
+            return !localStorage.getItem(WIZARD_KEY);
+        }
+        catch {
+            return true;
+        }
+    });
+    const clipboard = useRef([]);
+    const [panelTab, setPanelTab] = useState('templates');
+    const [openSlot, setOpenSlot] = useState('title');
+    const [focusSignal, setFocusSignal] = useState(0);
+    const [cutoutEditId, setCutoutEditId] = useState(null);
+    /** تحديد عنصر — additive (Shift) يضيف/يزيل من التحديد المتعدد */
+    const select = useCallback((id, additive = false) => {
+        setSelection((prev) => {
+            if (!id)
+                return [];
+            if (additive)
+                return prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+            if (prev.includes(id) && prev.length > 1)
+                return prev;
+            return [id];
+        });
+    }, []);
+    const [exporting, setExporting] = useState(false);
+    const [autoColors, setAutoColors] = useState(true);
+    const [notice, setNotice] = useState(null);
+    const flash = useCallback((text, tone = 'ok') => {
+        setNotice({ text, tone, id: Date.now() });
+    }, []);
+    useEffect(() => {
+        if (!notice)
+            return;
+        const t = setTimeout(() => setNotice(null), 3500);
+        return () => clearTimeout(t);
+    }, [notice]);
+    const palette = getPalette(doc.paletteId, doc.customPalette);
+    // ── النصوص ──
+    const updateText = useCallback((key, patch) => setDoc((d) => ({ ...d, texts: { ...d.texts, [key]: { ...d.texts[key], ...patch } } }), {
+        key: `text:${key}:${Object.keys(patch).join(',')}`,
+    }), [setDoc]);
+    // ── اقتراح الألوان من صورة ──
+    const suggestColors = useCallback(async (src, { silent = false } = {}) => {
+        try {
+            const s = suggestDesign(await extractColors(src));
+            if (!s)
+                return;
+            setDoc((d) => ({
+                ...d,
+                paletteId: 'custom',
+                customPalette: s.palette,
+                texts: {
+                    ...d.texts,
+                    title: { ...d.texts.title, color: s.title, color2: s.titleEnd, glowColor: s.glow },
+                    subtitle: { ...d.texts.subtitle, color: s.subtitle },
+                },
+            }));
+            if (!silent)
+                flash('تم تطبيق ألوان مقترحة من الصورة');
+        }
+        catch (err) {
+            console.error(err);
+            if (!silent)
+                flash('تعذّر تحليل ألوان الصورة', 'error');
+        }
+    }, [setDoc, flash]);
+    // ── الصور ──
+    const addImage = useCallback(async (src, meta = {}) => {
+        const img = await loadImage(src);
+        const { width, height } = fitSize(img.naturalWidth, img.naturalHeight, COVER_W * 0.85, COVER_H * 0.6);
+        const item = {
+            id: uid('img'),
+            src,
+            name: meta.name || 'صورة',
+            cutout: !!meta.cutout,
+            originalSrc: meta.originalSrc,
+            maskSrc: meta.maskSrc,
+            credit: meta.credit,
+            width,
+            height,
+            x: COVER_W / 2,
+            y: COVER_H * 0.62,
+            rotation: 0,
+            scale: 1,
+            opacity: 1,
+            shadow: !!meta.cutout,
+            shadowMode: meta.cutout ? 'ground' : 'none',
+            glowColor: '#ffffff',
+            glowSize: 60,
+            fadeBottom: 0,
+            fadeEdges: 0,
+            backdrop: { ...DEFAULT_BACKDROP },
+            fx: { ...DEFAULT_FX },
+        };
+        setDoc((d) => ({ ...d, images: [...d.images, item] }));
+        setSelection([item.id]);
+        if (autoColors && meta.suggestColors !== false)
+            suggestColors(src, { silent: true });
+        return item;
+    }, [setDoc, autoColors, suggestColors]);
+    /** تحديث موحّد لأي عنصر صوري (صورة أو شعار) — يعيد حساب الأبعاد عند تغيير المصدر */
+    const changeNode = useCallback(async (id, patch) => {
+        const key = `node:${id}:${Object.keys(patch).join(',')}`;
+        let apply = (node) => ({ ...node, ...patch });
+        if (patch.src) {
+            const img = await loadImage(patch.src);
+            apply = (node) => ({ ...node, ...patch, width: (img.naturalWidth / img.naturalHeight) * node.height });
+        }
+        if (id === 'logo')
+            setDoc((d) => (d.logo ? { ...d, logo: apply(d.logo) } : d), { key });
+        else
+            setDoc((d) => ({ ...d, images: d.images.map((n) => (n.id === id ? apply(n) : n)) }), { key });
+    }, [setDoc]);
+    const removeImage = useCallback((id) => {
+        setDoc((d) => ({ ...d, images: d.images.filter((n) => n.id !== id) }));
+        setSelection((s) => s.filter((x) => x !== id));
+    }, [setDoc]);
+    const moveImage = useCallback((id, direction) => setDoc((d) => {
+        const i = d.images.findIndex((n) => n.id === id);
+        const j = i + direction;
+        if (i < 0 || j < 0 || j >= d.images.length)
+            return d;
+        const images = [...d.images];
+        [images[i], images[j]] = [images[j], images[i]];
+        return { ...d, images };
+    }), [setDoc]);
+    // ── الشعار ──
+    const setLogoFromSrc = useCallback(async (src) => {
+        const img = await loadImage(src);
+        const { width, height } = fitSize(img.naturalWidth, img.naturalHeight, 180, 140);
+        setDoc((d) => ({
+            ...d,
+            logo: { id: 'logo', src, width, height, x: COVER_W / 2, y: COVER_H - 90 - height / 2, rotation: 0, scale: 1, opacity: 0.95, shadow: false },
+        }));
+        setSelection(['logo']);
+    }, [setDoc]);
+    const removeLogo = useCallback(() => {
+        setDoc((d) => ({ ...d, logo: null }));
+        setSelection((s) => s.filter((x) => x !== 'logo'));
+    }, [setDoc]);
+    // ── الخلفية ──
+    const setBackground = useCallback((src, meta = {}) => {
+        setDoc((d) => ({
+            ...d,
+            background: {
+                src,
+                generated: !!meta.generated,
+                scale: 1,
+                offsetX: 0,
+                offsetY: 0,
+                opacity: 1,
+                dim: 0.3,
+                paletteMix: 0.3,
+                blend: 'soft-light',
+            },
+        }));
+        if (autoColors && meta.suggest !== false)
+            suggestColors(src, { silent: true });
+        if (!meta.quiet)
+            flash(meta.generated ? 'تم توليد الخلفية' : 'تمت إضافة صورة الخلفية');
+    }, [setDoc, autoColors, suggestColors, flash]);
+    const changeBackground = useCallback((patch) => setDoc((d) => (d.background ? { ...d, background: { ...d.background, ...patch } } : d), {
+        key: `bg:${Object.keys(patch).join(',')}`,
+    }), [setDoc]);
+    // ── الطبقات والقوالب ──
+    const changeLayer = useCallback((id, patch) => setDoc((d) => ({ ...d, layers: { ...d.layers, [id]: { ...d.layers[id], ...patch } } }), {
+        key: `layer:${id}:${Object.keys(patch).join(',')}`,
+    }), [setDoc]);
+    const resetLayers = useCallback(() => setDoc((d) => ({ ...d, layers: Object.fromEntries(ALL_OVERLAYS.map((o) => [o.id, { ...d.layers[o.id], enabled: false }])) })), [setDoc]);
+    const applyTemplate = useCallback((tpl, { quiet = false } = {}) => {
+        setDoc((d) => ({ ...applyTemplateToDoc(d, tpl), templateId: tpl.id }));
+        if (!quiet)
+            flash(`تم تطبيق قالب «${tpl.name}»`);
+    }, [setDoc, flash]);
+    /** نقرتان على عنصر في الغلاف ← افتح خصائصه في لوحة التحكم مباشرة */
+    const openProps = useCallback((id) => {
+        if (!id)
+            return;
+        setSelection([id]);
+        if (id.startsWith('text-')) {
+            setPanelTab('typography');
+            setOpenSlot(id.slice(5));
+        }
+        else if (id === 'logo') {
+            setPanelTab('logo');
+        }
+        else {
+            setPanelTab('compositing');
+        }
+        setFocusSignal((n) => n + 1);
+    }, []);
+    /** «تصميم آخر»: ينتقل للقالب التالي من نفس النوع */
+    const shuffleDesign = () => {
+        const current = TEMPLATES.find((t) => t.id === doc.templateId);
+        const pool = current ? TEMPLATES.filter((t) => t.category === current.category) : TEMPLATES;
+        const list = pool.length > 1 ? pool : TEMPLATES;
+        const i = list.findIndex((t) => t.id === doc.templateId);
+        applyTemplate(list[(i + 1) % list.length]);
+    };
+    // ── تحديثات جماعية (سحب/تحويل/محاذاة/تحريك بالأسهم) ──
+    const applyPatches = useCallback((patches, key = null) => setDoc((d) => {
+        let { texts, images, logo } = d;
+        for (const { id, patch } of patches) {
+            if (id.startsWith('text-')) {
+                const k = id.slice(5);
+                if (texts[k])
+                    texts = { ...texts, [k]: { ...texts[k], ...patch } };
+            }
+            else if (id === 'logo') {
+                if (logo)
+                    logo = { ...logo, ...patch };
+            }
+            else {
+                images = images.map((n) => (n.id === id ? { ...n, ...patch } : n));
+            }
+        }
+        return { ...d, texts, images, logo };
+    }, { key }), [setDoc]);
+    const duplicateImages = useCallback((ids, source = null) => {
+        const items = source || doc.images.filter((n) => ids.includes(n.id));
+        if (!items.length)
+            return;
+        const copies = items.map((n) => ({ ...JSON.parse(JSON.stringify(n)), id: uid('img'), x: n.x + 30, y: n.y + 30, locked: false }));
+        setDoc((d) => ({ ...d, images: [...d.images, ...copies] }));
+        setSelection(copies.map((c) => c.id));
+    }, [doc.images, setDoc]);
+    const deleteSelection = () => {
+        if (!selection.length)
+            return;
+        setDoc((d) => {
+            const texts = { ...d.texts };
+            for (const id of selection)
+                if (id.startsWith('text-'))
+                    texts[id.slice(5)] = { ...texts[id.slice(5)], visible: false };
+            return {
+                ...d,
+                texts,
+                images: d.images.filter((n) => !selection.includes(n.id)),
+                logo: selection.includes('logo') ? null : d.logo,
+            };
+        });
+        setSelection([]);
+    };
+    const lockSelection = () => {
+        applyPatches(selection.map((id) => ({ id, patch: { locked: true } })));
+        setSelection([]);
+        flash('تم القفل — فكّه من تبويب «العناصر»');
+    };
+    const nudge = (dx, dy) => {
+        const patches = selection
+            .map((id) => {
+            const node = id.startsWith('text-') ? doc.texts[id.slice(5)] : id === 'logo' ? doc.logo : doc.images.find((n) => n.id === id);
+            return node && !node.locked ? { id, patch: { x: node.x + dx, y: node.y + dy } } : null;
+        })
+            .filter(Boolean);
+        if (patches.length)
+            applyPatches(patches, 'nudge');
+    };
+    // ── المعالج السريع ──
+    const closeWizard = () => {
+        setShowWizard(false);
+        try {
+            localStorage.setItem(WIZARD_KEY, '1');
+        }
+        catch {
+            /* التخزين غير متاح */
+        }
+    };
+    const runWizard = async ({ title, author, category, file, removeBg, aiPrompt }, progress) => {
+        const pool = TEMPLATES.filter((t) => t.category === category);
+        const tpl = pool[Math.floor(Math.random() * pool.length)] || TEMPLATES[0];
+        setDoc((d) => ({
+            ...d,
+            images: [],
+            background: null,
+            texts: {
+                ...d.texts,
+                title: { ...d.texts.title, text: title || d.texts.title.text },
+                subtitle: { ...d.texts.subtitle, text: author || d.texts.subtitle.text },
+            },
+        }));
+        if (aiPrompt) {
+            progress('توليد الخلفية بالذكاء الاصطناعي… (حتى دقيقة)', 20);
+            try {
+                setBackground(await generateAIBackground(aiPrompt), { generated: true, suggest: false, quiet: true });
+            }
+            catch (err) {
+                flash('تعذّر توليد الخلفية: ' + err.message, 'error');
+            }
+        }
+        if (file) {
+            const original = URL.createObjectURL(file);
+            let src = original;
+            let maskSrc;
+            if (removeBg) {
+                progress('تفريغ خلفية الصورة داخل المتصفح…', 50);
+                try {
+                    const res = await removeImageBackgroundDetailed(file, (p) => progress(p.label, 40 + Math.round(p.percent * 0.5)));
+                    src = URL.createObjectURL(res.blob);
+                    maskSrc = res.maskUrl;
+                }
+                catch {
+                    src = original;
+                }
+            }
+            const item = await addImage(src, { name: file.name, cutout: removeBg && src !== original, originalSrc: original, maskSrc, suggestColors: false });
+            // ثبّت الشخص أسفل الغلاف كما في الأغلفة الاحترافية
+            applyPatches([{ id: item.id, patch: { y: COVER_H - item.height / 2 + 10 } }]);
+        }
+        progress('تطبيق التصميم…', 95);
+        applyTemplate(tpl, { quiet: true });
+        setSelection([]);
+        flash(`تم التصميم بقالب «${tpl.name}» — جرّب «تصميم آخر» للتنويع`);
+    };
+    // ── حفظ / فتح المشروع ──
+    const saveProject = async () => {
+        try {
+            const json = await serializeProject(doc);
+            downloadBlob(new Blob([json], { type: 'application/json' }), projectFileName(doc.texts.title.text));
+            flash('تم حفظ المشروع — يمكنك فتحه لاحقاً من زر «فتح»');
+        }
+        catch (err) {
+            console.error(err);
+            flash('تعذّر حفظ المشروع', 'error');
+        }
+    };
+    const openProject = async (file) => {
+        try {
+            const loaded = await parseProject(file, createDefaultDoc());
+            setDoc(loaded);
+            setSelection([]);
+            flash('تم فتح المشروع');
+        }
+        catch (err) {
+            flash(err.message, 'error');
+        }
+    };
+    // ── التصدير ──
+    const handleExport = async () => {
+        if (!canvasRef.current || exporting)
+            return;
+        setExporting(true);
+        try {
+            await document.fonts.ready;
+            const blob = await canvasRef.current.exportPNG();
+            downloadBlob(blob, coverFileName(doc.texts.title.text));
+            flash('تم تحميل الغلاف');
+        }
+        catch (err) {
+            console.error(err);
+            flash('تعذّر تصدير الغلاف: ' + (err?.message || err), 'error');
+        }
+        finally {
+            setExporting(false);
+        }
+    };
+    // ── اختصارات لوحة المفاتيح ──
+    useEffect(() => {
+        const onKey = (e) => {
+            const tag = document.activeElement?.tagName;
+            const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
+            const mod = e.ctrlKey || e.metaKey;
+            const code = e.code; // يعمل مع لوحة المفاتيح العربية أيضاً
+            if (mod && code === 'KeyS') {
+                e.preventDefault();
+                saveProject();
+                return;
+            }
+            if (typing || showWizard || cutoutEditId)
+                return;
+            if (mod && code === 'KeyZ') {
+                e.preventDefault();
+                e.shiftKey ? redo() : undo();
+                return;
+            }
+            if (mod && code === 'KeyY') {
+                e.preventDefault();
+                redo();
+                return;
+            }
+            if (mod && code === 'KeyA') {
+                e.preventDefault();
+                setSelection([
+                    ...doc.images.filter((n) => !n.locked && n.visible !== false).map((n) => n.id),
+                    ...(doc.logo && !doc.logo.locked ? ['logo'] : []),
+                    ...Object.keys(doc.texts).filter((k) => doc.texts[k].visible !== false && !doc.texts[k].locked).map((k) => `text-${k}`),
+                ]);
+                return;
+            }
+            if (mod && code === 'KeyC') {
+                clipboard.current = doc.images.filter((n) => selection.includes(n.id)).map((n) => JSON.parse(JSON.stringify(n)));
+                if (clipboard.current.length)
+                    flash('تم النسخ');
+                return;
+            }
+            if (mod && code === 'KeyV') {
+                if (clipboard.current.length) {
+                    e.preventDefault();
+                    duplicateImages([], clipboard.current);
+                }
+                return;
+            }
+            if (mod && code === 'KeyD') {
+                e.preventDefault();
+                duplicateImages(selection);
+                return;
+            }
+            if (e.key === 'Escape')
+                setSelection([]);
+            if ((e.key === 'Delete' || e.key === 'Backspace') && selection.length) {
+                e.preventDefault();
+                deleteSelection();
+            }
+            const step = e.shiftKey ? 10 : 1;
+            const arrows = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+            if (arrows[e.key] && selection.length) {
+                e.preventDefault();
+                nudge(...arrows[e.key]);
+            }
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    });
+    const selectionLabel = (() => {
+        if (!selectedId)
+            return '';
+        if (selectedId.startsWith('text-'))
+            return SLOT_LABELS[selectedId.slice(5)] || 'نص';
+        if (selectedId === 'logo')
+            return 'الشعار';
+        return doc.images.find((n) => n.id === selectedId)?.name || 'صورة';
+    })();
+    return (React.createElement("div", { className: "flex h-[100dvh] flex-col bg-ink-950 text-stone-200" },
+        React.createElement("header", { className: "relative flex shrink-0 flex-col gap-2 border-b border-white/5 bg-ink-900/80 px-3 py-2 backdrop-blur lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:gap-3 lg:px-5 lg:py-0" },
+            React.createElement("div", { className: "flex min-w-0 items-center gap-3" },
+                React.createElement("div", { className: "grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 text-lg font-bold text-ink-950" }, "\u063A"),
+                React.createElement("div", { className: "min-w-0" },
+                    React.createElement("h1", { className: "truncate text-[15px] font-bold tracking-wide text-stone-100" }, "\u0627\u0633\u062A\u0648\u062F\u064A\u0648 \u0627\u0644\u0623\u063A\u0644\u0641\u0629 \u0627\u0644\u0633\u064A\u0646\u0645\u0627\u0626\u064A"),
+                    React.createElement("p", { className: "truncate text-[11px] text-stone-500" },
+                        allLoaded ? 'الخطوط جاهزة' : 'جارٍ تحميل الخطوط…',
+                        " \u00B7 \u062A\u0637\u0648\u064A\u0631 \u0623\u0628\u0648 \u0639\u0628\u062F\u0627\u0644\u0644\u0647 \u0627\u0644\u0634\u0627\u0645\u064A"))),
+            React.createElement("div", { className: "scroll-thin -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:px-0 lg:pb-0 [&>*]:shrink-0" },
+                React.createElement("button", { type: "button", onClick: () => setShowWizard(true), className: "whitespace-nowrap rounded-xl border border-gold-500/40 bg-gold-400/10 px-3 py-2 text-[13px] font-bold text-gold-300 transition hover:bg-gold-400/20" }, "\u2726 \u0627\u0644\u0645\u0639\u0627\u0644\u062C \u0627\u0644\u0633\u0631\u064A\u0639"),
+                React.createElement(HeaderButton, { onClick: shuffleDesign, title: "\u062C\u0631\u0651\u0628 \u0642\u0627\u0644\u0628\u0627\u064B \u0622\u062E\u0631 \u0645\u0646 \u0646\u0641\u0633 \u0627\u0644\u0646\u0648\u0639" }, "\uD83C\uDFB2 \u062A\u0635\u0645\u064A\u0645 \u0622\u062E\u0631"),
+                React.createElement("span", { className: "mx-1 h-6 w-px bg-white/10" }),
+                React.createElement(HeaderButton, { onClick: undo, disabled: !canUndo, title: "\u062A\u0631\u0627\u062C\u0639 (Ctrl+Z)" }, "\u21B6 \u062A\u0631\u0627\u062C\u0639"),
+                React.createElement(HeaderButton, { onClick: redo, disabled: !canRedo, title: "\u0625\u0639\u0627\u062F\u0629 (Ctrl+Y)" }, "\u21B7 \u0625\u0639\u0627\u062F\u0629"),
+                React.createElement("span", { className: "mx-1 h-6 w-px bg-white/10" }),
+                React.createElement(HeaderButton, { onClick: () => openRef.current?.click(), title: "\u0641\u062A\u062D \u0645\u0634\u0631\u0648\u0639 \u0645\u062D\u0641\u0648\u0638" }, "\uD83D\uDCC2 \u0641\u062A\u062D"),
+                React.createElement(HeaderButton, { onClick: saveProject, title: "\u062D\u0641\u0638 \u0627\u0644\u0645\u0634\u0631\u0648\u0639 (Ctrl+S)" }, "\uD83D\uDCBE \u062D\u0641\u0638"),
+                React.createElement("input", { ref: openRef, type: "file", accept: ".json,application/json", hidden: true, onChange: (e) => {
+                        const f = e.target.files?.[0];
+                        if (f)
+                            openProject(f);
+                        e.target.value = '';
+                    } }),
+                React.createElement("span", { className: "hidden text-[11px] text-stone-500 xl:inline", dir: "ltr" },
+                    COVER_W * EXPORT_PIXEL_RATIO,
+                    "\u00D7",
+                    COVER_H * EXPORT_PIXEL_RATIO),
+                React.createElement("button", { type: "button", onClick: handleExport, disabled: exporting, className: "flex items-center gap-2 whitespace-nowrap rounded-xl bg-gold-400 px-5 py-2.5 text-sm font-bold text-ink-950 shadow-[0_8px_30px_rgba(212,175,106,.25)] transition hover:bg-gold-300 disabled:opacity-50" }, exporting ? 'جارٍ التصدير…' : '⬇ تحميل الغلاف PNG')),
+            notice && (React.createElement("div", { key: notice.id, className: `absolute left-1/2 top-full z-30 mt-2 max-w-[92vw] -translate-x-1/2 rounded-2xl text-center border px-4 py-2 text-[12px] shadow-xl backdrop-blur ${notice.tone === 'error' ? 'border-red-900/60 bg-red-950/90 text-red-200' : 'border-gold-500/30 bg-ink-800/95 text-gold-200'}` }, notice.text))),
+        React.createElement("div", { className: "flex min-h-0 flex-1 flex-col-reverse lg:flex-row" },
+            React.createElement(ControlPanel, { texts: doc.texts, onChangeText: updateText, images: doc.images, selectedId: selectedId, selectedIds: selection, onSelect: select, onDuplicate: duplicateImages, activeTab: panelTab, onTabChange: setPanelTab, openSlot: openSlot, onOpenSlot: setOpenSlot, focusSignal: focusSignal, onOpenCutout: setCutoutEditId, grade: doc.grade || DEFAULT_GRADE, onChangeGrade: (patch) => setDoc((d) => ({ ...d, grade: { ...(d.grade || DEFAULT_GRADE), ...patch } }), { key: `grade:${Object.keys(patch).join(',')}` }), onAddImage: addImage, onChangeNode: changeNode, onRemoveImage: removeImage, onMoveImage: moveImage, autoColors: autoColors, onToggleAutoColors: setAutoColors, onSuggestColors: suggestColors, paletteLight: palette.colors[1], logo: doc.logo, onSetLogo: setLogoFromSrc, onRemoveLogo: removeLogo, paletteId: doc.paletteId, customPalette: doc.customPalette, onChangePalette: (paletteId) => setDoc((d) => ({ ...d, paletteId })), background: doc.background, onSetBackground: setBackground, onChangeBackground: changeBackground, onRemoveBackground: () => setDoc((d) => ({ ...d, background: null })), layers: doc.layers, onChangeLayer: changeLayer, onResetLayers: resetLayers, textAboveLayers: doc.textAboveLayers, onToggleTextAbove: (textAboveLayers) => setDoc((d) => ({ ...d, textAboveLayers })), onApplyTemplate: applyTemplate, activeTemplateId: doc.templateId }),
+            React.createElement("main", { className: "stage-backdrop relative min-h-0 min-w-0 flex-1" },
+                React.createElement(CoverCanvas, { ref: canvasRef, texts: doc.texts, images: doc.images, logo: doc.logo, palette: palette, background: doc.background, layers: doc.layers, textAboveLayers: doc.textAboveLayers, grade: doc.grade || DEFAULT_GRADE, selectedIds: selection, onSelect: select, onCommit: (patches) => applyPatches(patches), onOpenProps: openProps, fontsVersion: fontsVersion, snapping: snapping }),
+                selection.length > 0 && (React.createElement(SelectionToolbar, { count: selection.length, label: selectionLabel, onAlign: (type) => canvasRef.current?.align(type), onDuplicate: () => duplicateImages(selection), canDuplicate: selection.some((id) => id.startsWith('img-')), onDelete: deleteSelection, onLock: lockSelection, onDeselect: () => setSelection([]), snapping: snapping, onToggleSnapping: () => setSnapping((v) => !v) })),
+                React.createElement("div", { className: "pointer-events-none absolute bottom-4 right-4 hidden whitespace-nowrap lg:block rounded-full border border-white/5 bg-ink-900/80 px-4 py-1.5 text-[11px] text-stone-500 backdrop-blur" }, "Shift+\u0646\u0642\u0631 \u062A\u062D\u062F\u064A\u062F \u0645\u062A\u0639\u062F\u062F \u00B7 \u0627\u0644\u0623\u0633\u0647\u0645 \u0644\u0644\u062A\u062D\u0631\u064A\u0643 \u00B7 Ctrl+D \u062A\u0643\u0631\u0627\u0631 \u00B7 Ctrl+\u0639\u062C\u0644\u0629 \u062A\u0643\u0628\u064A\u0631"))),
+        showWizard && React.createElement(QuickWizard, { onRun: runWizard, onClose: closeWizard }),
+        cutoutEditId && doc.images.find((n) => n.id === cutoutEditId) && (React.createElement(CutoutEditor, { item: doc.images.find((n) => n.id === cutoutEditId), onClose: () => setCutoutEditId(null), onSave: (patch) => {
+                changeNode(cutoutEditId, patch);
+                setCutoutEditId(null);
+                flash('تم حفظ القص');
+            } }))));
+}
+/** شاشة خطأ واضحة بدل الشاشة السوداء — تُظهر سبب المشكلة لإرساله للمطوّر */
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { error: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { error };
+    }
+    componentDidCatch(error, info) {
+        console.error(error, info);
+    }
+    render() {
+        if (!this.state.error)
+            return this.props.children;
+        const e = this.state.error;
+        return (React.createElement("div", { style: { minHeight: '100vh', display: 'grid', placeItems: 'center', background: '#070605', color: '#e6c98a', fontFamily: 'Tajawal, sans-serif', padding: 24, direction: 'rtl' } },
+            React.createElement("div", { style: { maxWidth: 600, width: '100%' } },
+                React.createElement("h2", { style: { fontSize: 20, marginBottom: 10 } }, "\u062D\u062F\u062B \u062E\u0637\u0623 \u0641\u064A \u0627\u0644\u0627\u0633\u062A\u0648\u062F\u064A\u0648"),
+                React.createElement("p", { style: { color: '#a8a29e', fontSize: 13, marginBottom: 12 } }, "\u0635\u0648\u0651\u0631 \u0647\u0630\u0647 \u0627\u0644\u0631\u0633\u0627\u0644\u0629 \u0648\u0623\u0631\u0633\u0644\u0647\u0627 \u0644\u0644\u0645\u0637\u0648\u0651\u0631:"),
+                React.createElement("pre", { style: { whiteSpace: 'pre-wrap', direction: 'ltr', textAlign: 'left', background: '#15120f', padding: 12, borderRadius: 12, fontSize: 11, color: '#fca5a5', maxHeight: '50vh', overflow: 'auto' } }, String((e && (e.stack || e.message)) || e)),
+                React.createElement("button", { type: "button", onClick: () => location.reload(), style: { marginTop: 16, background: '#d4af6a', color: '#0d0b09', padding: '10px 22px', borderRadius: 12, fontWeight: 700 } }, "\u0625\u0639\u0627\u062F\u0629 \u0627\u0644\u0645\u062D\u0627\u0648\u0644\u0629"))));
+    }
+}
+window.__APP_STARTED__ = true;
+createRoot(document.getElementById('root')).render(React.createElement(ErrorBoundary, null,
+    React.createElement(App, null)));
