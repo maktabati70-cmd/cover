@@ -1,0 +1,19 @@
+/* الخطوط العربية السبعة مدمجة داخل التطبيق (تعمل دون Google Fonts) */
+@import "@fontsource/amiri/400.css";
+@import "@fontsource/amiri/700.css";
+@import "@fontsource/aref-ruqaa/400.css";
+@import "@fontsource/aref-ruqaa/700.css";
+@import "@fontsource/reem-kufi/400.css";
+@import "@fontsource/reem-kufi/500.css";
+@import "@fontsource/reem-kufi/700.css";
+@import "@fontsource/lalezar/400.css";
+@import "@fontsource/cairo/400.css";
+@import "@fontsource/cairo/700.css";
+@import "@fontsource/cairo/900.css";
+@import "@fontsource/tajawal/400.css";
+@import "@fontsource/tajawal/500.css";
+@import "@fontsource/tajawal/700.css";
+@import "@fontsource/tajawal/900.css";
+@import "@fontsource/almarai/400.css";
+@import "@fontsource/almarai/700.css";
+@import "@fontsource/almarai/800.css";

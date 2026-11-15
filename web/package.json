@@ -1,0 +1,26 @@
+{
+  "name": "cover-studio-android-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs"
+  },
+  "dependencies": {
+    "@fontsource/almarai": "^5.0.0",
+    "@fontsource/amiri": "^5.0.0",
+    "@fontsource/aref-ruqaa": "^5.0.0",
+    "@fontsource/cairo": "^5.0.0",
+    "@fontsource/lalezar": "^5.0.0",
+    "@fontsource/reem-kufi": "^5.0.0",
+    "@fontsource/tajawal": "^5.0.0",
+    "@imgly/background-removal": "1.5.5",
+    "html-to-image": "1.11.11",
+    "konva": "9.3.14",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "react-konva": "18.2.10"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0"
+  }
+}
