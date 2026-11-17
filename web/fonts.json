@@ -1,0 +1,296 @@
+[
+ {
+  "family": "Aref Ruqaa",
+  "pkg": "aref-ruqaa",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Aref Ruqaa Ink",
+  "pkg": "aref-ruqaa-ink",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Noto Nastaliq Urdu",
+  "pkg": "noto-nastaliq-urdu",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Gulzar",
+  "pkg": "gulzar",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Qahiri",
+  "pkg": "qahiri",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Alkalami",
+  "pkg": "alkalami",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Reem Kufi Ink",
+  "pkg": "reem-kufi-ink",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Amiri",
+  "pkg": "amiri",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Amiri Quran",
+  "pkg": "amiri-quran",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Scheherazade New",
+  "pkg": "scheherazade-new",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Noto Naskh Arabic",
+  "pkg": "noto-naskh-arabic",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Lateef",
+  "pkg": "lateef",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Markazi Text",
+  "pkg": "markazi-text",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Mirza",
+  "pkg": "mirza",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Harmattan",
+  "pkg": "harmattan",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "El Messiri",
+  "pkg": "el-messiri",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Reem Kufi",
+  "pkg": "reem-kufi",
+  "weights": [
+   400,
+   500,
+   700
+  ]
+ },
+ {
+  "family": "Reem Kufi Fun",
+  "pkg": "reem-kufi-fun",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Noto Kufi Arabic",
+  "pkg": "noto-kufi-arabic",
+  "weights": [
+   400,
+   700,
+   900
+  ]
+ },
+ {
+  "family": "Kufam",
+  "pkg": "kufam",
+  "weights": [
+   400,
+   700,
+   900
+  ]
+ },
+ {
+  "family": "Lalezar",
+  "pkg": "lalezar",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Rakkas",
+  "pkg": "rakkas",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Jomhuria",
+  "pkg": "jomhuria",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Katibeh",
+  "pkg": "katibeh",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Blaka",
+  "pkg": "blaka",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Badeen Display",
+  "pkg": "badeen-display",
+  "weights": [
+   400
+  ]
+ },
+ {
+  "family": "Changa",
+  "pkg": "changa",
+  "weights": [
+   400,
+   700,
+   800
+  ]
+ },
+ {
+  "family": "Cairo",
+  "pkg": "cairo",
+  "weights": [
+   400,
+   700,
+   900
+  ]
+ },
+ {
+  "family": "Tajawal",
+  "pkg": "tajawal",
+  "weights": [
+   400,
+   500,
+   700,
+   900
+  ]
+ },
+ {
+  "family": "Almarai",
+  "pkg": "almarai",
+  "weights": [
+   400,
+   700,
+   800
+  ]
+ },
+ {
+  "family": "Mada",
+  "pkg": "mada",
+  "weights": [
+   400,
+   700,
+   900
+  ]
+ },
+ {
+  "family": "Readex Pro",
+  "pkg": "readex-pro",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "IBM Plex Sans Arabic",
+  "pkg": "ibm-plex-sans-arabic",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Baloo Bhaijaan 2",
+  "pkg": "baloo-bhaijaan-2",
+  "weights": [
+   400,
+   700,
+   800
+  ]
+ },
+ {
+  "family": "Marhey",
+  "pkg": "marhey",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Lemonada",
+  "pkg": "lemonada",
+  "weights": [
+   400,
+   700
+  ]
+ },
+ {
+  "family": "Vibes",
+  "pkg": "vibes",
+  "weights": [
+   400
+  ]
+ }
+]

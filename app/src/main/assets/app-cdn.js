@@ -51,17 +51,65 @@ function paletteToCss(p) {
 // 1) نحقن <link> لملف CSS الخاص بالخط عند الحاجة فقط.
 // 2) ننتظر document.fonts.load حتى يصبح الخط جاهزاً فعلياً للرسم.
 // 3) نُعلم الواجهة (عبر useArabicFonts) لتعيد رسم النصوص بالقياسات الصحيحة.
+const FONT_CATEGORIES = [
+    { id: 'calligraphy', label: 'خطوط تراثية وزخرفية' },
+    { id: 'naskh', label: 'نسخ وكلاسيكي' },
+    { id: 'kufi', label: 'كوفي' },
+    { id: 'display', label: 'عناوين عريضة' },
+    { id: 'modern', label: 'حديث' },
+    { id: 'hand', label: 'يدوي ومرح' },
+];
+// pkg: اسم الحزمة في fontsource (لدمج الخط داخل تطبيق أندرويد)
+// core: يُحمَّل عند بدء التشغيل — البقية تُحمَّل عند اختيارها فقط
 const ARABIC_FONTS = [
-    { family: 'Aref Ruqaa', label: 'عارف رقعة — زخرفي', weights: [400, 700], category: 'decorative' },
-    { family: 'Amiri', label: 'أميري — نسخ كلاسيكي', weights: [400, 700], category: 'decorative' },
-    { family: 'Reem Kufi', label: 'ريم كوفي — كوفي', weights: [400, 500, 700], category: 'decorative' },
-    { family: 'Lalezar', label: 'لاله‌زار — عريض للعناوين', weights: [400], category: 'display' },
-    { family: 'Cairo', label: 'القاهرة — حديث', weights: [400, 700, 900], category: 'modern' },
-    { family: 'Tajawal', label: 'تجوال — حديث', weights: [400, 500, 700, 900], category: 'modern' },
-    { family: 'Almarai', label: 'المراعي — حديث', weights: [400, 700, 800], category: 'modern' },
+    // ── تراثية وزخرفية ──
+    { family: 'Aref Ruqaa', label: 'عارف رقعة', weights: [400, 700], category: 'calligraphy', pkg: 'aref-ruqaa', core: true },
+    { family: 'Aref Ruqaa Ink', label: 'عارف رقعة — حبر', weights: [400, 700], category: 'calligraphy', pkg: 'aref-ruqaa-ink' },
+    { family: 'Noto Nastaliq Urdu', label: 'نستعليق', weights: [400, 700], category: 'calligraphy', pkg: 'noto-nastaliq-urdu' },
+    { family: 'Gulzar', label: 'گلزار — نستعليق', weights: [400], category: 'calligraphy', pkg: 'gulzar' },
+    { family: 'Qahiri', label: 'القاهري — كوفي مزخرف', weights: [400], category: 'calligraphy', pkg: 'qahiri' },
+    { family: 'Alkalami', label: 'الكلامي — مغربي', weights: [400], category: 'calligraphy', pkg: 'alkalami' },
+    { family: 'Reem Kufi Ink', label: 'ريم كوفي — حبر', weights: [400], category: 'calligraphy', pkg: 'reem-kufi-ink' },
+    // ── نسخ وكلاسيكي ──
+    { family: 'Amiri', label: 'أميري', weights: [400, 700], category: 'naskh', pkg: 'amiri', core: true },
+    { family: 'Amiri Quran', label: 'أميري قرآن', weights: [400], category: 'naskh', pkg: 'amiri-quran' },
+    { family: 'Scheherazade New', label: 'شهرزاد', weights: [400, 700], category: 'naskh', pkg: 'scheherazade-new' },
+    { family: 'Noto Naskh Arabic', label: 'نوتو نسخ', weights: [400, 700], category: 'naskh', pkg: 'noto-naskh-arabic' },
+    { family: 'Lateef', label: 'لطيف', weights: [400, 700], category: 'naskh', pkg: 'lateef' },
+    { family: 'Markazi Text', label: 'مركزي', weights: [400, 700], category: 'naskh', pkg: 'markazi-text' },
+    { family: 'Mirza', label: 'ميرزا', weights: [400, 700], category: 'naskh', pkg: 'mirza' },
+    { family: 'Harmattan', label: 'هرمتان', weights: [400, 700], category: 'naskh', pkg: 'harmattan' },
+    { family: 'El Messiri', label: 'المسيري', weights: [400, 700], category: 'naskh', pkg: 'el-messiri' },
+    // ── كوفي ──
+    { family: 'Reem Kufi', label: 'ريم كوفي', weights: [400, 500, 700], category: 'kufi', pkg: 'reem-kufi', core: true },
+    { family: 'Reem Kufi Fun', label: 'ريم كوفي — مرح', weights: [400, 700], category: 'kufi', pkg: 'reem-kufi-fun' },
+    { family: 'Noto Kufi Arabic', label: 'نوتو كوفي', weights: [400, 700, 900], category: 'kufi', pkg: 'noto-kufi-arabic' },
+    { family: 'Kufam', label: 'كوفام', weights: [400, 700, 900], category: 'kufi', pkg: 'kufam' },
+    // ── عناوين عريضة ──
+    { family: 'Lalezar', label: 'لاله‌زار', weights: [400], category: 'display', pkg: 'lalezar', core: true },
+    { family: 'Rakkas', label: 'رقّاص', weights: [400], category: 'display', pkg: 'rakkas' },
+    { family: 'Jomhuria', label: 'جمهورية', weights: [400], category: 'display', pkg: 'jomhuria' },
+    { family: 'Katibeh', label: 'كاتبة', weights: [400], category: 'display', pkg: 'katibeh' },
+    { family: 'Blaka', label: 'بلاكا — قوطي', weights: [400], category: 'display', pkg: 'blaka' },
+    { family: 'Badeen Display', label: 'بديع', weights: [400], category: 'display', pkg: 'badeen-display' },
+    { family: 'Changa', label: 'شانغا', weights: [400, 700, 800], category: 'display', pkg: 'changa' },
+    // ── حديث ──
+    { family: 'Cairo', label: 'القاهرة', weights: [400, 700, 900], category: 'modern', pkg: 'cairo', core: true },
+    { family: 'Tajawal', label: 'تجوال', weights: [400, 500, 700, 900], category: 'modern', pkg: 'tajawal', core: true },
+    { family: 'Almarai', label: 'المراعي', weights: [400, 700, 800], category: 'modern', pkg: 'almarai', core: true },
+    { family: 'Mada', label: 'مدى', weights: [400, 700, 900], category: 'modern', pkg: 'mada' },
+    { family: 'Readex Pro', label: 'ريدكس', weights: [400, 700], category: 'modern', pkg: 'readex-pro' },
+    { family: 'IBM Plex Sans Arabic', label: 'بلكس عربي', weights: [400, 700], category: 'modern', pkg: 'ibm-plex-sans-arabic' },
+    { family: 'Baloo Bhaijaan 2', label: 'بالو', weights: [400, 700, 800], category: 'modern', pkg: 'baloo-bhaijaan-2' },
+    // ── يدوي ومرح ──
+    { family: 'Marhey', label: 'مرحي', weights: [400, 700], category: 'hand', pkg: 'marhey' },
+    { family: 'Lemonada', label: 'ليمونادة', weights: [400, 700], category: 'hand', pkg: 'lemonada' },
+    { family: 'Vibes', label: 'فايبز', weights: [400], category: 'hand', pkg: 'vibes' },
 ];
 const WEIGHT_LABELS = {
+    200: 'رفيع جداً',
     300: 'رفيع',
+    600: 'نصف عريض',
     400: 'عادي',
     500: 'متوسط',
     700: 'عريض',
@@ -112,6 +160,10 @@ function loadGoogleFont(family) {
 }
 function loadAllArabicFonts() {
     return Promise.all(ARABIC_FONTS.map((f) => loadGoogleFont(f.family)));
+}
+const CORE_FONTS = ARABIC_FONTS.filter((f) => f.core);
+function isFontLoaded(family) {
+    return cache.has(family);
 }
 /** أقرب وزن متاح للخط (مثلاً Lalezar لا يملك إلا 400) */
 function closestWeight(family, weight) {
@@ -1464,6 +1516,244 @@ function drawThinFrame(ctx, w, h) {
     ctx.lineWidth = 1.6;
     ctx.strokeRect(40, 40, w - 80, h - 80);
 }
+// ═════════ مؤثرات إضافية ═════════
+function drawLightning(ctx, w, h, r) {
+    const bolt = (x, y, len, ang, width, depth) => {
+        ctx.lineWidth = width;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        let cx = x, cy = y;
+        const steps = 14;
+        for (let i = 0; i < steps; i++) {
+            cx += Math.cos(ang) * (len / steps) + (r() - 0.5) * 34;
+            cy += Math.sin(ang) * (len / steps) + (r() - 0.5) * 10;
+            ctx.lineTo(cx, cy);
+            if (depth < 2 && r() < 0.22) {
+                ctx.stroke();
+                bolt(cx, cy, len * 0.4, ang + (r() - 0.5) * 1.4, width * 0.5, depth + 1);
+                ctx.lineWidth = width;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+            }
+        }
+        ctx.stroke();
+    };
+    softDot(ctx, w * 0.62, h * 0.05, 520, 'rgba(170,190,255,0.35)');
+    ctx.strokeStyle = 'rgba(225,235,255,0.95)';
+    ctx.shadowColor = 'rgba(150,180,255,1)';
+    ctx.shadowBlur = 25;
+    ctx.lineCap = 'round';
+    bolt(w * 0.62, -10, h * 0.75, Math.PI / 2 + 0.15, 4, 0);
+    bolt(w * 0.2, -10, h * 0.45, Math.PI / 2 - 0.2, 2.5, 1);
+    ctx.shadowBlur = 0;
+}
+function drawStars(ctx, w, h, r) {
+    for (let i = 0; i < 900; i++) {
+        const s = r();
+        const x = r() * w, y = r() * h * 0.75;
+        ctx.fillStyle = `rgba(255,${235 + Math.floor(r() * 20)},${210 + Math.floor(r() * 45)},${0.3 + s * 0.7})`;
+        ctx.beginPath();
+        ctx.arc(x, y, 0.4 + s * s * 1.8, 0, TAU);
+        ctx.fill();
+    }
+    for (let i = 0; i < 18; i++) {
+        const x = r() * w, y = r() * h * 0.7, L = 8 + r() * 18;
+        softDot(ctx, x, y, L, 'rgba(255,250,235,0.6)');
+        ctx.strokeStyle = 'rgba(255,250,235,0.7)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x - L, y);
+        ctx.lineTo(x + L, y);
+        ctx.moveTo(x, y - L);
+        ctx.lineTo(x, y + L);
+        ctx.stroke();
+    }
+    // درب التبانة
+    ctx.save();
+    ctx.translate(w / 2, h * 0.3);
+    ctx.rotate(-0.5);
+    ctx.scale(1, 0.18);
+    softDot(ctx, 0, 0, w * 0.8, 'rgba(200,190,255,0.12)');
+    ctx.restore();
+}
+function drawFlames(ctx, w, h, r) {
+    const g = ctx.createLinearGradient(0, h, 0, h * 0.45);
+    g.addColorStop(0, 'rgba(255,120,20,0.85)');
+    g.addColorStop(0.4, 'rgba(255,60,10,0.35)');
+    g.addColorStop(1, 'rgba(255,40,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, h * 0.45, w, h * 0.55);
+    for (let i = 0; i < 60; i++) {
+        const x = r() * w, fh = 120 + r() * 380, fw = 30 + r() * 70;
+        const fg = ctx.createLinearGradient(0, h, 0, h - fh);
+        fg.addColorStop(0, 'rgba(255,230,120,0.55)');
+        fg.addColorStop(0.5, 'rgba(255,120,30,0.35)');
+        fg.addColorStop(1, 'rgba(200,30,0,0)');
+        ctx.fillStyle = fg;
+        ctx.beginPath();
+        ctx.moveTo(x - fw, h);
+        ctx.bezierCurveTo(x - fw, h - fh * 0.5, x + (r() - 0.5) * fw, h - fh * 0.7, x + (r() - 0.5) * fw * 0.6, h - fh);
+        ctx.bezierCurveTo(x + fw * 0.4, h - fh * 0.6, x + fw, h - fh * 0.4, x + fw, h);
+        ctx.closePath();
+        ctx.fill();
+    }
+}
+function drawHalftone(ctx, w, h) {
+    const step = 14;
+    ctx.fillStyle = 'rgba(0,0,0,0.9)';
+    for (let y = 0; y < h; y += step) {
+        for (let x = (y / step) % 2 ? step / 2 : 0; x < w; x += step) {
+            const t = Math.min(1, Math.hypot(x - w / 2, y - h * 0.45) / (h * 0.7));
+            const rad = 0.5 + t * t * step * 0.55;
+            ctx.beginPath();
+            ctx.arc(x, y, rad, 0, TAU);
+            ctx.fill();
+        }
+    }
+}
+function drawOldPaper(ctx, w, h, r) {
+    ctx.fillStyle = 'rgba(214,190,145,0.55)';
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 70; i++)
+        softDot(ctx, r() * w, r() * h, 60 + r() * 220, `rgba(150,110,60,${0.05 + r() * 0.1})`);
+    for (let i = 0; i < 3500; i++) {
+        ctx.fillStyle = `rgba(90,60,30,${r() * 0.25})`;
+        ctx.fillRect(r() * w, r() * h, 1 + r() * 1.5, 1 + r() * 1.5);
+    }
+    const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.3, w / 2, h / 2, h * 0.8);
+    g.addColorStop(0, 'rgba(120,80,40,0)');
+    g.addColorStop(1, 'rgba(90,55,25,0.55)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+}
+function drawGrunge(ctx, w, h, r) {
+    for (let i = 0; i < 160; i++) {
+        const x = r() * w, y = r() * h, rad = 4 + r() ** 2 * 70;
+        ctx.fillStyle = `rgba(0,0,0,${0.15 + r() * 0.5})`;
+        organicBlob(ctx, x, y, rad, r);
+        ctx.fill();
+    }
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 90; i++) {
+        ctx.strokeStyle = `rgba(0,0,0,${0.2 + r() * 0.4})`;
+        ctx.lineWidth = 1 + r() * 5;
+        const x = r() * w, y = r() * h, a = r() * TAU, L = 20 + r() * 160;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.quadraticCurveTo(x + Math.cos(a + 0.5) * L * 0.5, y + Math.sin(a + 0.5) * L * 0.5, x + Math.cos(a) * L, y + Math.sin(a) * L);
+        ctx.stroke();
+    }
+    for (let i = 0; i < 6000; i++) {
+        ctx.fillStyle = `rgba(0,0,0,${r() * 0.35})`;
+        ctx.fillRect(r() * w, r() * h, 1.5, 1.5);
+    }
+}
+function drawGlitch(ctx, w, h, r) {
+    for (let i = 0; i < 26; i++) {
+        const y = r() * h, bh = 3 + r() ** 2 * 40, off = (r() - 0.5) * 80;
+        const colors = ['rgba(255,0,80,0.45)', 'rgba(0,255,230,0.45)', 'rgba(255,255,255,0.25)'];
+        ctx.fillStyle = colors[Math.floor(r() * colors.length)];
+        ctx.fillRect(off + r() * w * 0.4, y, w * (0.2 + r() * 0.7), bh);
+    }
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    for (let y = 0; y < h; y += 3)
+        ctx.fillRect(0, y, w, 1);
+    for (let i = 0; i < 40; i++) {
+        ctx.fillStyle = `rgba(${r() < 0.5 ? '255,0,90' : '0,240,255'},${0.3 + r() * 0.4})`;
+        ctx.fillRect(r() * w, r() * h, 4 + r() * 40, 2 + r() * 6);
+    }
+}
+function drawSunburst(ctx, w, h) {
+    const cx = w / 2, cy = h * 0.42, R = Math.hypot(w, h);
+    const n = 36;
+    for (let i = 0; i < n; i++) {
+        if (i % 2)
+            continue;
+        const a0 = (i / n) * TAU, a1 = ((i + 1) / n) * TAU;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.7);
+        g.addColorStop(0, 'rgba(255,225,160,0.4)');
+        g.addColorStop(1, 'rgba(255,225,160,0)');
+        ctx.fillStyle = g;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a0) * R, cy + Math.sin(a0) * R);
+        ctx.lineTo(cx + Math.cos(a1) * R, cy + Math.sin(a1) * R);
+        ctx.closePath();
+        ctx.fill();
+    }
+    softDot(ctx, cx, cy, 260, 'rgba(255,235,190,0.5)');
+}
+function drawSparkles(ctx, w, h, r) {
+    const sparkle = (x, y, s, a) => {
+        ctx.fillStyle = `rgba(255,245,215,${a})`;
+        ctx.beginPath();
+        ctx.moveTo(x, y - s);
+        ctx.quadraticCurveTo(x, y, x + s * 0.28, y);
+        ctx.quadraticCurveTo(x, y, x, y + s);
+        ctx.quadraticCurveTo(x, y, x - s * 0.28, y);
+        ctx.quadraticCurveTo(x, y, x, y - s);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(x - s * 0.7, y);
+        ctx.quadraticCurveTo(x, y, x, y + s * 0.2);
+        ctx.quadraticCurveTo(x, y, x + s * 0.7, y);
+        ctx.quadraticCurveTo(x, y, x, y - s * 0.2);
+        ctx.quadraticCurveTo(x, y, x - s * 0.7, y);
+        ctx.fill();
+    };
+    for (let i = 0; i < 70; i++) {
+        const x = r() * w, y = r() * h, s = 5 + r() ** 2 * 28;
+        softDot(ctx, x, y, s * 1.6, 'rgba(255,220,150,0.25)');
+        sparkle(x, y, s, 0.6 + r() * 0.4);
+    }
+    for (let i = 0; i < 500; i++)
+        softDot(ctx, r() * w, r() * h, 1 + r() * 2.5, 'rgba(255,235,190,0.8)');
+}
+function drawGroundFog(ctx, w, h, r) {
+    for (let i = 0; i < 70; i++) {
+        ctx.save();
+        ctx.translate(r() * w, h * (0.72 + r() * 0.3));
+        ctx.scale(1, 0.25);
+        softDot(ctx, 0, 0, 180 + r() * 260, `rgba(225,225,230,${0.08 + r() * 0.1})`);
+        ctx.restore();
+    }
+    const g = ctx.createLinearGradient(0, h, 0, h * 0.6);
+    g.addColorStop(0, 'rgba(220,220,228,0.55)');
+    g.addColorStop(1, 'rgba(220,220,228,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+}
+function drawCrackedGlass(ctx, w, h, r) {
+    const cx = w * (0.3 + r() * 0.4), cy = h * (0.3 + r() * 0.4);
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+    ctx.lineCap = 'round';
+    const rays = 18;
+    for (let i = 0; i < rays; i++) {
+        let a = (i / rays) * TAU + r() * 0.2, x = cx, y = cy;
+        ctx.lineWidth = 1 + r() * 1.5;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        const L = 300 + r() * 900;
+        for (let d = 0; d < L; d += 25) {
+            a += (r() - 0.5) * 0.25;
+            x += Math.cos(a) * 25;
+            y += Math.sin(a) * 25;
+            ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+    }
+    for (let ring = 1; ring <= 4; ring++) {
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        for (let i = 0; i <= rays; i++) {
+            const a = (i / rays) * TAU, rr = ring * (45 + r() * 25);
+            const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+            i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.stroke();
+    }
+    softDot(ctx, cx, cy, 40, 'rgba(255,255,255,0.6)');
+}
 // ───────── السجل ─────────
 // blend: وضع الدمج في Konva/Canvas (source-over | screen | multiply | overlay | soft-light)
 const OVERLAY_GROUPS = [
@@ -1477,6 +1767,10 @@ const OVERLAY_GROUPS = [
             { id: 'smoke', label: 'ضباب دخاني', blend: 'screen', opacity: 0.6, draw: drawSmokeFog },
             { id: 'clouds', label: 'غيوم', blend: 'screen', opacity: 0.55, draw: drawClouds },
             { id: 'embers', label: 'جمر متطاير', blend: 'screen', opacity: 0.7, draw: drawEmbers },
+            { id: 'lightning', label: 'برق', blend: 'screen', opacity: 0.85, draw: drawLightning },
+            { id: 'stars', label: 'سماء نجوم', blend: 'screen', opacity: 0.8, draw: drawStars },
+            { id: 'flames', label: 'لهب', blend: 'screen', opacity: 0.7, draw: drawFlames },
+            { id: 'groundfog', label: 'ضباب أرضي', blend: 'screen', opacity: 0.6, draw: drawGroundFog },
         ],
     },
     {
@@ -1488,6 +1782,10 @@ const OVERLAY_GROUPS = [
             { id: 'stains', label: 'بقع', blend: 'multiply', opacity: 0.7, draw: drawStains },
             { id: 'burnt', label: 'ورق محروق', blend: 'source-over', opacity: 0.8, draw: drawBurntPaper },
             { id: 'concrete', label: 'جدار خرساني', blend: 'overlay', opacity: 0.45, draw: drawConcrete },
+            { id: 'oldpaper', label: 'ورق قديم', blend: 'multiply', opacity: 0.6, draw: drawOldPaper },
+            { id: 'grunge', label: 'تآكل (Grunge)', blend: 'multiply', opacity: 0.55, draw: drawGrunge },
+            { id: 'halftone', label: 'نقاط طباعة', blend: 'multiply', opacity: 0.35, draw: drawHalftone },
+            { id: 'cracked', label: 'زجاج مكسور', blend: 'screen', opacity: 0.55, draw: drawCrackedGlass },
         ],
     },
     {
@@ -1501,6 +1799,8 @@ const OVERLAY_GROUPS = [
             { id: 'spotlight', label: 'بقعة ضوء', blend: 'source-over', opacity: 0.7, draw: drawSpotlight },
             { id: 'bokeh', label: 'بوكيه', blend: 'screen', opacity: 0.5, draw: drawBokeh },
             { id: 'flare', label: 'وهج عدسة', blend: 'screen', opacity: 0.6, draw: drawLensFlare },
+            { id: 'sunburst', label: 'أشعة دائرية', blend: 'screen', opacity: 0.45, draw: drawSunburst },
+            { id: 'sparkles', label: 'لمعان', blend: 'screen', opacity: 0.7, draw: drawSparkles },
         ],
     },
     {
@@ -1509,6 +1809,7 @@ const OVERLAY_GROUPS = [
         items: [
             { id: 'lines', label: 'خطوط عشوائية', blend: 'screen', opacity: 0.5, draw: drawRandomLines },
             { id: 'grid', label: 'شبكة إحداثيات', blend: 'screen', opacity: 0.55, draw: drawGrid },
+            { id: 'glitch', label: 'تشويش رقمي', blend: 'screen', opacity: 0.6, draw: drawGlitch },
             { id: 'scanlines', label: 'خطوط مسح', blend: 'source-over', opacity: 0.5, draw: drawScanlines },
             { id: 'topo', label: 'خريطة طبوغرافية', blend: 'screen', opacity: 0.45, draw: drawTopographic },
         ],
@@ -1790,6 +2091,8 @@ const TEMPLATE_CATEGORIES = [
     { id: 'selfdev', label: 'تطوير ذات' },
     { id: 'kids', label: 'أطفال' },
     { id: 'essay', label: 'مقالات وفكر' },
+    { id: 'novel', label: 'روايات' },
+    { id: 'poetry', label: 'شعر وأدب' },
 ];
 const TEMPLATES = [
     // ── رعب ──
@@ -1963,6 +2266,198 @@ const TEMPLATES = [
         layers: { bokeh: 0.45, flare: 0.4 },
         textAboveLayers: true,
     },
+    // ── الإصدار 6: خطوط جديدة + زخارف + مؤثرات ──
+    {
+        id: 'gilded-quran', category: 'religious', name: 'المذهّب', sample: 'رياض الصالحين',
+        customPalette: { name: 'أخضر ملكي', type: 'radial', colors: ['#0b2a20', '#14513d', '#04140e'] },
+        title: { font: 'Amiri Quran', weight: 400, size: 128, effect: 'gold', y: 210, shadow: true },
+        subtitle: { font: 'Scheherazade New', weight: 700, size: 50, color: '#e8d9a8', y: 1180 },
+        shapes: [
+            { kind: 'ornateFrame', x: 500, y: 750, width: 840, height: 1340, stroke: '#d4af6a', strokeWidth: 3, fill: '#d4af6a' },
+            { kind: 'starDivider', x: 500, y: 430, width: 520, height: 56 },
+            { kind: 'rosette', x: 500, y: 800, width: 380, height: 380, opacity: 0.35, behind: true },
+        ],
+        layers: { islamic: 0.18, vignette: 0.6, grain: 0.2 },
+        grade: 'warm', gradeAmount: 0.3,
+    },
+    {
+        id: 'mihrab-gold', category: 'religious', name: 'أنوار المحراب', sample: 'أنوار الهدى',
+        paletteId: 'moss',
+        title: { font: 'Reem Kufi Ink', weight: 400, size: 140, color: '#f5e6b8', effect: 'glow', glowColor: '#d4af6a', y: 140, shadow: false },
+        subtitle: { font: 'El Messiri', weight: 700, size: 44, color: '#e9dcb8', y: 1290 },
+        shapes: [
+            { kind: 'mihrabFrame', x: 500, y: 820, width: 620, height: 900, strokeWidth: 5 },
+            { kind: 'star8', x: 500, y: 400, width: 90, height: 90 },
+        ],
+        layers: { rays: 0.45, islamic: 0.18, vignette: 0.6 },
+    },
+    {
+        id: 'nastaliq-poetry', category: 'poetry', name: 'ديوان النستعليق', sample: 'قصائد الحنين',
+        paletteId: 'night-violet',
+        title: { font: 'Noto Nastaliq Urdu', weight: 700, size: 104, color: '#f3e6c8', effect: 'glow', glowColor: '#c9a2ff', y: 200, shadow: false, lineHeight: 1.6 },
+        subtitle: { font: 'Markazi Text', weight: 400, size: 48, color: '#d9cfe8', y: 1280 },
+        shapes: [
+            { kind: 'flourish', x: 500, y: 520, width: 520, height: 90, fill: '#f3e6c8', stroke: '#f3e6c8' },
+            { kind: 'crescent', x: 770, y: 1000, width: 220, height: 220, fill: '#f3e6c8', opacity: 0.85, rotation: -30 },
+        ],
+        layers: { stars: 0.8, groundfog: 0.4, vignette: 0.6 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'poetry-night', category: 'poetry', name: 'هلال الغربة', sample: 'قصائد الغربة',
+        paletteId: 'night-dunes',
+        title: { font: 'Gulzar', weight: 400, size: 128, color: '#f0dfb5', effect: 'none', y: 560, shadow: true },
+        subtitle: { font: 'Amiri', weight: 400, size: 46, color: '#e2d2ad', y: 1290 },
+        shapes: [
+            { kind: 'crescent', x: 300, y: 320, width: 200, height: 200, fill: '#f0dfb5', rotation: 20 },
+            { kind: 'flourish', x: 500, y: 830, width: 460, height: 80, fill: '#f0dfb5', stroke: '#f0dfb5' },
+        ],
+        layers: { stars: 0.8, groundfog: 0.5, vignette: 0.5 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'lightning-horror', category: 'horror', name: 'ليلة العاصفة', sample: 'ليلة العاصفة',
+        paletteId: 'ink-night',
+        title: { font: 'Blaka', weight: 400, size: 170, color: '#e6e9f5', effect: 'glow', glowColor: '#7f9cff', y: 130, shadow: false },
+        subtitle: { font: 'Changa', weight: 700, size: 42, color: '#b8c2e0', y: 1290 },
+        layers: { lightning: 0.9, rain: 0.6, vignette: 0.8, groundfog: 0.4 },
+        grade: 'cold', gradeAmount: 0.5,
+        textAboveLayers: true,
+    },
+    {
+        id: 'jomhuria-poster', category: 'novel', name: 'المطاردة', sample: 'المطاردة',
+        paletteId: 'burgundy',
+        title: { font: 'Jomhuria', weight: 400, size: 240, color: '#f4efe6', color2: '#2a0508', effect: 'extrude', y: 90, shadow: false, lineHeight: 0.95 },
+        subtitle: { font: 'Changa', weight: 700, size: 44, color: '#f0d6d6', y: 1290 },
+        layers: { spotlight: 0.6, grain: 0.35, cracked: 0.4 },
+        grade: 'crimson', gradeAmount: 0.5,
+        textAboveLayers: true,
+    },
+    {
+        id: 'neon-scifi', category: 'novel', name: 'مدار الصفر', sample: 'مدار الصفر',
+        paletteId: 'steel-blue',
+        title: { font: 'Changa', weight: 800, size: 140, color: '#eafcff', glowColor: '#00e5ff', effect: 'neon', y: 150, shadow: false },
+        subtitle: { font: 'Readex Pro', weight: 400, size: 42, color: '#bfe9f2', y: 1290 },
+        shapes: [{ kind: 'ring', x: 500, y: 820, width: 520, height: 520, stroke: '#00e5ff', strokeWidth: 3, opacity: 0.7 }],
+        layers: { stars: 0.6, glitch: 0.35, scanlines: 0.3, flare: 0.35 },
+        grade: 'tealOrange', gradeAmount: 0.4,
+        textAboveLayers: true,
+    },
+    {
+        id: 'brush-title', category: 'novel', name: 'ضربة الفرشاة', sample: 'صرخة الصمت',
+        paletteId: 'charcoal-gold',
+        title: { font: 'Lalezar', weight: 400, size: 120, color: '#ffffff', effect: 'none', y: 175, shadow: true },
+        subtitle: { font: 'Tajawal', weight: 700, size: 42, color: '#e8e2d8', y: 1290 },
+        shapes: [{ kind: 'brush', x: 500, y: 255, width: 860, height: 220, fill: '#8a1c1c' }],
+        layers: { grunge: 0.45, vignette: 0.7, grain: 0.3 },
+    },
+    {
+        id: 'fire-epic', category: 'history', name: 'نار الفتوح', sample: 'نار الفتوح',
+        paletteId: 'rust',
+        title: { font: 'Rakkas', weight: 400, size: 170, color: '#ffd27a', color2: '#5a1a00', effect: 'extrude', y: 120, shadow: false },
+        subtitle: { font: 'El Messiri', weight: 700, size: 46, color: '#ffe2b5', y: 1280 },
+        layers: { flames: 0.7, embers: 0.7, vignette: 0.7, smoke: 0.3 },
+        grade: 'warm', gradeAmount: 0.5,
+        textAboveLayers: true,
+    },
+    {
+        id: 'old-manuscript', category: 'history', name: 'المخطوطة', sample: 'المخطوطة',
+        customPalette: { name: 'رق قديم', type: 'radial', colors: ['#c9a974', '#e3cc9a', '#7a5a30'] },
+        title: { font: 'Aref Ruqaa Ink', weight: 700, size: 150, color: '#3a2410', effect: 'none', y: 220, shadow: false },
+        subtitle: { font: 'Amiri', weight: 400, size: 48, color: '#4a3018', y: 1200, shadow: false },
+        shapes: [
+            { kind: 'doubleFrame', x: 500, y: 750, width: 840, height: 1340, stroke: '#5a3a18', strokeWidth: 3 },
+            { kind: 'divider', x: 500, y: 460, width: 480, height: 36, fill: '#5a3a18', stroke: '#5a3a18' },
+            { kind: 'corner', x: 165, y: 165, width: 150, height: 150, fill: '#5a3a18', stroke: '#5a3a18', rotation: 0 },
+            { kind: 'corner', x: 835, y: 165, width: 150, height: 150, fill: '#5a3a18', stroke: '#5a3a18', rotation: 90 },
+            { kind: 'corner', x: 835, y: 1335, width: 150, height: 150, fill: '#5a3a18', stroke: '#5a3a18', rotation: 180 },
+            { kind: 'corner', x: 165, y: 1335, width: 150, height: 150, fill: '#5a3a18', stroke: '#5a3a18', rotation: 270 },
+        ],
+        layers: { oldpaper: 0.7, stains: 0.5, burnt: 0.5 },
+    },
+    {
+        id: 'qahiri-heritage', category: 'history', name: 'تراث الأمة', sample: 'تراث الأمة',
+        paletteId: 'old-copper',
+        title: { font: 'Qahiri', weight: 400, size: 150, effect: 'gold', y: 200, shadow: true },
+        subtitle: { font: 'El Messiri', weight: 400, size: 46, color: '#ead8b0', y: 1240 },
+        shapes: [
+            { kind: 'ornateFrame', x: 500, y: 750, width: 840, height: 1340, stroke: '#d4af6a', fill: '#d4af6a', strokeWidth: 3 },
+            { kind: 'starDivider', x: 500, y: 430, width: 500, height: 56 },
+        ],
+        layers: { concrete: 0.3, vignette: 0.6, sparkles: 0.3 },
+    },
+    {
+        id: 'kufi-modern', category: 'essay', name: 'كتلة حمراء', sample: 'الخط الحديث',
+        paletteId: 'slate',
+        title: { font: 'Kufam', weight: 900, size: 120, color: '#ffffff', effect: 'none', y: 200, shadow: true },
+        subtitle: { font: 'Readex Pro', weight: 400, size: 40, color: '#d6d9dd', y: 520 },
+        shapes: [
+            { kind: 'rect', x: 500, y: 300, width: 1000, height: 380, fill: '#b3121f', behind: true },
+            { kind: 'line', x: 500, y: 600, width: 260, height: 20, stroke: '#ffffff', strokeWidth: 4 },
+        ],
+        layers: { grain: 0.25, halftone: 0.2 },
+    },
+    {
+        id: 'minimal-white', category: 'essay', name: 'بساطة', sample: 'بساطة',
+        customPalette: { name: 'عاجي', type: 'linear', colors: ['#eeeae2', '#f7f4ee', '#d8d2c6'] },
+        title: { font: 'Mada', weight: 900, size: 160, color: '#1a1714', effect: 'none', y: 220, shadow: false },
+        subtitle: { font: 'Mada', weight: 400, size: 44, color: '#4a453e', y: 1290, shadow: false },
+        tag: { visible: true, text: 'مقال', bgColor: '#1a1714', color: '#eeeae2' },
+        shapes: [
+            { kind: 'line', x: 500, y: 450, width: 160, height: 20, stroke: '#b3121f', strokeWidth: 7 },
+            { kind: 'circle', x: 720, y: 1020, width: 320, height: 320, fill: '#b3121f', behind: true },
+        ],
+        layers: { grain: 0.15 },
+    },
+    {
+        id: 'halftone-pop', category: 'essay', name: 'بوب آرت', sample: 'جدل',
+        customPalette: { name: 'أصفر', type: 'linear', colors: ['#f2c230', '#ffe066', '#d99a00'] },
+        title: { font: 'Lalezar', weight: 400, size: 220, color: '#111111', effect: 'none', y: 180, shadow: false },
+        subtitle: { font: 'Cairo', weight: 900, size: 46, color: '#111111', y: 1290, shadow: false },
+        shapes: [{ kind: 'circle', x: 500, y: 780, width: 640, height: 640, fill: '#e63946', behind: true }],
+        layers: { halftone: 0.35, grain: 0.2 },
+    },
+    {
+        id: 'gold-seal-self', category: 'selfdev', name: 'الختم الذهبي', sample: 'قواعد النجاح',
+        paletteId: 'ink-night',
+        title: { font: 'Noto Kufi Arabic', weight: 900, size: 130, color: '#ffffff', color2: '#d4af6a', effect: 'gradient', y: 180, shadow: true },
+        subtitle: { font: 'Noto Kufi Arabic', weight: 400, size: 40, color: '#cfc6b4', y: 1300 },
+        shapes: [
+            { kind: 'line', x: 500, y: 500, width: 200, height: 20, stroke: '#d4af6a', strokeWidth: 5 },
+            { kind: 'seal', x: 790, y: 1120, width: 240, height: 240, fill: '#d4af6a' },
+        ],
+        layers: { sunburst: 0.35, grain: 0.2 },
+        grade: 'warm', gradeAmount: 0.3,
+    },
+    {
+        id: 'business-band', category: 'selfdev', name: 'الشريط الأنيق', sample: 'إدارة الوقت',
+        customPalette: { name: 'كحلي', type: 'linear', colors: ['#0f2a44', '#1d4f7a', '#071624'] },
+        title: { font: 'IBM Plex Sans Arabic', weight: 700, size: 130, color: '#ffffff', effect: 'none', y: 200, shadow: true },
+        subtitle: { font: 'IBM Plex Sans Arabic', weight: 700, size: 44, color: '#0f2a44', y: 1255, shadow: false },
+        shapes: [{ kind: 'rect', x: 500, y: 1290, width: 1000, height: 170, fill: '#d4af6a' }],
+        layers: { lines: 0.25, grid: 0.2 },
+    },
+    {
+        id: 'ribbon-kids', category: 'kids', name: 'حكايات جدّتي', sample: 'حكايات جدّتي',
+        customPalette: { name: 'برتقالي دافئ', type: 'radial', colors: ['#ff9a5a', '#ffd38a', '#e0603a'] },
+        title: { font: 'Lemonada', weight: 700, size: 100, color: '#ffffff', strokeColor: '#7a2e10', strokeWidth: 7, effect: 'outline', y: 175, shadow: true },
+        subtitle: { font: 'Baloo Bhaijaan 2', weight: 700, size: 46, color: '#ffffff', y: 1290 },
+        shapes: [
+            { kind: 'ribbon', x: 500, y: 250, width: 900, height: 220, fill: '#c2410c' },
+            { kind: 'star5', x: 140, y: 520, width: 110, height: 110, fill: '#fff3b0', rotation: -12 },
+            { kind: 'star5', x: 860, y: 560, width: 80, height: 80, fill: '#fff3b0', rotation: 15 },
+        ],
+        layers: { sparkles: 0.5 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'marhey-kids', category: 'kids', name: 'الأرنب الشجاع', sample: 'الأرنب الشجاع',
+        customPalette: { name: 'بنفسجي مرح', type: 'radial', colors: ['#5b3fd0', '#9b8cff', '#2c1e7a'] },
+        title: { font: 'Marhey', weight: 700, size: 130, color: '#fff27a', strokeColor: '#3a1fa0', color2: '#ffffff', strokeWidth: 6, effect: 'double', y: 130, shadow: true },
+        subtitle: { font: 'Baloo Bhaijaan 2', weight: 700, size: 44, color: '#ffffff', y: 1290 },
+        layers: { stars: 0.6, bokeh: 0.4 },
+        textAboveLayers: true,
+    },
 ];
 const STYLE_RESET = { effect: 'none', bg: 'none', secondColor: '', rotation: 0, letterSpacing: 0 };
 /** تطبيق القالب على المستند مع الاحتفاظ بنص المستخدم وصوره */
@@ -1984,6 +2479,10 @@ function applyTemplateToDoc(doc, tpl) {
             const base = k === 'title' || k === 'subtitle' ? { ...t, ...STYLE_RESET, x: t.x } : t;
             return [k, { ...base, ...rest, ...(text && k !== 'title' ? { text } : {}) }];
         })),
+        shapes: [
+            ...(doc.shapes || []).filter((sh) => !sh.fromTemplate),
+            ...(tpl.shapes || []).map((sp) => createShape(sp.kind, { ...sp, fromTemplate: true })),
+        ],
         images: tpl.imageStyle
             ? doc.images.map((img) => ({ ...img, ...tpl.imageStyle, backdrop: { ...(img.backdrop || {}), ...(tpl.imageStyle.backdrop || {}) } }))
             : doc.images,
@@ -2296,17 +2795,404 @@ function gradeLayers(grade, W, H) {
             return [];
     }
 }
+// ===== lib/decorShapes.js =====
+// ─────────────────────────────────────────────────────────────
+// عناصر زخرفية قابلة للتلوين: خطوط وفواصل، إطارات وزوايا، أشكال، زخارف ورموز
+// كل شكل يُرسم حول (0,0) داخل صندوق w×h، ثم ctx.fillStrokeShape(shape)
+// (يعمل مع سياق Konva ومع سياق Canvas العادي للمعاينات المصغّرة)
+// ─────────────────────────────────────────────────────────────
+const D_TAU = Math.PI * 2;
+const D_K = 0.5522847498;
+function dEllipse(ctx, rx, ry, cx = 0, cy = 0) {
+    ctx.moveTo(cx + rx, cy);
+    ctx.bezierCurveTo(cx + rx, cy + ry * D_K, cx + rx * D_K, cy + ry, cx, cy + ry);
+    ctx.bezierCurveTo(cx - rx * D_K, cy + ry, cx - rx, cy + ry * D_K, cx - rx, cy);
+    ctx.bezierCurveTo(cx - rx, cy - ry * D_K, cx - rx * D_K, cy - ry, cx, cy - ry);
+    ctx.bezierCurveTo(cx + rx * D_K, cy - ry, cx + rx, cy - ry * D_K, cx + rx, cy);
+}
+function dPoly(ctx, pts) {
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+    ctx.closePath();
+}
+function dStarPts(n, R, r, rot = -Math.PI / 2) {
+    const pts = [];
+    for (let i = 0; i < n * 2; i++) {
+        const a = rot + (i * Math.PI) / n;
+        const rr = i % 2 ? r : R;
+        pts.push([Math.cos(a) * rr, Math.sin(a) * rr]);
+    }
+    return pts;
+}
+function dRoundRect(ctx, x, y, w, h, r) {
+    r = Math.min(r, w / 2, h / 2);
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.arcTo(x + w, y, x + w, y + r, r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.arcTo(x + w, y + h, x + w - r, y + h, r);
+    ctx.lineTo(x + r, y + h);
+    ctx.arcTo(x, y + h, x, y + h - r, r);
+    ctx.lineTo(x, y + r);
+    ctx.arcTo(x, y, x + r, y, r);
+    ctx.closePath();
+}
+function dSeeded(seed) {
+    let a = seed >>> 0;
+    return () => {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+const SHAPE_CATEGORIES = [
+    { id: 'lines', label: 'خطوط وفواصل' },
+    { id: 'frames', label: 'إطارات وزوايا' },
+    { id: 'shapes', label: 'أشكال' },
+    { id: 'ornaments', label: 'زخارف ورموز' },
+];
+const D_GOLD = '#d4af6a';
+const D_NONE = 'rgba(0,0,0,0)';
+// fill/stroke/strokeWidth: القيم الافتراضية — المستخدم يغيّرها
+const SHAPE_LIBRARY = [
+    // ── خطوط وفواصل ──
+    {
+        id: 'line', label: 'خط', cat: 'lines', w: 500, h: 20, fill: D_NONE, stroke: D_GOLD, strokeWidth: 4,
+        draw(ctx, w, h, s) { ctx.beginPath(); ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'doubleLine', label: 'خط مزدوج', cat: 'lines', w: 500, h: 24, fill: D_NONE, stroke: D_GOLD, strokeWidth: 3,
+        draw(ctx, w, h, s) {
+            ctx.beginPath();
+            ctx.moveTo(-w / 2, -h * 0.3);
+            ctx.lineTo(w / 2, -h * 0.3);
+            ctx.moveTo(-w / 2, h * 0.3);
+            ctx.lineTo(w / 2, h * 0.3);
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'dots', label: 'نقاط', cat: 'lines', w: 500, h: 16, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) {
+            ctx.beginPath();
+            const n = Math.max(3, Math.round(w / (h * 2.2)));
+            for (let i = 0; i < n; i++) {
+                const x = -w / 2 + h / 2 + (i * (w - h)) / (n - 1);
+                dEllipse(ctx, h / 2, h / 2, x, 0);
+            }
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'divider', label: 'فاصل بمعيّن', cat: 'lines', w: 560, h: 40, fill: D_GOLD, stroke: D_GOLD, strokeWidth: 2.5,
+        draw(ctx, w, h, s) {
+            const d = h / 2;
+            ctx.beginPath();
+            ctx.moveTo(-w / 2, 0);
+            ctx.lineTo(-d * 2.2, 0);
+            ctx.moveTo(d * 2.2, 0);
+            ctx.lineTo(w / 2, 0);
+            dPoly(ctx, [[0, -d], [d, 0], [0, d], [-d, 0]]);
+            dEllipse(ctx, d * 0.32, d * 0.32, -d * 1.6, 0);
+            dEllipse(ctx, d * 0.32, d * 0.32, d * 1.6, 0);
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'starDivider', label: 'فاصل بنجمة', cat: 'lines', w: 560, h: 60, fill: D_GOLD, stroke: D_GOLD, strokeWidth: 2,
+        draw(ctx, w, h, s) {
+            const R = h / 2;
+            ctx.beginPath();
+            ctx.moveTo(-w / 2, 0);
+            ctx.lineTo(-R * 1.4, 0);
+            ctx.moveTo(R * 1.4, 0);
+            ctx.lineTo(w / 2, 0);
+            ctx.moveTo(-w / 2 + 20, -6);
+            ctx.lineTo(-R * 2, -6);
+            ctx.moveTo(R * 2, 6);
+            ctx.lineTo(w / 2 - 20, 6);
+            dPoly(ctx, dStarPts(8, R, R * 0.55, -Math.PI / 2));
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'wave', label: 'خط متموّج', cat: 'lines', w: 500, h: 30, fill: D_NONE, stroke: D_GOLD, strokeWidth: 3,
+        draw(ctx, w, h, s) {
+            ctx.beginPath();
+            const n = 6, seg = w / n;
+            ctx.moveTo(-w / 2, 0);
+            for (let i = 0; i < n; i++) {
+                const x0 = -w / 2 + i * seg;
+                ctx.bezierCurveTo(x0 + seg * 0.25, (i % 2 ? 1 : -1) * h / 2, x0 + seg * 0.75, (i % 2 ? 1 : -1) * h / 2, x0 + seg, 0);
+            }
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'brush', label: 'ضربة فرشاة', cat: 'lines', w: 640, h: 120, fill: '#8a1c1c', stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) {
+            const r = dSeeded(7);
+            ctx.beginPath();
+            const n = 24;
+            for (let i = 0; i <= n; i++) {
+                const x = -w / 2 + (w * i) / n;
+                const y = -h / 2 + (r() - 0.5) * h * 0.18 + (i === 0 || i === n ? h * 0.2 : 0);
+                i ? ctx.lineTo(x, y) : ctx.moveTo(x + w * 0.02, y);
+            }
+            ctx.lineTo(w / 2 + w * 0.02, 0);
+            for (let i = n; i >= 0; i--) {
+                const x = -w / 2 + (w * i) / n;
+                ctx.lineTo(x, h / 2 + (r() - 0.5) * h * 0.18 - (i === 0 || i === n ? h * 0.2 : 0));
+            }
+            ctx.lineTo(-w / 2 - w * 0.03, h * 0.05);
+            ctx.closePath();
+            ctx.fillStrokeShape(s);
+        },
+    },
+    // ── إطارات وزوايا ──
+    {
+        id: 'frame', label: 'إطار', cat: 'frames', w: 820, h: 1300, fill: D_NONE, stroke: D_GOLD, strokeWidth: 4,
+        draw(ctx, w, h, s) { ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'doubleFrame', label: 'إطار مزدوج', cat: 'frames', w: 820, h: 1300, fill: D_NONE, stroke: D_GOLD, strokeWidth: 3,
+        draw(ctx, w, h, s) {
+            ctx.beginPath();
+            ctx.rect(-w / 2, -h / 2, w, h);
+            ctx.rect(-w / 2 + 16, -h / 2 + 16, w - 32, h - 32);
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'roundFrame', label: 'إطار مستدير', cat: 'frames', w: 700, h: 300, fill: D_NONE, stroke: D_GOLD, strokeWidth: 4,
+        draw(ctx, w, h, s) { ctx.beginPath(); dRoundRect(ctx, -w / 2, -h / 2, w, h, Math.min(w, h) * 0.25); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'ornateFrame', label: 'إطار مزخرف', cat: 'frames', w: 820, h: 1300, fill: D_GOLD, stroke: D_GOLD, strokeWidth: 3,
+        draw(ctx, w, h, s) {
+            const hw = w / 2, hh = h / 2, c = Math.min(w, h) * 0.06;
+            ctx.beginPath();
+            ctx.moveTo(-hw + c, -hh);
+            ctx.lineTo(hw - c, -hh);
+            ctx.moveTo(hw, -hh + c);
+            ctx.lineTo(hw, hh - c);
+            ctx.moveTo(hw - c, hh);
+            ctx.lineTo(-hw + c, hh);
+            ctx.moveTo(-hw, hh - c);
+            ctx.lineTo(-hw, -hh + c);
+            for (const [x, y] of [[-hw, -hh], [hw, -hh], [hw, hh], [-hw, hh]])
+                dPoly(ctx, [[x, y - c], [x + c, y], [x, y + c], [x - c, y]]);
+            for (const [x, y] of [[0, -hh], [0, hh], [-hw, 0], [hw, 0]])
+                dPoly(ctx, [[x, y - c * 0.6], [x + c * 0.6, y], [x, y + c * 0.6], [x - c * 0.6, y]]);
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'mihrabFrame', label: 'إطار محراب', cat: 'frames', w: 600, h: 820, fill: D_NONE, stroke: D_GOLD, strokeWidth: 5,
+        draw(ctx, w, h, s) { traceBackdrop(ctx, 'mihrab', w, h); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'archFrame', label: 'إطار قوس', cat: 'frames', w: 600, h: 820, fill: D_NONE, stroke: D_GOLD, strokeWidth: 5,
+        draw(ctx, w, h, s) { traceBackdrop(ctx, 'arch', w, h); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'ring', label: 'حلقة', cat: 'frames', w: 500, h: 500, fill: D_NONE, stroke: D_GOLD, strokeWidth: 5,
+        draw(ctx, w, h, s) { ctx.beginPath(); dEllipse(ctx, w / 2, h / 2); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'corner', label: 'زاوية مزخرفة', cat: 'frames', w: 180, h: 180, fill: D_GOLD, stroke: D_GOLD, strokeWidth: 4,
+        draw(ctx, w, h, s) {
+            const x0 = -w / 2, y0 = -h / 2;
+            ctx.beginPath();
+            ctx.moveTo(x0, y0 + h);
+            ctx.lineTo(x0, y0);
+            ctx.lineTo(x0 + w, y0);
+            ctx.moveTo(x0 + w * 0.18, y0 + h * 0.75);
+            ctx.lineTo(x0 + w * 0.18, y0 + h * 0.18);
+            ctx.lineTo(x0 + w * 0.75, y0 + h * 0.18);
+            ctx.moveTo(x0 + w * 0.18, y0 + h * 0.42);
+            ctx.quadraticCurveTo(x0 + w * 0.42, y0 + h * 0.42, x0 + w * 0.42, y0 + h * 0.18);
+            dEllipse(ctx, w * 0.05, w * 0.05, x0 + w * 0.06 + w * 0.03, y0 + h * 0.09);
+            dPoly(ctx, [[x0 + w * 0.3, y0 + h * 0.24], [x0 + w * 0.36, y0 + h * 0.3], [x0 + w * 0.3, y0 + h * 0.36], [x0 + w * 0.24, y0 + h * 0.3]]);
+            ctx.fillStrokeShape(s);
+        },
+    },
+    // ── أشكال ──
+    {
+        id: 'rect', label: 'مستطيل', cat: 'shapes', w: 500, h: 160, fill: '#8a1c1c', stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) { ctx.beginPath(); ctx.rect(-w / 2, -h / 2, w, h); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'roundRect', label: 'مستطيل مستدير', cat: 'shapes', w: 500, h: 160, fill: '#2c7a5e', stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) { ctx.beginPath(); dRoundRect(ctx, -w / 2, -h / 2, w, h, Math.min(w, h) * 0.3); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'circle', label: 'دائرة', cat: 'shapes', w: 400, h: 400, fill: '#b3121f', stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) { ctx.beginPath(); dEllipse(ctx, w / 2, h / 2); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'triangle', label: 'مثلث', cat: 'shapes', w: 400, h: 350, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) { ctx.beginPath(); dPoly(ctx, [[0, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]]); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'diamond', label: 'معيّن', cat: 'shapes', w: 300, h: 400, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) { ctx.beginPath(); dPoly(ctx, [[0, -h / 2], [w / 2, 0], [0, h / 2], [-w / 2, 0]]); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'hexagon', label: 'سداسي', cat: 'shapes', w: 400, h: 360, fill: '#1e4f7a', stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) {
+            ctx.beginPath();
+            dPoly(ctx, Array.from({ length: 6 }, (_, i) => [Math.cos((i * D_TAU) / 6) * w / 2, Math.sin((i * D_TAU) / 6) * h / 2]));
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'ribbon', label: 'شريط لافتة', cat: 'shapes', w: 640, h: 110, fill: '#8a1c1c', stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) {
+            const hw = w / 2, hh = h / 2, n = h * 0.45;
+            ctx.beginPath();
+            dPoly(ctx, [[-hw, -hh], [hw, -hh], [hw - n, 0], [hw, hh], [-hw, hh], [-hw + n, 0]]);
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'arrow', label: 'سهم', cat: 'shapes', w: 400, h: 160, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) {
+            const hw = w / 2, hh = h / 2, head = Math.min(w * 0.35, h);
+            ctx.beginPath();
+            dPoly(ctx, [[-hw, -hh * 0.35], [hw - head, -hh * 0.35], [hw - head, -hh], [hw, 0], [hw - head, hh], [hw - head, hh * 0.35], [-hw, hh * 0.35]]);
+            ctx.fillStrokeShape(s);
+        },
+    },
+    // ── زخارف ورموز ──
+    {
+        id: 'star8', label: 'نجمة ثمانية', cat: 'ornaments', w: 300, h: 300, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) {
+            ctx.beginPath();
+            for (const rot of [0, Math.PI / 4]) {
+                dPoly(ctx, [0, 1, 2, 3].map((k) => {
+                    const a = rot + k * (Math.PI / 2) + Math.PI / 4;
+                    return [(Math.cos(a) * w) / 2, (Math.sin(a) * h) / 2];
+                }));
+            }
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'rosette', label: 'وردة إسلامية', cat: 'ornaments', w: 320, h: 320, fill: D_NONE, stroke: D_GOLD, strokeWidth: 3,
+        draw(ctx, w, h, s) {
+            const R = Math.min(w, h) / 2;
+            ctx.beginPath();
+            for (const rot of [0, Math.PI / 4]) {
+                dPoly(ctx, [0, 1, 2, 3].map((k) => {
+                    const a = rot + k * (Math.PI / 2) + Math.PI / 4;
+                    return [Math.cos(a) * R, Math.sin(a) * R];
+                }));
+            }
+            dEllipse(ctx, R * 0.45, R * 0.45);
+            dEllipse(ctx, R * 0.2, R * 0.2);
+            dPoly(ctx, Array.from({ length: 8 }, (_, i) => {
+                const a = (((i * 3) % 8) * D_TAU) / 8 + Math.PI / 8;
+                return [Math.cos(a) * R * 0.72, Math.sin(a) * R * 0.72];
+            }));
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'star5', label: 'نجمة', cat: 'ornaments', w: 300, h: 300, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) { ctx.beginPath(); dPoly(ctx, dStarPts(5, Math.min(w, h) / 2, Math.min(w, h) * 0.2)); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'seal', label: 'ختم مسنّن', cat: 'ornaments', w: 320, h: 320, fill: '#b3121f', stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) { ctx.beginPath(); dPoly(ctx, dStarPts(18, Math.min(w, h) / 2, Math.min(w, h) * 0.43)); ctx.fillStrokeShape(s); },
+    },
+    {
+        id: 'crescent', label: 'هلال', cat: 'ornaments', w: 300, h: 300, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+        draw(ctx, w, h, s) {
+            const R = Math.min(w, h) / 2, d = R * 0.38, r = R * 0.86;
+            const x = (R * R - r * r + d * d) / (2 * d);
+            const y = Math.sqrt(Math.max(0, R * R - x * x));
+            const t1 = Math.atan2(y, x);
+            ctx.beginPath();
+            ctx.arc(0, 0, R, t1, D_TAU - t1, false);
+            ctx.arc(d, 0, r, Math.atan2(-y, x - d), Math.atan2(y, x - d), true);
+            ctx.closePath();
+            ctx.fillStrokeShape(s);
+        },
+    },
+    {
+        id: 'flourish', label: 'زخرفة منحنية', cat: 'ornaments', w: 520, h: 90, fill: D_GOLD, stroke: D_GOLD, strokeWidth: 3,
+        draw(ctx, w, h, s) {
+            const hw = w / 2, hh = h / 2;
+            ctx.beginPath();
+            for (const sgn of [-1, 1]) {
+                ctx.moveTo(sgn * hh * 0.6, 0);
+                ctx.bezierCurveTo(sgn * hw * 0.3, -hh, sgn * hw * 0.55, hh, sgn * hw * 0.8, 0);
+                ctx.quadraticCurveTo(sgn * hw * 0.9, -hh * 0.6, sgn * hw, -hh * 0.1);
+            }
+            dPoly(ctx, [[0, -hh * 0.5], [hh * 0.5, 0], [0, hh * 0.5], [-hh * 0.5, 0]]);
+            ctx.fillStrokeShape(s);
+        },
+    },
+];
+const getShapeDef = (kind) => SHAPE_LIBRARY.find((s) => s.id === kind) || SHAPE_LIBRARY[0];
+/** رسم معاينة مصغّرة على Canvas عادي */
+function drawShapePreview(canvas, kind, colors = {}) {
+    const def = getShapeDef(kind);
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    const pad = 6;
+    const sc = Math.min((W - pad * 2) / def.w, (H - pad * 2) / def.h);
+    const fill = colors.fill ?? def.fill;
+    const stroke = colors.stroke ?? def.stroke;
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(sc, sc);
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = Math.max(def.strokeWidth, 1.5 / sc);
+    ctx.lineJoin = 'round';
+    ctx.fillStrokeShape = () => {
+        if (fill && fill !== D_NONE)
+            ctx.fill();
+        if (stroke && stroke !== D_NONE && def.strokeWidth > 0)
+            ctx.stroke();
+    };
+    def.draw(ctx, def.w, def.h, null);
+    ctx.restore();
+}
+function createShape(kind, overrides = {}) {
+    const def = getShapeDef(kind);
+    return {
+        id: `shp-${Math.random().toString(36).slice(2, 10)}`,
+        kind,
+        x: 500,
+        y: 750,
+        width: def.w,
+        height: def.h,
+        rotation: 0,
+        opacity: 1,
+        fill: def.fill,
+        stroke: def.stroke,
+        strokeWidth: def.strokeWidth,
+        behind: false,
+        ...overrides,
+    };
+}
+const TRANSPARENT = D_NONE;
 // ===== hooks/useArabicFonts.js =====
 /**
- * يحمّل الخطوط السبعة في الخلفية ويعيد رقم "نسخة" يزيد كلما اكتمل خط.
- * يُمرَّر هذا الرقم إلى مفاتيح عُقد النص في Konva لإجبارها على إعادة القياس والرسم.
+ * يحمّل الخطوط الأساسية عند البدء، ويحمّل أي خط آخر عند استخدامه فقط (ensureFont).
+ * fontsVersion يزيد كلما اكتمل خط ← تُعاد قياسات النصوص على الكانفاس.
  */
 function useArabicFonts() {
     const [version, setVersion] = useState(0);
     const [loadedCount, setLoadedCount] = useState(0);
     useEffect(() => {
         let alive = true;
-        ARABIC_FONTS.forEach((f) => {
+        CORE_FONTS.forEach((f) => {
             loadGoogleFont(f.family).then(() => {
                 if (!alive)
                     return;
@@ -2318,7 +3204,12 @@ function useArabicFonts() {
             alive = false;
         };
     }, []);
-    return { fontsVersion: version, allLoaded: loadedCount >= ARABIC_FONTS.length };
+    const ensureFont = useCallback((family) => {
+        if (!family || isFontLoaded(family))
+            return;
+        loadGoogleFont(family).then(() => setVersion((v) => v + 1));
+    }, []);
+    return { fontsVersion: version, allLoaded: loadedCount >= CORE_FONTS.length, ensureFont };
 }
 // ===== hooks/useHTMLImage.js =====
 /** يحوّل رابط صورة (blob: أو data:) إلى HTMLImageElement جاهز لـ Konva */
@@ -2540,6 +3431,48 @@ function TransformableImage({ item, onSelect, onDragEnd, onOpenProps }) {
         React.createElement(Backdrop, { item: item }),
         React.createElement(KonvaImage, { ref: imgRef, image: source, width: item.width, height: item.height, offsetX: item.width / 2, offsetY: item.height / 2, filters: filters, ...attrs, ...shadow })));
 }
+// ===== components/TransformableShape.jsx =====
+/** عنصر زخرفي قابل للتلوين والسحب والتمديد والتدوير */
+function TransformableShape({ item, onSelect, onDragEnd, onOpenProps }) {
+    const def = getShapeDef(item.kind);
+    const w = item.width, h = item.height;
+    const hasStroke = item.strokeWidth > 0 && item.stroke && item.stroke !== 'rgba(0,0,0,0)';
+    return (React.createElement(Group, { id: item.id, name: "element", shapeW: w, shapeH: h, x: item.x, y: item.y, rotation: item.rotation, opacity: item.opacity, visible: item.visible !== false, listening: !item.locked, draggable: !item.locked, onMouseDown: (e) => onSelect(item.id, e.evt?.shiftKey), onTap: () => onSelect(item.id), onDblClick: () => onOpenProps?.(item.id), onDblTap: () => onOpenProps?.(item.id), onDragEnd: onDragEnd },
+        React.createElement(Rect, { x: -w / 2, y: -h / 2, width: w, height: h, fill: "rgba(0,0,0,0.01)" }),
+        React.createElement(Shape, { sceneFunc: (ctx, shape) => def.draw(ctx, w, h, shape), fill: item.fill, stroke: hasStroke ? item.stroke : undefined, strokeWidth: hasStroke ? item.strokeWidth : 0, strokeEnabled: hasStroke, lineJoin: "round", lineCap: "round", shadowEnabled: !!item.shadow, shadowColor: "#000", shadowBlur: item.shadow ? 20 : 0, shadowOpacity: item.shadow ? 0.7 : 0, shadowOffsetY: item.shadow ? 6 : 0, listening: false })));
+}
+// ===== components/FontPicker.jsx =====
+/** منتقي خطوط مرئي: كل خط يُعرض بشكله الحقيقي، مقسّماً حسب النوع */
+function FontPicker({ value, onChange, sample = 'أبجد هوز' }) {
+    const [open, setOpen] = useState(false);
+    const [cat, setCat] = useState(() => getFontMeta(value)?.category || 'calligraphy');
+    const [, setTick] = useState(0);
+    // تحميل خطوط النوع المعروض فقط عند فتح المنتقي
+    useEffect(() => {
+        if (!open)
+            return;
+        let alive = true;
+        ARABIC_FONTS.filter((f) => f.category === cat).forEach((f) => loadGoogleFont(f.family).then(() => alive && setTick((t) => t + 1)));
+        return () => {
+            alive = false;
+        };
+    }, [open, cat]);
+    const current = getFontMeta(value);
+    return (React.createElement("div", null,
+        React.createElement("button", { type: "button", onClick: () => setOpen((o) => !o), className: `flex w-full items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-right transition ${open ? 'border-gold-500/60 bg-ink-900' : 'border-white/10 bg-ink-900 hover:border-gold-500/40'}` },
+            React.createElement("span", { className: "min-w-0" },
+                React.createElement("span", { className: "block text-[11px] text-stone-500" }, "\u0627\u0644\u062E\u0637"),
+                React.createElement("span", { className: "block truncate text-[19px] leading-tight text-stone-100", style: { fontFamily: `"${value}"` } }, current?.label || value)),
+            React.createElement("span", { className: `text-[10px] text-stone-500 transition ${open ? 'rotate-90' : ''}` }, "\u25C0")),
+        open && (React.createElement("div", { className: "mt-2 space-y-2 rounded-xl border border-white/10 bg-ink-900 p-2" },
+            React.createElement("div", { className: "scroll-thin flex gap-1 overflow-x-auto pb-1" }, FONT_CATEGORIES.map((c) => (React.createElement("button", { key: c.id, type: "button", onClick: () => setCat(c.id), className: `shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[11.5px] transition ${cat === c.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-800 text-stone-400'}` }, c.label)))),
+            React.createElement("div", { className: "grid grid-cols-2 gap-1.5" }, ARABIC_FONTS.filter((f) => f.category === cat).map((f) => (React.createElement("button", { key: f.family, type: "button", onClick: () => {
+                    onChange(f.family);
+                    setOpen(false);
+                }, className: `rounded-lg border px-2 py-2 text-center transition ${value === f.family ? 'border-gold-400 bg-gold-400/10' : 'border-white/5 bg-ink-800 hover:border-white/20'}` },
+                React.createElement("span", { className: "block truncate text-[20px] leading-snug text-stone-100", style: { fontFamily: `"${f.family}"` } }, sample),
+                React.createElement("span", { className: "block truncate text-[10.5px] text-stone-500" }, f.label)))))))));
+}
 // ===== components/CoverCanvas.jsx =====
 function paletteFill(palette) {
     const [base, light, edge] = palette.colors;
@@ -2650,15 +3583,13 @@ function TextGroup({ id, t, fontsVersion, onSelect, onDragEnd, onOpenProps }) {
 }
 const SAFE_MARGIN = 60;
 const SNAP = 8;
-const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
-const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, logo, palette, background, layers, grade, textAboveLayers, selectedIds, onSelect, onCommit, onOpenProps, fontsVersion, snapping = true }, ref) {
+const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, shapes = [], logo, palette, background, layers, grade, textAboveLayers, selectedIds, onSelect, onCommit, onOpenProps, fontsVersion, snapping = true, zoom = 1, onZoomChange }, ref) {
     const wrapRef = useRef(null);
     const stageRef = useRef(null);
     const layerRef = useRef(null);
     const trRef = useRef(null);
     const snapTargets = useRef(null);
     const [fit, setFit] = useState(0.4);
-    const [zoom, setZoom] = useState(1);
     const [guides, setGuides] = useState([]);
     const scale = fit * zoom;
     // ملاءمة المعاينة للمساحة المتاحة
@@ -2675,20 +3606,6 @@ const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, logo, palet
         ro.observe(el);
         return () => ro.disconnect();
     }, []);
-    // Ctrl + عجلة الفأرة للتكبير
-    useEffect(() => {
-        const el = wrapRef.current;
-        if (!el)
-            return;
-        const onWheel = (e) => {
-            if (!e.ctrlKey && !e.metaKey)
-                return;
-            e.preventDefault();
-            setZoom((z) => Math.min(4, Math.max(0.3, +(z * (e.deltaY < 0 ? 1.1 : 0.9)).toFixed(3))));
-        };
-        el.addEventListener('wheel', onWheel, { passive: false });
-        return () => el.removeEventListener('wheel', onWheel);
-    }, []);
     const findNode = (id) => stageRef.current?.findOne(`#${id}`);
     const selectedNodes = () => selectedIds.map(findNode).filter(Boolean);
     // ربط أداة التحويل بالعناصر المحددة (غير المقفلة)
@@ -2699,10 +3616,17 @@ const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, logo, palet
         tr.nodes(selectedIds.map(findNode).filter((n) => n && n.listening() && n.visible()));
         tr.getLayer()?.batchDraw();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedIds, images, logo, texts, fontsVersion]);
+    }, [selectedIds, images, shapes, logo, texts, fontsVersion]);
     const readPatch = (node) => {
         const id = node.id();
         const patch = { x: node.x(), y: node.y(), rotation: node.rotation() };
+        if (id.startsWith('shp-')) {
+            // الزخارف تتمدد بحرية: نحوّل المقياس إلى عرض/ارتفاع ثم نعيد المقياس إلى 1
+            patch.width = Math.max(4, node.getAttr('shapeW') * Math.abs(node.scaleX()));
+            patch.height = Math.max(2, node.getAttr('shapeH') * Math.abs(node.scaleY()));
+            node.scale({ x: 1, y: 1 });
+            return { id, patch };
+        }
         if (!id.startsWith('text-'))
             patch.scale = Math.max(0.05, node.scaleX());
         return { id, patch };
@@ -2719,6 +3643,7 @@ const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, logo, palet
     // ── المحاذاة الذكية أثناء السحب ──
     const elementIds = [
         ...images.map((i) => i.id),
+        ...shapes.filter((s) => s.visible !== false).map((s) => s.id),
         ...(logo ? ['logo'] : []),
         ...Object.keys(texts).filter((k) => texts[k].visible !== false).map((k) => `text-${k}`),
     ];
@@ -2771,7 +3696,7 @@ const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, logo, palet
     };
     useImperativeHandle(ref, () => ({
         getStage: () => stageRef.current,
-        async exportPNG() {
+        async exportPNG(pixelRatio = 2) {
             const stage = stageRef.current;
             const tr = trRef.current;
             const previous = tr ? tr.nodes() : [];
@@ -2779,7 +3704,7 @@ const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, logo, palet
             setGuides([]);
             stage.draw();
             try {
-                return await exportStageToBlob(stage, { pixelRatio: 2 });
+                return await exportStageToBlob(stage, { pixelRatio });
             }
             finally {
                 tr?.nodes(previous);
@@ -2818,15 +3743,15 @@ const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, logo, palet
     })), [layers]);
     const grading = gradeLayers(grade, COVER_W, COVER_H);
     const selectedTexts = selectedIds.some((id) => id.startsWith('text-'));
+    const onlyShapes = selectedIds.length > 0 && selectedIds.every((id) => id.startsWith('shp-'));
+    const shapeNodes = (behind) => shapes
+        .filter((sh) => !!sh.behind === behind)
+        .map((sh) => React.createElement(TransformableShape, { key: sh.id, item: sh, onSelect: onSelect, onDragEnd: handleDragEnd, onOpenProps: onOpenProps }));
     const textNodes = Object.entries(texts).map(([key, t]) => (React.createElement(TextGroup, { key: key, id: key, t: t, fontsVersion: fontsVersion, onSelect: onSelect, onDragEnd: handleDragEnd, onOpenProps: onOpenProps })));
     const handleStageDown = (e) => {
         const target = e.target;
         if (target === target.getStage() || target.name() === 'background')
             onSelect(null);
-    };
-    const zoomStep = (dir) => {
-        const next = dir > 0 ? ZOOMS.find((z) => z > zoom + 0.001) ?? ZOOMS[ZOOMS.length - 1] : [...ZOOMS].reverse().find((z) => z < zoom - 0.001) ?? ZOOMS[0];
-        setZoom(next);
     };
     return (React.createElement(React.Fragment, null,
         React.createElement("div", { ref: wrapRef, className: "scroll-thin absolute inset-0 overflow-auto" },
@@ -2836,21 +3761,20 @@ const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, logo, palet
                         React.createElement(Layer, { ref: layerRef, onDragStart: handleDragStart, onDragMove: handleDragMove },
                             React.createElement(Rect, { name: "background", x: 0, y: 0, width: COVER_W, height: COVER_H, ...paletteFill(palette) }),
                             background && React.createElement(BackgroundImage, { bg: background, palette: palette }),
+                            shapeNodes(true),
                             images.map((img) => (React.createElement(TransformableImage, { key: img.id, item: img, onSelect: onSelect, onDragEnd: handleDragEnd, onOpenProps: onOpenProps }))),
                             logo && React.createElement(TransformableImage, { item: logo, onSelect: onSelect, onDragEnd: handleDragEnd, onOpenProps: onOpenProps }),
+                            shapeNodes(false),
                             !textAboveLayers && textNodes,
                             overlays.map((o) => (React.createElement(KonvaImage, { key: o.id, image: o.canvas, x: 0, y: 0, width: COVER_W, height: COVER_H, opacity: o.opacity, globalCompositeOperation: o.blend, listening: false }))),
                             grading.map(({ blend, ...g }, i) => (React.createElement(Rect, { key: `grade-${i}`, x: 0, y: 0, width: COVER_W, height: COVER_H, ...g, globalCompositeOperation: blend, listening: false }))),
                             textAboveLayers && textNodes,
-                            React.createElement(Transformer, { ref: trRef, rotateEnabled: true, keepRatio: true, enabledAnchors: selectedTexts ? [] : ['top-left', 'top-right', 'bottom-left', 'bottom-right'], anchorFill: "#d4af6a", anchorStroke: "#0d0b09", anchorSize: 12, anchorCornerRadius: 6, borderStroke: "#d4af6a", borderDash: [6, 4], rotateAnchorOffset: 36, rotationSnaps: [0, 45, 90, 135, 180, 225, 270, 315], rotationSnapTolerance: 4, onTransformEnd: () => onCommit(selectedNodes().map(readPatch)), boundBoxFunc: (oldBox, newBox) => (newBox.width < 20 || newBox.height < 20 ? oldBox : newBox) })),
-                        React.createElement(Layer, { listening: false }, guides.map((g, i) => (React.createElement(Line, { key: i, points: g.v ? [g.pos, 0, g.pos, COVER_H] : [0, g.pos, COVER_W, g.pos], stroke: "#ff3d7f", strokeWidth: 1.2 / scale, dash: [6 / scale, 4 / scale] })))))))),
-        React.createElement("div", { className: "absolute bottom-2 left-2 z-10 flex items-center gap-1 lg:bottom-4 lg:left-4 rounded-xl border border-white/10 bg-ink-900/90 p-1 text-[12px] text-stone-300 backdrop-blur" },
-            React.createElement("button", { type: "button", onClick: () => zoomStep(-1), className: "h-7 w-7 rounded-lg hover:bg-white/10", title: "\u062A\u0635\u063A\u064A\u0631" }, "\u2212"),
-            React.createElement("span", { className: "w-12 text-center tabular-nums", dir: "ltr" },
-                Math.round(zoom * 100),
-                "%"),
-            React.createElement("button", { type: "button", onClick: () => zoomStep(1), className: "h-7 w-7 rounded-lg hover:bg-white/10", title: "\u062A\u0643\u0628\u064A\u0631" }, "+"),
-            React.createElement("button", { type: "button", onClick: () => setZoom(1), className: "rounded-lg px-2 py-1 hover:bg-white/10", title: "\u0645\u0644\u0627\u0621\u0645\u0629 \u0627\u0644\u0634\u0627\u0634\u0629" }, "\u0645\u0644\u0627\u0621\u0645\u0629"))));
+                            React.createElement(Transformer, { ref: trRef, rotateEnabled: true, keepRatio: !onlyShapes, enabledAnchors: selectedTexts
+                                    ? []
+                                    : onlyShapes
+                                        ? ['top-left', 'top-center', 'top-right', 'middle-left', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
+                                        : ['top-left', 'top-right', 'bottom-left', 'bottom-right'], anchorFill: "#d4af6a", anchorStroke: "#0d0b09", anchorSize: 12, anchorCornerRadius: 6, borderStroke: "#d4af6a", borderDash: [6, 4], rotateAnchorOffset: 36, rotationSnaps: [0, 45, 90, 135, 180, 225, 270, 315], rotationSnapTolerance: 4, onTransformEnd: () => onCommit(selectedNodes().map(readPatch)), boundBoxFunc: (oldBox, newBox) => (Math.abs(newBox.width) < 8 || Math.abs(newBox.height) < 4 ? oldBox : newBox) })),
+                        React.createElement(Layer, { listening: false }, guides.map((g, i) => (React.createElement(Line, { key: i, points: g.v ? [g.pos, 0, g.pos, COVER_H] : [0, g.pos, COVER_W, g.pos], stroke: "#ff3d7f", strokeWidth: 1.2 / scale, dash: [6 / scale, 4 / scale] }))))))))));
 });
 // ===== components/tabs/TemplatesTab.jsx =====
 const GOLD_CSS = 'linear-gradient(180deg,#fff4c8 0%,#e6c46a 30%,#9c7426 50%,#f2d47c 62%,#b8892f 85%,#76531a 100%)';
@@ -2888,8 +3812,18 @@ function titleStyle(t) {
 }
 function TemplatesTab({ onApplyTemplate, activeTemplateId }) {
     const [cat, setCat] = useState('all');
+    const [, setFontTick] = useState(0);
+    // تحميل خطوط القوالب لعرض المعاينات بأشكالها الحقيقية
+    useEffect(() => {
+        let alive = true;
+        const fonts = new Set(TEMPLATES.flatMap((t) => [t.title?.font, t.subtitle?.font]).filter(Boolean));
+        fonts.forEach((f) => loadGoogleFont(f).then(() => alive && setFontTick((n) => n + 1)));
+        return () => {
+            alive = false;
+        };
+    }, []);
     const list = cat === 'all' ? TEMPLATES : TEMPLATES.filter((t) => t.category === cat);
-    return (React.createElement(Section, { title: "\u0627\u0644\u0642\u0648\u0627\u0644\u0628 \u0627\u0644\u062C\u0627\u0647\u0632\u0629", hint: "\u0646\u0642\u0631\u0629 \u0648\u0627\u062D\u062F\u0629 \u062A\u0636\u0628\u0637 \u0627\u0644\u062E\u0637\u0648\u0637 \u0648\u0627\u0644\u0623\u0644\u0648\u0627\u0646 \u0648\u0627\u0644\u0637\u0628\u0642\u0627\u062A \u2014 \u0646\u0635\u0648\u0635\u0643 \u0648\u0635\u0648\u0631\u0643 \u062A\u0628\u0642\u0649 \u0643\u0645\u0627 \u0647\u064A\u060C \u0648\u064A\u0645\u0643\u0646\u0643 \u0627\u0644\u062A\u0631\u0627\u062C\u0639 \u0628\u0640 Ctrl+Z" },
+    return (React.createElement(Section, { title: "\u0627\u0644\u0642\u0648\u0627\u0644\u0628 \u0627\u0644\u062C\u0627\u0647\u0632\u0629", hint: "\u0646\u0642\u0631\u0629 \u0648\u0627\u062D\u062F\u0629 \u062A\u0636\u0628\u0637 \u0627\u0644\u062E\u0637\u0648\u0637 \u0648\u0627\u0644\u0623\u0644\u0648\u0627\u0646 \u0648\u0627\u0644\u0637\u0628\u0642\u0627\u062A \u2014 \u0646\u0635\u0648\u0635\u0643 \u0648\u0635\u0648\u0631\u0643 \u062A\u0628\u0642\u0649 \u0643\u0645\u0627 \u0647\u064A\u060C \u0648\u064A\u0645\u0643\u0646\u0643 \u0627\u0644\u062A\u0631\u0627\u062C\u0639 \u0628\u0632\u0631 \u21B6" },
         React.createElement("div", { className: "flex flex-wrap gap-1.5" }, TEMPLATE_CATEGORIES.map((c) => (React.createElement("button", { key: c.id, type: "button", onClick: () => setCat(c.id), className: `rounded-full px-3 py-1 text-[12px] transition ${cat === c.id ? 'bg-gold-400 font-bold text-ink-950' : 'border border-white/10 bg-ink-900 text-stone-400 hover:text-stone-200'}` }, c.label)))),
         React.createElement("div", { className: "grid grid-cols-2 gap-3" }, list.map((tpl) => {
             const palette = tpl.customPalette ? tpl.customPalette : getPalette(tpl.paletteId);
@@ -2913,7 +3847,6 @@ function TemplatesTab({ onApplyTemplate, activeTemplateId }) {
         }))));
 }
 // ===== components/tabs/TypographyTab.jsx =====
-const fontOptions = ARABIC_FONTS.map((f) => ({ value: f.family, label: f.label }));
 const TEXT_SLOTS = [
     { id: 'title', label: 'عنوان الكتاب', hint: 'خط زخرفي فخم: عارف رقعة، أميري، ريم كوفي' },
     { id: 'subtitle', label: 'النص الفرعي / المؤلف', hint: 'خط حديث: تجوال، القاهرة، المراعي' },
@@ -2955,9 +3888,8 @@ function TextBlockEditor({ slot, value, onChange, onSelect, open, onToggleOpen, 
             React.createElement("p", { className: "text-[11px] text-stone-500" }, slot.hint),
             React.createElement(TextAreaField, { inputRef: textRef, value: value.text, rows: id === 'title' || id === 'subtitle' ? 2 : 2, onChange: (text) => set({ text }), style: { fontFamily: `"${value.font}"`, fontWeight: value.weight } }),
             id === 'date' && (React.createElement(Button, { onClick: () => set({ text: hijriNow() }), className: "w-full text-[12px]" }, "\u0625\u062F\u0631\u0627\u062C \u0627\u0644\u0634\u0647\u0631 \u0648\u0627\u0644\u0633\u0646\u0629 \u0627\u0644\u0647\u062C\u0631\u064A\u0629 \u0627\u0644\u062D\u0627\u0644\u064A\u0629")),
-            React.createElement("div", { className: "grid grid-cols-[1fr_110px] gap-3" },
-                React.createElement(SelectField, { label: "\u0627\u0644\u062E\u0637", value: value.font, options: fontOptions, styleFor: (o) => ({ fontFamily: `"${o.value}"` }), onChange: (fontName) => set({ font: fontName, weight: closestWeight(fontName, value.weight) }) }),
-                React.createElement(SelectField, { label: "\u0627\u0644\u0648\u0632\u0646", value: String(value.weight), options: weightOptions, onChange: (w) => set({ weight: Number(w) }) })),
+            React.createElement(FontPicker, { value: value.font, sample: (value.text || 'أبجد').split('\n')[0].slice(0, 12) || 'أبجد', onChange: (fontName) => set({ font: fontName, weight: closestWeight(fontName, value.weight) }) }),
+            React.createElement(SelectField, { label: "\u0627\u0644\u0648\u0632\u0646", value: String(value.weight), options: weightOptions, onChange: (w) => set({ weight: Number(w) }) }),
             React.createElement(RangeField, { label: "\u0627\u0644\u062D\u062C\u0645", min: 12, max: 260, value: value.size, onChange: (size) => set({ size }), format: (v) => `${v}px` }),
             React.createElement(RangeField, { label: "\u062A\u0628\u0627\u0639\u062F \u0627\u0644\u0623\u0633\u0637\u0631", min: 0.8, max: 2.2, step: 0.05, value: value.lineHeight, onChange: (lineHeight) => set({ lineHeight }), format: (v) => v.toFixed(2) }),
             React.createElement(RangeField, { label: "\u0639\u0631\u0636 \u0635\u0646\u062F\u0648\u0642 \u0627\u0644\u0646\u0635", min: 120, max: COVER_W, step: 10, value: value.width, onChange: (width) => set({ width }) }),
@@ -3369,12 +4301,12 @@ function Row({ selected, onClick, thumb, label, sub, visible, locked, onToggleVi
         React.createElement(IconBtn, { onClick: onToggleLock, active: locked, title: locked ? 'فك القفل' : 'قفل (يمنع التحريك)' }, locked ? '🔒' : '🔓'),
         React.createElement(IconBtn, { onClick: onToggleVisible, active: visible, title: visible ? 'إخفاء' : 'إظهار' }, visible ? '👁' : '◌')));
 }
-function ElementsTab({ texts, images, logo, selectedIds, onSelect, onChangeText, onChangeNode, onMoveImage, onRemoveImage, onDuplicate }) {
+function ElementsTab({ texts, images, shapes = [], logo, selectedIds, onSelect, onChangeText, onChangeNode, onMoveImage, onRemoveImage, onDuplicate }) {
     const isSel = (id) => selectedIds.includes(id);
     const pick = (id, e) => onSelect(id, e?.shiftKey);
     const ordered = [...images].reverse(); // الأعلى أولاً
     return (React.createElement(React.Fragment, null,
-        React.createElement(Section, { title: "\u0627\u0644\u0639\u0646\u0627\u0635\u0631", hint: "\u0627\u0636\u063A\u0637 \u0644\u0644\u062A\u062D\u062F\u064A\u062F \u00B7 Shift \u0644\u0644\u062A\u062D\u062F\u064A\u062F \u0627\u0644\u0645\u062A\u0639\u062F\u062F \u00B7 \u0627\u0644\u0642\u0641\u0644 \u064A\u0645\u0646\u0639 \u0627\u0644\u062A\u062D\u0631\u064A\u0643 \u0628\u0627\u0644\u062E\u0637\u0623" },
+        React.createElement(Section, { title: "\u0627\u0644\u0639\u0646\u0627\u0635\u0631", hint: "\u0627\u0636\u063A\u0637 \u0644\u0644\u062A\u062D\u062F\u064A\u062F \u00B7 \u0627\u0644\u0642\u0641\u0644 \u064A\u0645\u0646\u0639 \u0627\u0644\u062A\u062D\u0631\u064A\u0643 \u0628\u0627\u0644\u062E\u0637\u0623 \u00B7 \u0627\u0644\u0639\u064A\u0646 \u062A\u064F\u062E\u0641\u064A \u0627\u0644\u0639\u0646\u0635\u0631" },
             React.createElement("div", { className: "space-y-1" },
                 React.createElement("div", { className: "px-1 pb-1 text-[11px] font-bold text-stone-500" }, "\u0627\u0644\u0646\u0635\u0648\u0635"),
                 TEXT_SLOTS.filter((s) => texts[s.id]).map((slot) => {
@@ -3387,6 +4319,12 @@ function ElementsTab({ texts, images, logo, selectedIds, onSelect, onChangeText,
                     React.createElement(Row, { selected: isSel('logo'), onClick: (e) => pick('logo', e), 
                         // eslint-disable-next-line @next/next/no-img-element
                         thumb: React.createElement("img", { src: logo.src, alt: "", className: "h-full w-full object-contain p-0.5" }), label: "\u0627\u0644\u0634\u0639\u0627\u0631", visible: logo.visible !== false, locked: !!logo.locked, onToggleVisible: () => onChangeNode('logo', { visible: logo.visible === false }), onToggleLock: () => onChangeNode('logo', { locked: !logo.locked }) }))),
+                shapes.length > 0 && (React.createElement(React.Fragment, null,
+                    React.createElement("div", { className: "px-1 pb-1 pt-3 text-[11px] font-bold text-stone-500" },
+                        "\u0627\u0644\u0632\u062E\u0627\u0631\u0641 (",
+                        shapes.length,
+                        ")"),
+                    [...shapes].reverse().map((sh) => (React.createElement(Row, { key: sh.id, selected: isSel(sh.id), onClick: (e) => pick(sh.id, e), thumb: React.createElement("span", { style: { color: sh.fill && sh.fill !== 'rgba(0,0,0,0)' ? sh.fill : sh.stroke } }, "\u2724"), label: getShapeDef(sh.kind).label, sub: sh.behind ? 'خلف الصور' : 'أمام الصور', visible: sh.visible !== false, locked: !!sh.locked, onToggleVisible: () => onChangeNode(sh.id, { visible: sh.visible === false }), onToggleLock: () => onChangeNode(sh.id, { locked: !sh.locked }), extra: React.createElement(IconBtn, { onClick: () => onDuplicate([sh.id]), title: "\u062A\u0643\u0631\u0627\u0631" }, "\u29C9") }))))),
                 React.createElement("div", { className: "px-1 pb-1 pt-3 text-[11px] font-bold text-stone-500" },
                     "\u0627\u0644\u0635\u0648\u0631 \u0648\u0627\u0644\u0639\u0646\u0627\u0635\u0631 (",
                     images.length,
@@ -3397,47 +4335,93 @@ function ElementsTab({ texts, images, logo, selectedIds, onSelect, onChangeText,
                     thumb: React.createElement("img", { src: img.src, alt: "", className: "h-full w-full object-contain p-0.5" }), label: img.name, sub: img.backdrop?.shape && img.backdrop.shape !== 'none' ? 'مع شكل خلفي' : img.cutout ? 'شفافة' : 'صورة', visible: img.visible !== false, locked: !!img.locked, onToggleVisible: () => onChangeNode(img.id, { visible: img.visible === false }), onToggleLock: () => onChangeNode(img.id, { locked: !img.locked }), extra: React.createElement(React.Fragment, null,
                         React.createElement(IconBtn, { onClick: () => onMoveImage(img.id, 1), disabled: i === 0, title: "\u0644\u0644\u0623\u0645\u0627\u0645" }, "\u25B2"),
                         React.createElement(IconBtn, { onClick: () => onMoveImage(img.id, -1), disabled: i === ordered.length - 1, title: "\u0644\u0644\u062E\u0644\u0641" }, "\u25BC"),
-                        React.createElement(IconBtn, { onClick: () => onDuplicate([img.id]), title: "\u062A\u0643\u0631\u0627\u0631 (Ctrl+D)" }, "\u29C9"),
-                        React.createElement(IconBtn, { onClick: () => onRemoveImage(img.id), title: "\u062D\u0630\u0641" }, "\u2715")) }))))),
-        React.createElement(Section, { title: "\u0627\u062E\u062A\u0635\u0627\u0631\u0627\u062A \u0644\u0648\u062D\u0629 \u0627\u0644\u0645\u0641\u0627\u062A\u064A\u062D" },
-            React.createElement("div", { className: "grid grid-cols-2 gap-x-3 gap-y-1.5 text-[11.5px] text-stone-400" }, [
-                ['Ctrl+Z / Ctrl+Y', 'تراجع / إعادة'],
-                ['Ctrl+C / Ctrl+V', 'نسخ / لصق'],
-                ['Ctrl+D', 'تكرار'],
-                ['الأسهم', 'تحريك 1px'],
-                ['Shift+الأسهم', 'تحريك 10px'],
-                ['Shift+نقر', 'تحديد متعدد'],
-                ['Ctrl+A', 'تحديد الكل'],
-                ['Ctrl+عجلة', 'تكبير المعاينة'],
-                ['Delete', 'حذف / إخفاء'],
-                ['Ctrl+S', 'حفظ المشروع'],
-            ].map(([k, v]) => (React.createElement("div", { key: k, className: "contents" },
-                React.createElement("span", { className: "font-mono text-[10.5px] text-gold-300", dir: "ltr" }, k),
-                React.createElement("span", null, v))))))));
+                        React.createElement(IconBtn, { onClick: () => onDuplicate([img.id]), title: "\u062A\u0643\u0631\u0627\u0631" }, "\u29C9"),
+                        React.createElement(IconBtn, { onClick: () => onRemoveImage(img.id), title: "\u062D\u0630\u0641" }, "\u2715")) })))))));
+}
+// ===== components/tabs/ShapesTab.jsx =====
+function Preview({ kind, fill, stroke }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        if (ref.current)
+            drawShapePreview(ref.current, kind, { fill, stroke });
+    }, [kind, fill, stroke]);
+    return React.createElement("canvas", { ref: ref, width: 120, height: 72, className: "h-[54px] w-full" });
+}
+const SWATCHES = ['#d4af6a', '#f0ede8', '#000000', '#b3121f', '#8a1c1c', '#2c7a5e', '#1e4f7a', '#5a34c4', '#c8102e', '#ffb347'];
+function Swatches({ onPick }) {
+    return (React.createElement("div", { className: "flex flex-wrap gap-1.5" }, SWATCHES.map((c) => (React.createElement("button", { key: c, type: "button", onClick: () => onPick(c), className: "h-6 w-6 rounded-full border border-white/20", style: { background: c } })))));
+}
+/** تبويب الزخارف: إضافة عناصر قابلة للتلوين + تحرير العنصر المحدد */
+function ShapesTab({ shapes, selectedId, onAddShape, onChangeShape, onRemoveShape, onDuplicate, focusSignal }) {
+    const [cat, setCat] = useState('lines');
+    const selected = shapes.find((s) => s.id === selectedId);
+    const editorRef = useRef(null);
+    useEffect(() => {
+        if (focusSignal && selected && editorRef.current)
+            editorRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [focusSignal, selectedId]);
+    const set = (patch) => selected && onChangeShape(selected.id, patch);
+    const noFill = selected && (!selected.fill || selected.fill === TRANSPARENT);
+    return (React.createElement(React.Fragment, null,
+        selected && (React.createElement("div", { ref: editorRef, className: "scroll-mt-4" },
+            React.createElement(Section, { title: "\u062A\u062D\u0631\u064A\u0631 \u0627\u0644\u0632\u062E\u0631\u0641\u0629 \u0627\u0644\u0645\u062D\u062F\u062F\u0629", hint: "\u0646\u0642\u0631\u062A\u0627\u0646 \u0639\u0644\u0649 \u0623\u064A \u0632\u062E\u0631\u0641\u0629 \u0641\u064A \u0627\u0644\u063A\u0644\u0627\u0641 \u062A\u0641\u062A\u062D \u062E\u0635\u0627\u0626\u0635\u0647\u0627 \u0647\u0646\u0627" },
+                React.createElement("div", { className: "rounded-xl border border-white/5 bg-ink-900 p-2" },
+                    React.createElement(Preview, { kind: selected.kind, fill: selected.fill, stroke: selected.stroke })),
+                React.createElement("div", { className: "space-y-2 rounded-xl border border-white/5 bg-ink-900/60 p-3" },
+                    React.createElement("div", { className: "flex items-center justify-between" },
+                        React.createElement("span", { className: "text-[12px] text-stone-400" }, "\u0644\u0648\u0646 \u0627\u0644\u062A\u0639\u0628\u0626\u0629"),
+                        React.createElement(Toggle, { checked: !noFill, onChange: (on) => set({ fill: on ? '#d4af6a' : TRANSPARENT }), label: noFill ? 'بدون' : '', small: true })),
+                    !noFill && (React.createElement(React.Fragment, null,
+                        React.createElement(ColorField, { label: "\u0627\u0644\u0644\u0648\u0646", value: selected.fill, onChange: (fill) => set({ fill }) }),
+                        React.createElement(Swatches, { onPick: (fill) => set({ fill }) })))),
+                React.createElement("div", { className: "space-y-2 rounded-xl border border-white/5 bg-ink-900/60 p-3" },
+                    React.createElement(RangeField, { label: "\u0633\u0645\u0627\u0643\u0629 \u0627\u0644\u062D\u062F\u0651", min: 0, max: 30, step: 0.5, value: selected.strokeWidth, onChange: (strokeWidth) => set({ strokeWidth, stroke: selected.stroke === TRANSPARENT ? '#d4af6a' : selected.stroke }) }),
+                    selected.strokeWidth > 0 && (React.createElement(React.Fragment, null,
+                        React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u062D\u062F\u0651", value: selected.stroke === TRANSPARENT ? '#d4af6a' : selected.stroke, onChange: (stroke) => set({ stroke }) }),
+                        React.createElement(Swatches, { onPick: (stroke) => set({ stroke }) })))),
+                React.createElement(RangeField, { label: "\u0627\u0644\u0639\u0631\u0636", min: 10, max: 1200, value: Math.round(selected.width), onChange: (width) => set({ width }) }),
+                React.createElement(RangeField, { label: "\u0627\u0644\u0627\u0631\u062A\u0641\u0627\u0639", min: 4, max: 1600, value: Math.round(selected.height), onChange: (height) => set({ height }) }),
+                React.createElement(RangeField, { label: "\u0627\u0644\u062A\u062F\u0648\u064A\u0631", min: -180, max: 180, value: Math.round(selected.rotation), onChange: (rotation) => set({ rotation }), format: (v) => `${v}°` }),
+                React.createElement(RangeField, { label: "\u0627\u0644\u0634\u0641\u0627\u0641\u064A\u0629", min: 0.05, max: 1, step: 0.01, value: selected.opacity, onChange: (opacity) => set({ opacity }), format: (v) => `${Math.round(v * 100)}%` }),
+                React.createElement(Toggle, { checked: !!selected.shadow, onChange: (shadow) => set({ shadow }), label: "\u0638\u0644", small: true }),
+                React.createElement(Toggle, { checked: !!selected.behind, onChange: (behind) => set({ behind }), label: "\u062E\u0644\u0641 \u0627\u0644\u0635\u0648\u0631", small: true }),
+                React.createElement("div", { className: "grid grid-cols-2 gap-2" },
+                    React.createElement(Button, { onClick: () => set({ x: 500 }) }, "\u062A\u0648\u0633\u064A\u0637 \u0623\u0641\u0642\u064A"),
+                    React.createElement(Button, { onClick: () => onDuplicate([selected.id]) }, "\u29C9 \u062A\u0643\u0631\u0627\u0631"),
+                    React.createElement(Button, { variant: "danger", onClick: () => onRemoveShape(selected.id), className: "col-span-2" }, "\u062D\u0630\u0641 \u0627\u0644\u0632\u062E\u0631\u0641\u0629"))))),
+        React.createElement(Section, { title: "\u0625\u0636\u0627\u0641\u0629 \u0632\u062E\u0631\u0641\u0629", hint: "\u062E\u0637\u0648\u0637 \u0648\u0641\u0648\u0627\u0635\u0644 \u0648\u0625\u0637\u0627\u0631\u0627\u062A \u0648\u0632\u0648\u0627\u064A\u0627 \u0648\u0623\u0634\u0643\u0627\u0644 \u0648\u0631\u0645\u0648\u0632 \u2014 \u0643\u0644\u0647\u0627 \u0642\u0627\u0628\u0644\u0629 \u0644\u0644\u062A\u0644\u0648\u064A\u0646 \u0648\u0627\u0644\u062A\u0645\u062F\u064A\u062F" },
+            React.createElement("div", { className: "scroll-thin flex gap-1 overflow-x-auto pb-1" }, SHAPE_CATEGORIES.map((c) => (React.createElement("button", { key: c.id, type: "button", onClick: () => setCat(c.id), className: `shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[12px] transition ${cat === c.id ? 'bg-gold-400 font-bold text-ink-950' : 'border border-white/10 bg-ink-900 text-stone-400'}` }, c.label)))),
+            React.createElement("div", { className: "grid grid-cols-3 gap-2" }, SHAPE_LIBRARY.filter((s) => s.cat === cat).map((s) => (React.createElement("button", { key: s.id, type: "button", onClick: () => onAddShape(s.id), className: "rounded-xl border border-white/10 bg-ink-900 p-1.5 transition hover:border-gold-500/50" },
+                React.createElement(Preview, { kind: s.id }),
+                React.createElement("div", { className: "mt-1 truncate text-[11px] text-stone-400" }, s.label))))))));
 }
 // ===== components/ControlPanel.jsx =====
-const TABS = [
+const PANEL_TABS = [
     { id: 'templates', label: 'القوالب', icon: '★' },
-    { id: 'elements', label: 'العناصر', icon: '❏' },
     { id: 'typography', label: 'النصوص', icon: 'ت' },
     { id: 'compositing', label: 'الصور', icon: '◐' },
+    { id: 'shapes', label: 'الزخارف', icon: '✤' },
     { id: 'library', label: 'المكتبة', icon: '✚' },
     { id: 'palettes', label: 'الخلفيات', icon: '▦' },
-    { id: 'layers', label: 'المؤثرات', icon: '☰' },
+    { id: 'layers', label: 'المؤثرات', icon: '☄' },
     { id: 'logo', label: 'الشعار', icon: '◈' },
+    { id: 'elements', label: 'العناصر', icon: '❏' },
 ];
 function ControlPanel(props) {
-    const [localTab, setLocalTab] = useState('templates');
+    const [localTab] = useState('templates');
     const tab = props.activeTab || localTab;
-    const setTab = props.onTabChange || setLocalTab;
-    const activeLayers = Object.values(props.layers).filter((l) => l.enabled).length;
-    return (React.createElement("aside", { className: "flex h-[46%] w-full shrink-0 flex-col border-t border-white/10 bg-ink-900 lg:h-auto lg:w-[420px] lg:border-l lg:border-t-0 lg:border-white/5" },
-        React.createElement("nav", { className: "grid grid-cols-4 gap-0.5 border-b border-white/5 p-1.5" }, TABS.map((t) => (React.createElement("button", { key: t.id, type: "button", onClick: () => setTab(t.id), className: `relative flex items-center justify-center gap-1.5 rounded-xl px-1 py-2 text-[12px] transition ${tab === t.id ? 'bg-gold-400/10 text-gold-300' : 'text-stone-500 hover:bg-white/5 hover:text-stone-300'}` },
-            React.createElement("span", { className: "text-base leading-none" }, t.icon),
-            t.label,
-            t.id === 'layers' && activeLayers > 0 && (React.createElement("span", { className: "absolute left-0.5 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-gold-500 px-1 text-[9px] font-bold text-ink-950" }, activeLayers)))))),
+    const current = PANEL_TABS.find((t) => t.id === tab);
+    // على الهاتف: لوحة منزلقة فوق التصميم تُغلق لرؤية التصميم كاملاً — على الحاسوب: مثبتة بجانبه
+    return (React.createElement("aside", { className: `absolute inset-y-0 right-0 z-30 flex w-[min(400px,calc(100vw-64px))] flex-col border-l border-white/10 bg-ink-900/[0.97] shadow-[-20px_0_60px_rgba(0,0,0,.6)] backdrop-blur transition-transform duration-200 lg:static lg:z-auto lg:w-[380px] lg:translate-x-0 lg:shadow-none ${props.open ? 'translate-x-0' : 'pointer-events-none translate-x-[110%] lg:pointer-events-auto'}` },
+        React.createElement("div", { className: "flex shrink-0 items-center justify-between gap-2 border-b border-white/5 px-4 py-3" },
+            React.createElement("div", { className: "flex items-center gap-2 text-[15px] font-bold text-gold-300" },
+                React.createElement("span", null, current?.icon),
+                current?.label),
+            React.createElement("button", { type: "button", onClick: props.onClose, className: "rounded-lg px-3 py-1.5 text-[12px] text-stone-400 hover:bg-white/5 lg:hidden", title: "\u0625\u063A\u0644\u0627\u0642 \u0644\u0631\u0624\u064A\u0629 \u0627\u0644\u062A\u0635\u0645\u064A\u0645" }, "\u2715 \u0625\u063A\u0644\u0627\u0642")),
         React.createElement("div", { className: "scroll-thin flex-1 space-y-4 overflow-y-auto p-4" },
-            tab === 'elements' && (React.createElement(ElementsTab, { texts: props.texts, images: props.images, logo: props.logo, selectedIds: props.selectedIds, onSelect: props.onSelect, onChangeText: props.onChangeText, onChangeNode: props.onChangeNode, onMoveImage: props.onMoveImage, onRemoveImage: props.onRemoveImage, onDuplicate: props.onDuplicate })),
+            tab === 'elements' && (React.createElement(ElementsTab, { texts: props.texts, images: props.images, shapes: props.shapes, logo: props.logo, selectedIds: props.selectedIds, onSelect: props.onSelect, onChangeText: props.onChangeText, onChangeNode: props.onChangeNode, onMoveImage: props.onMoveImage, onRemoveImage: props.onRemoveImage, onDuplicate: props.onDuplicate })),
+            tab === 'shapes' && (React.createElement(ShapesTab, { shapes: props.shapes, selectedId: props.selectedId, onAddShape: props.onAddShape, onChangeShape: props.onChangeNode, onRemoveShape: props.onRemoveShape, onDuplicate: props.onDuplicate, focusSignal: props.focusSignal })),
             tab === 'templates' && React.createElement(TemplatesTab, { onApplyTemplate: props.onApplyTemplate, activeTemplateId: props.activeTemplateId }),
             tab === 'typography' && (React.createElement(TypographyTab, { texts: props.texts, onChangeText: props.onChangeText, onSelect: props.onSelect, openSlot: props.openSlot, onOpenSlot: props.onOpenSlot, focusSignal: props.focusSignal })),
             tab === 'compositing' && (React.createElement(CompositingTab, { images: props.images, selectedId: props.selectedId, onSelect: props.onSelect, onAddImage: props.onAddImage, onChangeNode: props.onChangeNode, onRemoveImage: props.onRemoveImage, onMoveImage: props.onMoveImage, autoColors: props.autoColors, onToggleAutoColors: props.onToggleAutoColors, onSuggestColors: props.onSuggestColors, paletteLight: props.paletteLight, onOpenCutout: props.onOpenCutout, focusSignal: props.focusSignal })),
@@ -3446,7 +4430,33 @@ function ControlPanel(props) {
             tab === 'layers' && (React.createElement(LayersTab, { layers: props.layers, onChangeLayer: props.onChangeLayer, onResetLayers: props.onResetLayers, textAboveLayers: props.textAboveLayers, onToggleTextAbove: props.onToggleTextAbove, grade: props.grade, onChangeGrade: props.onChangeGrade })),
             tab === 'logo' && (React.createElement(LogoTab, { logo: props.logo, onSetLogo: props.onSetLogo, onChangeNode: props.onChangeNode, onRemoveLogo: props.onRemoveLogo, onSelect: props.onSelect })))));
 }
-// ===== components/SelectionToolbar.jsx =====
+// ===== components/SideRail.jsx =====
+function RailButton({ icon, label, onClick, active, disabled, gold, badge }) {
+    return (React.createElement("button", { type: "button", onClick: onClick, disabled: disabled, title: label, className: `relative flex w-full shrink-0 flex-col items-center justify-center gap-0.5 rounded-xl py-1.5 text-[10px] leading-tight transition disabled:opacity-25 ${gold
+            ? 'bg-gold-400 font-bold text-ink-950 hover:bg-gold-300'
+            : active
+                ? 'bg-gold-400/15 text-gold-300'
+                : 'text-stone-400 hover:bg-white/5 hover:text-stone-200'}` },
+        React.createElement("span", { className: "text-[17px] leading-none" }, icon),
+        React.createElement("span", { className: "w-full truncate px-0.5 text-center" }, label),
+        badge > 0 && (React.createElement("span", { className: "absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-gold-500 px-1 text-[9px] font-bold text-ink-950" }, badge))));
+}
+/** العمود الجانبي الأيمن: تبويبات القوائم + الأوامر — بالطول لترك أكبر مساحة للتصميم */
+function SideRail({ tab, panelOpen, onTab, layersCount, onWizard, onShuffle, onUndo, onRedo, canUndo, canRedo, onPreview, onOpen, onSave, onExport, exporting, }) {
+    return (React.createElement("nav", { className: "scroll-thin z-40 flex h-full w-16 shrink-0 flex-col items-center gap-1 overflow-y-auto border-l border-white/5 bg-ink-900 px-1.5 py-2" },
+        React.createElement("div", { className: "mb-1 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 text-lg font-bold text-ink-950", title: "\u0627\u0633\u062A\u0648\u062F\u064A\u0648 \u0627\u0644\u0623\u063A\u0644\u0641\u0629 \u2014 \u062A\u0637\u0648\u064A\u0631 \u0623\u0628\u0648 \u0639\u0628\u062F\u0627\u0644\u0644\u0647 \u0627\u0644\u0634\u0627\u0645\u064A" }, "\u063A"),
+        PANEL_TABS.map((t) => (React.createElement(RailButton, { key: t.id, icon: t.icon, label: t.label, active: tab === t.id && panelOpen, badge: t.id === 'layers' ? layersCount : 0, onClick: () => onTab(t.id) }))),
+        React.createElement("div", { className: "my-1 h-px w-8 shrink-0 bg-white/10" }),
+        React.createElement(RailButton, { icon: "\u2726", label: "\u0627\u0644\u0645\u0639\u0627\u0644\u062C", onClick: onWizard }),
+        React.createElement(RailButton, { icon: "\uD83C\uDFB2", label: "\u062A\u0635\u0645\u064A\u0645 \u0622\u062E\u0631", onClick: onShuffle }),
+        React.createElement(RailButton, { icon: "\u21B6", label: "\u062A\u0631\u0627\u062C\u0639", onClick: onUndo, disabled: !canUndo }),
+        React.createElement(RailButton, { icon: "\u21B7", label: "\u0625\u0639\u0627\u062F\u0629", onClick: onRedo, disabled: !canRedo }),
+        React.createElement(RailButton, { icon: "\uD83D\uDC41", label: "\u0645\u0634\u0627\u0647\u062F\u0629", onClick: onPreview }),
+        React.createElement(RailButton, { icon: "\uD83D\uDCC2", label: "\u0641\u062A\u062D", onClick: onOpen }),
+        React.createElement(RailButton, { icon: "\uD83D\uDCBE", label: "\u062D\u0641\u0638", onClick: onSave }),
+        React.createElement(RailButton, { icon: "\u2B07", label: exporting ? '…' : 'تحميل', onClick: onExport, gold: true, disabled: exporting })));
+}
+// ===== components/TopBar.jsx =====
 const ALIGN = [
     { id: 'right', icon: '⇥', title: 'محاذاة لليمين' },
     { id: 'centerH', icon: '⇔', title: 'توسيط أفقي' },
@@ -3456,20 +4466,41 @@ const ALIGN = [
     { id: 'bottom', icon: '⤓', title: 'محاذاة للأسفل' },
 ];
 function Btn({ children, onClick, title, danger, active }) {
-    return (React.createElement("button", { type: "button", title: title, onClick: onClick, className: `grid h-8 min-w-8 place-items-center rounded-lg px-1.5 text-[14px] transition ${danger ? 'text-red-300 hover:bg-red-950/60' : active ? 'bg-gold-400/20 text-gold-300' : 'text-stone-300 hover:bg-white/10 hover:text-gold-200'}` }, children));
+    return (React.createElement("button", { type: "button", title: title, onClick: onClick, className: `grid h-9 min-w-9 shrink-0 place-items-center rounded-lg px-1.5 text-[15px] transition ${danger ? 'text-red-300 hover:bg-red-950/60' : active ? 'bg-gold-400/20 text-gold-300' : 'text-stone-300 hover:bg-white/10 hover:text-gold-200'}` }, children));
 }
-/** شريط عائم يظهر فوق المعاينة عند تحديد عنصر أو أكثر */
-function SelectionToolbar({ count, label, onAlign, onDuplicate, onDelete, onLock, onDeselect, canDuplicate, snapping, onToggleSnapping }) {
-    return (React.createElement("div", { className: "scroll-thin absolute left-1/2 top-2 z-20 flex max-w-[96%] -translate-x-1/2 items-center gap-0.5 overflow-x-auto rounded-2xl lg:top-4 border border-white/10 bg-ink-900/95 p-1 shadow-2xl backdrop-blur" },
-        React.createElement("span", { className: "px-2 text-[11.5px] text-gold-300" }, count > 1 ? `${count} عناصر` : label),
-        React.createElement("span", { className: "mx-0.5 h-5 w-px bg-white/10" }),
-        ALIGN.map((a) => (React.createElement(Btn, { key: a.id, title: a.title, onClick: () => onAlign(a.id) }, a.icon))),
-        React.createElement("span", { className: "mx-0.5 h-5 w-px bg-white/10" }),
-        React.createElement(Btn, { title: snapping ? 'المحاذاة الذكية مفعّلة' : 'المحاذاة الذكية معطّلة', onClick: onToggleSnapping, active: snapping }, "\uD83E\uDDF2"),
-        canDuplicate && React.createElement(Btn, { title: "\u062A\u0643\u0631\u0627\u0631 (Ctrl+D)", onClick: onDuplicate }, "\u29C9"),
-        React.createElement(Btn, { title: "\u0642\u0641\u0644", onClick: onLock }, "\uD83D\uDD12"),
-        React.createElement(Btn, { title: "\u062D\u0630\u0641 / \u0625\u062E\u0641\u0627\u0621 (Delete)", onClick: onDelete, danger: true }, "\uD83D\uDDD1"),
-        React.createElement(Btn, { title: "\u0625\u0644\u063A\u0627\u0621 \u0627\u0644\u062A\u062D\u062F\u064A\u062F (Esc)", onClick: onDeselect }, "\u2715")));
+const Sep = () => React.createElement("span", { className: "mx-0.5 h-5 w-px shrink-0 bg-white/10" });
+/**
+ * شريط رفيع أعلى مساحة التصميم (لا يغطي التصميم):
+ * أدوات العنصر المحدد (محاذاة، أسهم تحريك، مغناطيس، تكرار، قفل، حذف) + التكبير.
+ */
+function TopBar({ count, label, onAlign, onNudge, onDuplicate, canDuplicate, onDelete, onLock, onDeselect, onOpenProps, snapping, onToggleSnapping, multiSelect, onToggleMulti, zoom, onZoom, }) {
+    return (React.createElement("div", { className: "scroll-thin flex h-12 shrink-0 items-center gap-0.5 overflow-x-auto border-b border-white/5 bg-ink-900/90 px-2" },
+        count > 0 ? (React.createElement(React.Fragment, null,
+            React.createElement("button", { type: "button", onClick: onOpenProps, className: "shrink-0 whitespace-nowrap rounded-lg bg-gold-400/10 px-2.5 py-1.5 text-[12px] text-gold-300", title: "\u0641\u062A\u062D \u0627\u0644\u062E\u0635\u0627\u0626\u0635" },
+                "\u270E ",
+                count > 1 ? `${count} عناصر` : label),
+            React.createElement(Sep, null),
+            ALIGN.map((a) => (React.createElement(Btn, { key: a.id, title: a.title, onClick: () => onAlign(a.id) }, a.icon))),
+            React.createElement(Sep, null),
+            React.createElement(Btn, { title: "\u062A\u062D\u0631\u064A\u0643 \u0644\u0644\u0623\u0639\u0644\u0649", onClick: () => onNudge(0, -4) }, "\u2191"),
+            React.createElement(Btn, { title: "\u062A\u062D\u0631\u064A\u0643 \u0644\u0644\u0623\u0633\u0641\u0644", onClick: () => onNudge(0, 4) }, "\u2193"),
+            React.createElement(Btn, { title: "\u062A\u062D\u0631\u064A\u0643 \u0644\u0644\u064A\u0645\u064A\u0646", onClick: () => onNudge(4, 0) }, "\u2192"),
+            React.createElement(Btn, { title: "\u062A\u062D\u0631\u064A\u0643 \u0644\u0644\u064A\u0633\u0627\u0631", onClick: () => onNudge(-4, 0) }, "\u2190"),
+            React.createElement(Sep, null),
+            React.createElement(Btn, { title: snapping ? 'المحاذاة الذكية مفعّلة' : 'المحاذاة الذكية معطّلة', onClick: onToggleSnapping, active: snapping }, "\uD83E\uDDF2"),
+            canDuplicate && React.createElement(Btn, { title: "\u062A\u0643\u0631\u0627\u0631", onClick: onDuplicate }, "\u29C9"),
+            React.createElement(Btn, { title: "\u0642\u0641\u0644", onClick: onLock }, "\uD83D\uDD12"),
+            React.createElement(Btn, { title: "\u062D\u0630\u0641 / \u0625\u062E\u0641\u0627\u0621", onClick: onDelete, danger: true }, "\uD83D\uDDD1"),
+            React.createElement(Btn, { title: "\u0625\u0644\u063A\u0627\u0621 \u0627\u0644\u062A\u062D\u062F\u064A\u062F", onClick: onDeselect }, "\u2715"))) : (React.createElement(React.Fragment, null,
+            React.createElement("span", { className: "shrink-0 whitespace-nowrap px-1 text-[11.5px] text-stone-500" }, "\u0627\u0636\u063A\u0637 \u0639\u0646\u0635\u0631\u0627\u064B \u0644\u062A\u062D\u062F\u064A\u062F\u0647 \u00B7 \u0646\u0642\u0631\u062A\u0627\u0646 \u0644\u062E\u0635\u0627\u0626\u0635\u0647"),
+            React.createElement(Btn, { title: snapping ? 'المحاذاة الذكية مفعّلة' : 'المحاذاة الذكية معطّلة', onClick: onToggleSnapping, active: snapping }, "\uD83E\uDDF2"))),
+        React.createElement(Btn, { title: "\u062A\u062D\u062F\u064A\u062F \u0645\u062A\u0639\u062F\u062F \u0628\u0627\u0644\u0644\u0645\u0633", onClick: onToggleMulti, active: multiSelect }, "\u29C8"),
+        React.createElement("div", { className: "mr-auto flex shrink-0 items-center gap-0.5 pr-2" },
+            React.createElement(Btn, { title: "\u062A\u0635\u063A\u064A\u0631", onClick: () => onZoom(-1) }, "\u2212"),
+            React.createElement("button", { type: "button", onClick: () => onZoom(0), className: "w-12 shrink-0 text-center text-[12px] tabular-nums text-stone-300", dir: "ltr", title: "\u0645\u0644\u0627\u0621\u0645\u0629" },
+                Math.round(zoom * 100),
+                "%"),
+            React.createElement(Btn, { title: "\u062A\u0643\u0628\u064A\u0631", onClick: () => onZoom(1) }, "+"))));
 }
 // ===== components/QuickWizard.jsx =====
 /**
@@ -3737,28 +4768,6 @@ function CutoutEditor({ item, onSave, onClose }) {
             setSaving(false);
         }
     };
-    // اختصارات داخل المحرر
-    useEffect(() => {
-        const onKey = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.code === 'KeyZ') {
-                e.preventDefault();
-                e.stopPropagation();
-                undo();
-            }
-            if (e.key === 'Escape')
-                onClose();
-            if (e.code === 'KeyE')
-                setTool('erase');
-            if (e.code === 'KeyR')
-                setTool('restore');
-            if (e.code === 'BracketLeft')
-                setBrush((b) => Math.max(4, b - 6));
-            if (e.code === 'BracketRight')
-                setBrush((b) => Math.min(300, b + 6));
-        };
-        window.addEventListener('keydown', onKey, true);
-        return () => window.removeEventListener('keydown', onKey, true);
-    });
     const checker = 'conic-gradient(#2a2622 25%, #1b1815 0 50%, #2a2622 0 75%, #1b1815 0) 0 0 / 22px 22px';
     const setP = (patch) => setParams((p) => ({ ...p, ...patch }));
     return (React.createElement("div", { className: "fixed inset-0 z-50 flex flex-col-reverse bg-black/85 backdrop-blur-sm lg:flex-row" },
@@ -3766,14 +4775,8 @@ function CutoutEditor({ item, onSave, onClose }) {
             React.createElement("div", null,
                 React.createElement("h2", { className: "text-lg font-bold text-gold-300" }, "\u2702 \u0645\u062D\u0631\u0631 \u0627\u0644\u0642\u0635"),
                 React.createElement("p", { className: "mt-1 text-[12px] leading-relaxed text-stone-400" }, "\u0627\u0645\u0633\u062D \u0645\u0627 \u062A\u0628\u0642\u0651\u0649 \u0645\u0646 \u0627\u0644\u062E\u0644\u0641\u064A\u0629 \u0628\u0627\u0644\u0645\u0645\u062D\u0627\u0629\u060C \u0648\u0627\u0633\u062A\u0631\u062C\u0639 \u0645\u0627 \u062D\u064F\u0630\u0641 \u062E\u0637\u0623\u064B \u0628\u0623\u062F\u0627\u0629 \u0627\u0644\u0627\u0633\u062A\u0639\u0627\u062F\u0629.")),
-            React.createElement("div", { className: "grid grid-cols-2 gap-2" }, [['erase', '⌫ ممحاة', 'E'], ['restore', '🖌 استعادة', 'R']].map(([id, label, key]) => (React.createElement("button", { key: id, type: "button", onClick: () => setTool(id), className: `rounded-xl py-2.5 text-[13px] transition ${tool === id ? 'bg-gold-400 font-bold text-ink-950' : 'border border-white/10 bg-ink-800 text-stone-300'}` },
-                label,
-                " ",
-                React.createElement("span", { className: "text-[10px] opacity-60" },
-                    "(",
-                    key,
-                    ")"))))),
-            React.createElement(RangeField, { label: "\u062D\u062C\u0645 \u0627\u0644\u0641\u0631\u0634\u0627\u0629  ( [ \u0648 ] )", min: 4, max: 300, value: brush, onChange: setBrush, format: (v) => `${v}px` }),
+            React.createElement("div", { className: "grid grid-cols-2 gap-2" }, [['erase', '⌫ ممحاة'], ['restore', '🖌 استعادة']].map(([id, label]) => (React.createElement("button", { key: id, type: "button", onClick: () => setTool(id), className: `rounded-xl py-2.5 text-[13px] transition ${tool === id ? 'bg-gold-400 font-bold text-ink-950' : 'border border-white/10 bg-ink-800 text-stone-300'}` }, label)))),
+            React.createElement(RangeField, { label: "\u062D\u062C\u0645 \u0627\u0644\u0641\u0631\u0634\u0627\u0629", min: 4, max: 300, value: brush, onChange: setBrush, format: (v) => `${v}px` }),
             React.createElement(RangeField, { label: "\u0646\u0639\u0648\u0645\u0629 \u0627\u0644\u0641\u0631\u0634\u0627\u0629", min: 0, max: 0.95, step: 0.01, value: softness, onChange: setSoftness, format: (v) => `${Math.round(v * 100)}%` }),
             React.createElement("div", { className: "grid grid-cols-2 gap-2" },
                 React.createElement("button", { type: "button", onClick: undo, disabled: !undoCount, className: "rounded-xl border border-white/10 bg-ink-800 py-2 text-[12px] text-stone-300 disabled:opacity-30" },
@@ -3906,6 +4909,7 @@ const DEFAULT_TEXTS = {
 const createDefaultDoc = () => ({
     texts: DEFAULT_TEXTS,
     images: [],
+    shapes: [],
     logo: null,
     paletteId: 'ink-night',
     customPalette: null,
@@ -3917,13 +4921,10 @@ const createDefaultDoc = () => ({
 });
 const SLOT_LABELS = { title: 'العنوان', subtitle: 'النص الفرعي', tag: 'الوسم', publisher: 'دار النشر', date: 'التاريخ' };
 const WIZARD_KEY = 'cover-studio-wizard-seen';
-function HeaderButton({ children, onClick, disabled, title }) {
-    return (React.createElement("button", { type: "button", onClick: onClick, disabled: disabled, title: title, className: "whitespace-nowrap rounded-xl border border-white/10 bg-ink-800 px-3 py-2 text-[13px] text-stone-300 transition hover:border-gold-500/50 hover:text-gold-200 disabled:cursor-not-allowed disabled:opacity-30" }, children));
-}
 function App() {
     const canvasRef = useRef(null);
     const openRef = useRef(null);
-    const { fontsVersion, allLoaded } = useArabicFonts();
+    const { fontsVersion, ensureFont } = useArabicFonts();
     const { present: doc, set: setDoc, undo, redo, canUndo, canRedo } = useHistory(createDefaultDoc);
     const [selection, setSelection] = useState([]);
     const selectedId = selection[selection.length - 1] || null;
@@ -3936,17 +4937,26 @@ function App() {
             return true;
         }
     });
-    const clipboard = useRef([]);
+    const [panelOpen, setPanelOpen] = useState(false);
+    const [multiSelect, setMultiSelect] = useState(false);
+    const [zoom, setZoom] = useState(1);
+    const [previewUrl, setPreviewUrl] = useState(null);
     const [panelTab, setPanelTab] = useState('templates');
     const [openSlot, setOpenSlot] = useState('title');
     const [focusSignal, setFocusSignal] = useState(0);
     const [cutoutEditId, setCutoutEditId] = useState(null);
-    /** تحديد عنصر — additive (Shift) يضيف/يزيل من التحديد المتعدد */
+    const multiSelectRef = useRef(false);
+    multiSelectRef.current = multiSelect;
+    // تحميل أي خط مستخدم في النصوص (الخطوط غير الأساسية تُحمَّل عند الحاجة فقط)
+    useEffect(() => {
+        Object.values(doc.texts).forEach((t) => ensureFont(t.font));
+    }, [doc.texts, ensureFont]);
+    /** تحديد عنصر — additive يضيف/يزيل من التحديد المتعدد */
     const select = useCallback((id, additive = false) => {
         setSelection((prev) => {
             if (!id)
                 return [];
-            if (additive)
+            if (additive || multiSelectRef.current)
                 return prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
             if (prev.includes(id) && prev.length > 1)
                 return prev;
@@ -4039,6 +5049,8 @@ function App() {
         }
         if (id === 'logo')
             setDoc((d) => (d.logo ? { ...d, logo: apply(d.logo) } : d), { key });
+        else if (id.startsWith('shp-'))
+            setDoc((d) => ({ ...d, shapes: (d.shapes || []).map((n) => (n.id === id ? apply(n) : n)) }), { key });
         else
             setDoc((d) => ({ ...d, images: d.images.map((n) => (n.id === id ? apply(n) : n)) }), { key });
     }, [setDoc]);
@@ -4055,6 +5067,16 @@ function App() {
         [images[i], images[j]] = [images[j], images[i]];
         return { ...d, images };
     }), [setDoc]);
+    // ── الزخارف ──
+    const addShape = useCallback((kind) => {
+        const item = createShape(kind, { x: COVER_W / 2, y: COVER_H / 2 });
+        setDoc((d) => ({ ...d, shapes: [...(d.shapes || []), item] }));
+        setSelection([item.id]);
+    }, [setDoc]);
+    const removeShape = useCallback((id) => {
+        setDoc((d) => ({ ...d, shapes: (d.shapes || []).filter((n) => n.id !== id) }));
+        setSelection((s) => s.filter((x) => x !== id));
+    }, [setDoc]);
     // ── الشعار ──
     const setLogoFromSrc = useCallback(async (src) => {
         const img = await loadImage(src);
@@ -4115,9 +5137,13 @@ function App() {
         else if (id === 'logo') {
             setPanelTab('logo');
         }
+        else if (id.startsWith('shp-')) {
+            setPanelTab('shapes');
+        }
         else {
             setPanelTab('compositing');
         }
+        setPanelOpen(true);
         setFocusSignal((n) => n + 1);
     }, []);
     /** «تصميم آخر»: ينتقل للقالب التالي من نفس النوع */
@@ -4131,6 +5157,7 @@ function App() {
     // ── تحديثات جماعية (سحب/تحويل/محاذاة/تحريك بالأسهم) ──
     const applyPatches = useCallback((patches, key = null) => setDoc((d) => {
         let { texts, images, logo } = d;
+        let shapes = d.shapes || [];
         for (const { id, patch } of patches) {
             if (id.startsWith('text-')) {
                 const k = id.slice(5);
@@ -4141,20 +5168,26 @@ function App() {
                 if (logo)
                     logo = { ...logo, ...patch };
             }
+            else if (id.startsWith('shp-')) {
+                shapes = shapes.map((n) => (n.id === id ? { ...n, ...patch } : n));
+            }
             else {
                 images = images.map((n) => (n.id === id ? { ...n, ...patch } : n));
             }
         }
-        return { ...d, texts, images, logo };
+        return { ...d, texts, images, logo, shapes };
     }, { key }), [setDoc]);
-    const duplicateImages = useCallback((ids, source = null) => {
-        const items = source || doc.images.filter((n) => ids.includes(n.id));
-        if (!items.length)
+    const duplicateImages = useCallback((ids) => {
+        const imgs = doc.images.filter((n) => ids.includes(n.id));
+        const shps = (doc.shapes || []).filter((n) => ids.includes(n.id));
+        if (!imgs.length && !shps.length)
             return;
-        const copies = items.map((n) => ({ ...JSON.parse(JSON.stringify(n)), id: uid('img'), x: n.x + 30, y: n.y + 30, locked: false }));
-        setDoc((d) => ({ ...d, images: [...d.images, ...copies] }));
-        setSelection(copies.map((c) => c.id));
-    }, [doc.images, setDoc]);
+        const copy = (n, prefix) => ({ ...JSON.parse(JSON.stringify(n)), id: uid(prefix), x: n.x + 30, y: n.y + 30, locked: false, fromTemplate: false });
+        const imgCopies = imgs.map((n) => copy(n, 'img'));
+        const shpCopies = shps.map((n) => copy(n, 'shp'));
+        setDoc((d) => ({ ...d, images: [...d.images, ...imgCopies], shapes: [...(d.shapes || []), ...shpCopies] }));
+        setSelection([...imgCopies, ...shpCopies].map((c) => c.id));
+    }, [doc.images, doc.shapes, setDoc]);
     const deleteSelection = () => {
         if (!selection.length)
             return;
@@ -4167,6 +5200,7 @@ function App() {
                 ...d,
                 texts,
                 images: d.images.filter((n) => !selection.includes(n.id)),
+                shapes: (d.shapes || []).filter((n) => !selection.includes(n.id)),
                 logo: selection.includes('logo') ? null : d.logo,
             };
         });
@@ -4180,7 +5214,13 @@ function App() {
     const nudge = (dx, dy) => {
         const patches = selection
             .map((id) => {
-            const node = id.startsWith('text-') ? doc.texts[id.slice(5)] : id === 'logo' ? doc.logo : doc.images.find((n) => n.id === id);
+            const node = id.startsWith('text-')
+                ? doc.texts[id.slice(5)]
+                : id === 'logo'
+                    ? doc.logo
+                    : id.startsWith('shp-')
+                        ? (doc.shapes || []).find((n) => n.id === id)
+                        : doc.images.find((n) => n.id === id);
             return node && !node.locked ? { id, patch: { x: node.x + dx, y: node.y + dy } } : null;
         })
             .filter(Boolean);
@@ -4203,6 +5243,7 @@ function App() {
         setDoc((d) => ({
             ...d,
             images: [],
+            shapes: (d.shapes || []).filter((n) => !n.fromTemplate),
             background: null,
             texts: {
                 ...d.texts,
@@ -4285,73 +5326,37 @@ function App() {
             setExporting(false);
         }
     };
-    // ── اختصارات لوحة المفاتيح ──
-    useEffect(() => {
-        const onKey = (e) => {
-            const tag = document.activeElement?.tagName;
-            const typing = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT';
-            const mod = e.ctrlKey || e.metaKey;
-            const code = e.code; // يعمل مع لوحة المفاتيح العربية أيضاً
-            if (mod && code === 'KeyS') {
-                e.preventDefault();
-                saveProject();
-                return;
-            }
-            if (typing || showWizard || cutoutEditId)
-                return;
-            if (mod && code === 'KeyZ') {
-                e.preventDefault();
-                e.shiftKey ? redo() : undo();
-                return;
-            }
-            if (mod && code === 'KeyY') {
-                e.preventDefault();
-                redo();
-                return;
-            }
-            if (mod && code === 'KeyA') {
-                e.preventDefault();
-                setSelection([
-                    ...doc.images.filter((n) => !n.locked && n.visible !== false).map((n) => n.id),
-                    ...(doc.logo && !doc.logo.locked ? ['logo'] : []),
-                    ...Object.keys(doc.texts).filter((k) => doc.texts[k].visible !== false && !doc.texts[k].locked).map((k) => `text-${k}`),
-                ]);
-                return;
-            }
-            if (mod && code === 'KeyC') {
-                clipboard.current = doc.images.filter((n) => selection.includes(n.id)).map((n) => JSON.parse(JSON.stringify(n)));
-                if (clipboard.current.length)
-                    flash('تم النسخ');
-                return;
-            }
-            if (mod && code === 'KeyV') {
-                if (clipboard.current.length) {
-                    e.preventDefault();
-                    duplicateImages([], clipboard.current);
-                }
-                return;
-            }
-            if (mod && code === 'KeyD') {
-                e.preventDefault();
-                duplicateImages(selection);
-                return;
-            }
-            if (e.key === 'Escape')
-                setSelection([]);
-            if ((e.key === 'Delete' || e.key === 'Backspace') && selection.length) {
-                e.preventDefault();
-                deleteSelection();
-            }
-            const step = e.shiftKey ? 10 : 1;
-            const arrows = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
-            if (arrows[e.key] && selection.length) {
-                e.preventDefault();
-                nudge(...arrows[e.key]);
-            }
-        };
-        window.addEventListener('keydown', onKey);
-        return () => window.removeEventListener('keydown', onKey);
-    });
+    // ── المشاهدة: عرض التصميم كاملاً بدون أدوات ──
+    const openPreview = async () => {
+        try {
+            await document.fonts.ready;
+            const blob = await canvasRef.current.exportPNG(1);
+            setPreviewUrl(URL.createObjectURL(blob));
+        }
+        catch (err) {
+            flash('تعذّر عرض التصميم', 'error');
+        }
+    };
+    const closePreview = () => {
+        if (previewUrl)
+            URL.revokeObjectURL(previewUrl);
+        setPreviewUrl(null);
+    };
+    const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+    const zoomStep = (dir) => {
+        if (dir === 0)
+            return setZoom(1);
+        const next = dir > 0 ? ZOOMS.find((z) => z > zoom + 0.001) ?? ZOOMS[ZOOMS.length - 1] : [...ZOOMS].reverse().find((z) => z < zoom - 0.001) ?? ZOOMS[0];
+        setZoom(next);
+    };
+    const onRailTab = (id) => {
+        if (panelTab === id && panelOpen)
+            setPanelOpen(false);
+        else {
+            setPanelTab(id);
+            setPanelOpen(true);
+        }
+    };
     const selectionLabel = (() => {
         if (!selectedId)
             return '';
@@ -4359,44 +5364,32 @@ function App() {
             return SLOT_LABELS[selectedId.slice(5)] || 'نص';
         if (selectedId === 'logo')
             return 'الشعار';
+        if (selectedId.startsWith('shp-'))
+            return 'زخرفة';
         return doc.images.find((n) => n.id === selectedId)?.name || 'صورة';
     })();
-    return (React.createElement("div", { className: "flex h-[100dvh] flex-col bg-ink-950 text-stone-200" },
-        React.createElement("header", { className: "relative flex shrink-0 flex-col gap-2 border-b border-white/5 bg-ink-900/80 px-3 py-2 backdrop-blur lg:h-16 lg:flex-row lg:items-center lg:justify-between lg:gap-3 lg:px-5 lg:py-0" },
-            React.createElement("div", { className: "flex min-w-0 items-center gap-3" },
-                React.createElement("div", { className: "grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 text-lg font-bold text-ink-950" }, "\u063A"),
-                React.createElement("div", { className: "min-w-0" },
-                    React.createElement("h1", { className: "truncate text-[15px] font-bold tracking-wide text-stone-100" }, "\u0627\u0633\u062A\u0648\u062F\u064A\u0648 \u0627\u0644\u0623\u063A\u0644\u0641\u0629 \u0627\u0644\u0633\u064A\u0646\u0645\u0627\u0626\u064A"),
-                    React.createElement("p", { className: "truncate text-[11px] text-stone-500" },
-                        allLoaded ? 'الخطوط جاهزة' : 'جارٍ تحميل الخطوط…',
-                        " \u00B7 \u062A\u0637\u0648\u064A\u0631 \u0623\u0628\u0648 \u0639\u0628\u062F\u0627\u0644\u0644\u0647 \u0627\u0644\u0634\u0627\u0645\u064A"))),
-            React.createElement("div", { className: "scroll-thin -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:overflow-visible lg:px-0 lg:pb-0 [&>*]:shrink-0" },
-                React.createElement("button", { type: "button", onClick: () => setShowWizard(true), className: "whitespace-nowrap rounded-xl border border-gold-500/40 bg-gold-400/10 px-3 py-2 text-[13px] font-bold text-gold-300 transition hover:bg-gold-400/20" }, "\u2726 \u0627\u0644\u0645\u0639\u0627\u0644\u062C \u0627\u0644\u0633\u0631\u064A\u0639"),
-                React.createElement(HeaderButton, { onClick: shuffleDesign, title: "\u062C\u0631\u0651\u0628 \u0642\u0627\u0644\u0628\u0627\u064B \u0622\u062E\u0631 \u0645\u0646 \u0646\u0641\u0633 \u0627\u0644\u0646\u0648\u0639" }, "\uD83C\uDFB2 \u062A\u0635\u0645\u064A\u0645 \u0622\u062E\u0631"),
-                React.createElement("span", { className: "mx-1 h-6 w-px bg-white/10" }),
-                React.createElement(HeaderButton, { onClick: undo, disabled: !canUndo, title: "\u062A\u0631\u0627\u062C\u0639 (Ctrl+Z)" }, "\u21B6 \u062A\u0631\u0627\u062C\u0639"),
-                React.createElement(HeaderButton, { onClick: redo, disabled: !canRedo, title: "\u0625\u0639\u0627\u062F\u0629 (Ctrl+Y)" }, "\u21B7 \u0625\u0639\u0627\u062F\u0629"),
-                React.createElement("span", { className: "mx-1 h-6 w-px bg-white/10" }),
-                React.createElement(HeaderButton, { onClick: () => openRef.current?.click(), title: "\u0641\u062A\u062D \u0645\u0634\u0631\u0648\u0639 \u0645\u062D\u0641\u0648\u0638" }, "\uD83D\uDCC2 \u0641\u062A\u062D"),
-                React.createElement(HeaderButton, { onClick: saveProject, title: "\u062D\u0641\u0638 \u0627\u0644\u0645\u0634\u0631\u0648\u0639 (Ctrl+S)" }, "\uD83D\uDCBE \u062D\u0641\u0638"),
-                React.createElement("input", { ref: openRef, type: "file", accept: ".json,application/json", hidden: true, onChange: (e) => {
-                        const f = e.target.files?.[0];
-                        if (f)
-                            openProject(f);
-                        e.target.value = '';
-                    } }),
-                React.createElement("span", { className: "hidden text-[11px] text-stone-500 xl:inline", dir: "ltr" },
-                    COVER_W * EXPORT_PIXEL_RATIO,
-                    "\u00D7",
-                    COVER_H * EXPORT_PIXEL_RATIO),
-                React.createElement("button", { type: "button", onClick: handleExport, disabled: exporting, className: "flex items-center gap-2 whitespace-nowrap rounded-xl bg-gold-400 px-5 py-2.5 text-sm font-bold text-ink-950 shadow-[0_8px_30px_rgba(212,175,106,.25)] transition hover:bg-gold-300 disabled:opacity-50" }, exporting ? 'جارٍ التصدير…' : '⬇ تحميل الغلاف PNG')),
-            notice && (React.createElement("div", { key: notice.id, className: `absolute left-1/2 top-full z-30 mt-2 max-w-[92vw] -translate-x-1/2 rounded-2xl text-center border px-4 py-2 text-[12px] shadow-xl backdrop-blur ${notice.tone === 'error' ? 'border-red-900/60 bg-red-950/90 text-red-200' : 'border-gold-500/30 bg-ink-800/95 text-gold-200'}` }, notice.text))),
-        React.createElement("div", { className: "flex min-h-0 flex-1 flex-col-reverse lg:flex-row" },
-            React.createElement(ControlPanel, { texts: doc.texts, onChangeText: updateText, images: doc.images, selectedId: selectedId, selectedIds: selection, onSelect: select, onDuplicate: duplicateImages, activeTab: panelTab, onTabChange: setPanelTab, openSlot: openSlot, onOpenSlot: setOpenSlot, focusSignal: focusSignal, onOpenCutout: setCutoutEditId, grade: doc.grade || DEFAULT_GRADE, onChangeGrade: (patch) => setDoc((d) => ({ ...d, grade: { ...(d.grade || DEFAULT_GRADE), ...patch } }), { key: `grade:${Object.keys(patch).join(',')}` }), onAddImage: addImage, onChangeNode: changeNode, onRemoveImage: removeImage, onMoveImage: moveImage, autoColors: autoColors, onToggleAutoColors: setAutoColors, onSuggestColors: suggestColors, paletteLight: palette.colors[1], logo: doc.logo, onSetLogo: setLogoFromSrc, onRemoveLogo: removeLogo, paletteId: doc.paletteId, customPalette: doc.customPalette, onChangePalette: (paletteId) => setDoc((d) => ({ ...d, paletteId })), background: doc.background, onSetBackground: setBackground, onChangeBackground: changeBackground, onRemoveBackground: () => setDoc((d) => ({ ...d, background: null })), layers: doc.layers, onChangeLayer: changeLayer, onResetLayers: resetLayers, textAboveLayers: doc.textAboveLayers, onToggleTextAbove: (textAboveLayers) => setDoc((d) => ({ ...d, textAboveLayers })), onApplyTemplate: applyTemplate, activeTemplateId: doc.templateId }),
-            React.createElement("main", { className: "stage-backdrop relative min-h-0 min-w-0 flex-1" },
-                React.createElement(CoverCanvas, { ref: canvasRef, texts: doc.texts, images: doc.images, logo: doc.logo, palette: palette, background: doc.background, layers: doc.layers, textAboveLayers: doc.textAboveLayers, grade: doc.grade || DEFAULT_GRADE, selectedIds: selection, onSelect: select, onCommit: (patches) => applyPatches(patches), onOpenProps: openProps, fontsVersion: fontsVersion, snapping: snapping }),
-                selection.length > 0 && (React.createElement(SelectionToolbar, { count: selection.length, label: selectionLabel, onAlign: (type) => canvasRef.current?.align(type), onDuplicate: () => duplicateImages(selection), canDuplicate: selection.some((id) => id.startsWith('img-')), onDelete: deleteSelection, onLock: lockSelection, onDeselect: () => setSelection([]), snapping: snapping, onToggleSnapping: () => setSnapping((v) => !v) })),
-                React.createElement("div", { className: "pointer-events-none absolute bottom-4 right-4 hidden whitespace-nowrap lg:block rounded-full border border-white/5 bg-ink-900/80 px-4 py-1.5 text-[11px] text-stone-500 backdrop-blur" }, "Shift+\u0646\u0642\u0631 \u062A\u062D\u062F\u064A\u062F \u0645\u062A\u0639\u062F\u062F \u00B7 \u0627\u0644\u0623\u0633\u0647\u0645 \u0644\u0644\u062A\u062D\u0631\u064A\u0643 \u00B7 Ctrl+D \u062A\u0643\u0631\u0627\u0631 \u00B7 Ctrl+\u0639\u062C\u0644\u0629 \u062A\u0643\u0628\u064A\u0631"))),
+    const layersCount = Object.values(doc.layers).filter((l) => l.enabled).length;
+    return (React.createElement("div", { className: "relative flex h-[100dvh] bg-ink-950 text-stone-200" },
+        React.createElement(SideRail, { tab: panelTab, panelOpen: panelOpen, onTab: onRailTab, layersCount: layersCount, onWizard: () => setShowWizard(true), onShuffle: shuffleDesign, onUndo: undo, onRedo: redo, canUndo: canUndo, canRedo: canRedo, onPreview: openPreview, onOpen: () => openRef.current?.click(), onSave: saveProject, onExport: handleExport, exporting: exporting }),
+        React.createElement("input", { ref: openRef, type: "file", accept: ".json,application/json", hidden: true, onChange: (e) => {
+                const f = e.target.files?.[0];
+                if (f)
+                    openProject(f);
+                e.target.value = '';
+            } }),
+        React.createElement("div", { className: "relative flex min-w-0 flex-1" },
+            React.createElement(ControlPanel, { open: panelOpen, onClose: () => setPanelOpen(false), texts: doc.texts, onChangeText: updateText, images: doc.images, shapes: doc.shapes || [], onAddShape: addShape, onRemoveShape: removeShape, selectedId: selectedId, selectedIds: selection, onSelect: select, onDuplicate: duplicateImages, activeTab: panelTab, openSlot: openSlot, onOpenSlot: setOpenSlot, focusSignal: focusSignal, onOpenCutout: setCutoutEditId, grade: doc.grade || DEFAULT_GRADE, onChangeGrade: (patch) => setDoc((d) => ({ ...d, grade: { ...(d.grade || DEFAULT_GRADE), ...patch } }), { key: `grade:${Object.keys(patch).join(',')}` }), onAddImage: addImage, onChangeNode: changeNode, onRemoveImage: removeImage, onMoveImage: moveImage, autoColors: autoColors, onToggleAutoColors: setAutoColors, onSuggestColors: suggestColors, paletteLight: palette.colors[1], logo: doc.logo, onSetLogo: setLogoFromSrc, onRemoveLogo: removeLogo, paletteId: doc.paletteId, customPalette: doc.customPalette, onChangePalette: (paletteId) => setDoc((d) => ({ ...d, paletteId })), background: doc.background, onSetBackground: setBackground, onChangeBackground: changeBackground, onRemoveBackground: () => setDoc((d) => ({ ...d, background: null })), layers: doc.layers, onChangeLayer: changeLayer, onResetLayers: resetLayers, textAboveLayers: doc.textAboveLayers, onToggleTextAbove: (textAboveLayers) => setDoc((d) => ({ ...d, textAboveLayers })), onApplyTemplate: applyTemplate, activeTemplateId: doc.templateId }),
+            React.createElement("main", { className: "relative flex min-h-0 min-w-0 flex-1 flex-col" },
+                React.createElement(TopBar, { count: selection.length, label: selectionLabel, onOpenProps: () => selectedId && openProps(selectedId), onAlign: (type) => canvasRef.current?.align(type), onNudge: nudge, onDuplicate: () => duplicateImages(selection), canDuplicate: selection.some((id) => id.startsWith('img-') || id.startsWith('shp-')), onDelete: deleteSelection, onLock: lockSelection, onDeselect: () => setSelection([]), snapping: snapping, onToggleSnapping: () => setSnapping((v) => !v), multiSelect: multiSelect, onToggleMulti: () => setMultiSelect((v) => !v), zoom: zoom, onZoom: zoomStep }),
+                React.createElement("div", { className: "stage-backdrop relative min-h-0 flex-1" },
+                    React.createElement(CoverCanvas, { ref: canvasRef, texts: doc.texts, images: doc.images, shapes: doc.shapes || [], logo: doc.logo, palette: palette, background: doc.background, layers: doc.layers, textAboveLayers: doc.textAboveLayers, grade: doc.grade || DEFAULT_GRADE, selectedIds: selection, onSelect: select, onCommit: (patches) => applyPatches(patches), onOpenProps: openProps, fontsVersion: fontsVersion, snapping: snapping, zoom: zoom })),
+                notice && (React.createElement("div", { key: notice.id, className: `pointer-events-none absolute left-1/2 top-14 z-30 max-w-[92%] -translate-x-1/2 rounded-2xl border px-4 py-2 text-center text-[12px] shadow-xl backdrop-blur ${notice.tone === 'error' ? 'border-red-900/60 bg-red-950/90 text-red-200' : 'border-gold-500/30 bg-ink-800/95 text-gold-200'}` }, notice.text)))),
+        previewUrl && (React.createElement("div", { className: "fixed inset-0 z-50 flex flex-col bg-black", onClick: closePreview },
+            React.createElement("div", { className: "flex shrink-0 items-center justify-between gap-2 p-3", onClick: (e) => e.stopPropagation() },
+                React.createElement("button", { type: "button", onClick: closePreview, className: "rounded-xl border border-white/15 px-4 py-2 text-[13px] text-stone-200" }, "\u2715 \u0631\u062C\u0648\u0639 \u0644\u0644\u062A\u062D\u0631\u064A\u0631"),
+                React.createElement("button", { type: "button", onClick: handleExport, className: "rounded-xl bg-gold-400 px-4 py-2 text-[13px] font-bold text-ink-950" }, "\u2B07 \u062A\u062D\u0645\u064A\u0644 \u0627\u0644\u063A\u0644\u0627\u0641")),
+            React.createElement("div", { className: "grid min-h-0 flex-1 place-items-center p-3" },
+                React.createElement("img", { src: previewUrl, alt: "\u0645\u0639\u0627\u064A\u0646\u0629 \u0627\u0644\u063A\u0644\u0627\u0641", className: "max-h-full max-w-full object-contain shadow-[0_30px_100px_rgba(0,0,0,.9)]" })))),
         showWizard && React.createElement(QuickWizard, { onRun: runWizard, onClose: closeWizard }),
         cutoutEditId && doc.images.find((n) => n.id === cutoutEditId) && (React.createElement(CutoutEditor, { item: doc.images.find((n) => n.id === cutoutEditId), onClose: () => setCutoutEditId(null), onSave: (patch) => {
                 changeNode(cutoutEditId, patch);
@@ -4414,6 +5407,7 @@ class ErrorBoundary extends React.Component {
         return { error };
     }
     componentDidCatch(error, info) {
+        window.__APP_FAILED__ = true;
         console.error(error, info);
     }
     render() {
@@ -4431,3 +5425,14 @@ class ErrorBoundary extends React.Component {
 window.__APP_STARTED__ = true;
 createRoot(document.getElementById('root')).render(React.createElement(ErrorBoundary, null,
     React.createElement(App, null)));
+// داخل تطبيق أندرويد: نؤكد أن هذا الإصدار يعمل (يحمي التحديث الصامت من الإصدارات المعطوبة)
+setTimeout(() => {
+    if (!window.__APP_FAILED__) {
+        try {
+            window.AndroidBridge?.appReady?.();
+        }
+        catch (e) {
+            /* خارج التطبيق */
+        }
+    }
+}, 4000);

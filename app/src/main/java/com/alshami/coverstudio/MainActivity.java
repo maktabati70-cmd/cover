@@ -51,6 +51,7 @@ public class MainActivity extends Activity {
     private static final int STORAGE_REQUEST = 1002;
 
     private WebView web;
+    private WebUpdater updater;
     private ValueCallback<Uri[]> fileCallback;
     private long lastBackPress = 0;
 
@@ -80,9 +81,12 @@ public class MainActivity extends Activity {
         s.setTextZoom(100);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
+        // التحديث الصامت: الملفات المحدَّثة من المستودع لها الأولوية على نسخة التطبيق الأصلية
+        updater = new WebUpdater(this, BuildConfig.UPDATE_REPO);
+        updater.onLaunch();
         final WebViewAssetLoader assetLoader = new WebViewAssetLoader.Builder()
                 .setDomain(HOST)
-                .addPathHandler("/assets/", new WebViewAssetLoader.AssetsPathHandler(this))
+                .addPathHandler("/assets/", updater.pathHandler())
                 .build();
 
         web.setWebViewClient(new WebViewClient() {
@@ -146,6 +150,8 @@ public class MainActivity extends Activity {
         if (savedInstanceState == null || web.restoreState(savedInstanceState) == null) {
             web.loadUrl(START_URL);
         }
+
+        updater.checkInBackground();
 
         if (Build.VERSION.SDK_INT < 29
                 && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
@@ -251,6 +257,17 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean isAndroid() {
             return true;
+        }
+
+        /** الصفحة تؤكد أنها عملت بنجاح ← يُعتمد الإصدار المحدَّث نهائياً */
+        @JavascriptInterface
+        public void appReady() {
+            if (updater != null) updater.markHealthy();
+        }
+
+        @JavascriptInterface
+        public String appVersion() {
+            return BuildConfig.VERSION_NAME;
         }
 
         @JavascriptInterface

@@ -10,16 +10,24 @@ android {
         applicationId = "com.alshami.coverstudio"
         minSdk = 26
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 3
+        versionName = "2.0"
+        // المستودع الذي تُجلب منه التحديثات الصامتة (يُملأ تلقائياً في GitHub Actions)
+        buildConfigField("String", "UPDATE_REPO", "\"${System.getenv("GITHUB_REPOSITORY") ?: "maktabati70-cmd/CoverStudio"}\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     signingConfigs {
         create("release") {
             storeFile = file("release.keystore")
-            storePassword = "coverstudio2026"
+            // يُفضَّل وضع كلمة السر في أسرار المستودع (KEYSTORE_PASSWORD) بدل الملف
+            val pass = System.getenv("KEYSTORE_PASSWORD")?.takeIf { it.isNotBlank() } ?: "coverstudio2026"
+            storePassword = pass
             keyAlias = "coverstudio"
-            keyPassword = "coverstudio2026"
+            keyPassword = pass
         }
     }
 
