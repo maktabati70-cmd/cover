@@ -779,10 +779,20 @@ const BG_REMOVAL_CONFIG = {
   debug: false,
 };
 
-let libPromise = null;
-function loadLibrary() {
-  if (!libPromise) libPromise = import(IMGLY_URL).catch(() => import(IMGLY_FALLBACK));
-  return libPromise;
+// مصادر المكتبة بالترتيب: النسخة المدمجة (أو npm) ثم نسخة CDN احتياطية
+const LIB_LOADERS = [
+  () => import(IMGLY_URL),
+  () => import(IMGLY_FALLBACK),
+];
+const libCache = [];
+function loadLibrary(i = 0) {
+  if (!libCache[i]) {
+    libCache[i] = LIB_LOADERS[i]().catch((e) => {
+      libCache[i] = null;
+      throw e;
+    });
+  }
+  return libCache[i];
 }
 
 async function preloadBackgroundRemoval() {
@@ -805,8 +815,9 @@ async function toBlob(input) {
 }
 
 /** يُرجع الصورة بحجم العمل + قناعها الخام من النموذج */
+let workingAttempt = null; // آخر طريقة نجحت — نبدأ بها في المرة القادمة
+
 async function aiMask(input, onProgress, quality = getCutQuality()) {
-  const { removeBackground } = await loadLibrary();
   onProgress?.({ phase: 'prepare', label: 'تجهيز الصورة…', percent: 0 });
   const bitmap = await createImageBitmap(await toBlob(input));
   const original = toWorkCanvas(bitmap);
@@ -815,26 +826,35 @@ async function aiMask(input, onProgress, quality = getCutQuality()) {
   const model = (QUALITY_MODES.find((q) => q.id === quality) || QUALITY_MODES[0]).model;
   const localPath = model === LOCAL_MODEL ? await localEnginePath() : null;
   const workBlob = await canvasToBlob(original);
-  const config = {
-    ...BG_REMOVAL_CONFIG,
-    ...(localPath ? { publicPath: localPath } : {}),
-    model,
-    progress: (key, current, total) => onProgress?.(describeProgress(key, current, total)),
-  };
-  let fg;
-  // كرت الشاشة (WebGPU) أسرع بكثير إن كان متاحاً — وإلا المعالج
-  if (typeof navigator !== 'undefined' && navigator.gpu) {
+
+  // محاولات متتالية: المحرك المدمج ← ملفات النموذج من الإنترنت ← المكتبة كاملة من الإنترنت
+  const attempts = [];
+  if (localPath) attempts.push({ lib: 0, publicPath: localPath, name: 'المحرك المدمج' });
+  attempts.push({ lib: 0, publicPath: null, name: 'النموذج من الإنترنت' });
+  attempts.push({ lib: 1, publicPath: null, name: 'المكتبة الاحتياطية' });
+  if (workingAttempt) attempts.sort((a, b) => (a.name === workingAttempt ? -1 : b.name === workingAttempt ? 1 : 0));
+
+  const errors = [];
+  for (const att of attempts) {
     try {
-      fg = await removeBackground(workBlob, { ...config, device: "gpu" });
+      const { removeBackground } = await loadLibrary(att.lib);
+      const fg = await removeBackground(workBlob, {
+        ...BG_REMOVAL_CONFIG,
+        ...(att.publicPath ? { publicPath: att.publicPath } : {}),
+        model,
+        progress: (key, current, total) => onProgress?.(describeProgress(key, current, total)),
+      });
+      workingAttempt = att.name;
+      const fgBitmap = await createImageBitmap(fg);
+      const mask = alphaToMask(fgBitmap, original.width, original.height);
+      fgBitmap.close?.();
+      return { original, mask };
     } catch (e) {
-      console.warn('WebGPU غير متاح — نستخدم المعالج', e);
+      console.warn(`فشلت محاولة القص (${att.name})`, e);
+      errors.push(`${att.name}: ${e?.message || e}`);
     }
   }
-  if (!fg) fg = await removeBackground(workBlob, { ...config, device: "cpu" });
-  const fgBitmap = await createImageBitmap(fg);
-  const mask = alphaToMask(fgBitmap, original.width, original.height);
-  fgBitmap.close?.();
-  return { original, mask };
+  throw new Error('تعذّر تشغيل محرك القص — ' + errors.join(' | '));
 }
 
 /**

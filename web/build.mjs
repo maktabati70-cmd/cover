@@ -70,8 +70,15 @@ console.log(`✓ fonts: ${count} font faces`);
 
 // ── 3) محرك إزالة الخلفية داخل التطبيق: نموذج isnet_fp16 + ملفات onnxruntime ──
 try {
-  execSync('npm install --no-save --no-audit --no-fund @imgly/background-removal-data@1.5.5', { stdio: 'inherit' });
-  const dist = 'node_modules/@imgly/background-removal-data/dist';
+  // حزمة البيانات المطابقة لإصدار المكتبة تُستضاف عند IMG.LY (npm فيها إصدار قديم فقط)
+  const ver = JSON.parse(readFileSync('node_modules/@imgly/background-removal/package.json', 'utf8')).version;
+  const tmp = '/tmp/imgly-data';
+  if (existsSync(tmp)) rmSync(tmp, { recursive: true });
+  mkdirSync(tmp, { recursive: true });
+  execSync(`curl -fsSL --retry 3 "https://staticimgly.com/@imgly/background-removal-data/${ver}/package.tgz" -o ${tmp}/data.tgz`, { stdio: 'inherit' });
+  execSync(`tar -xzf ${tmp}/data.tgz -C ${tmp}`, { stdio: 'inherit' });
+  const dist = `${tmp}/package/dist`;
+  console.log('imgly data version', ver);
   const res = JSON.parse(readFileSync(path.join(dist, 'resources.json'), 'utf8'));
   const keep = {};
   for (const [key, val] of Object.entries(res)) {

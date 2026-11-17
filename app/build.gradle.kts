@@ -10,8 +10,8 @@ android {
         applicationId = "com.alshami.coverstudio"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "2.1"
+        versionCode = 5
+        versionName = "2.2"
         // المستودع الذي تُجلب منه التحديثات الصامتة (يُملأ تلقائياً في GitHub Actions)
         buildConfigField("String", "UPDATE_REPO", "\"${System.getenv("GITHUB_REPOSITORY") ?: "maktabati70-cmd/CoverStudio"}\"")
     }

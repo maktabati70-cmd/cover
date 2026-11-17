@@ -97,13 +97,6 @@ public class MainActivity extends Activity {
                 if (response != null) {
                     String mime = mimeFor(request.getUrl().getPath());
                     if (mime != null) response.setMimeType(mime);
-                    // عزل الأصل (crossOriginIsolated) ← يسمح بتشغيل محرك القص على عدة أنوية (أسرع بكثير)
-                    Map<String, String> headers = new HashMap<>();
-                    headers.put("Cross-Origin-Opener-Policy", "same-origin");
-                    headers.put("Cross-Origin-Embedder-Policy", "credentialless");
-                    headers.put("Cross-Origin-Resource-Policy", "cross-origin");
-                    response.setResponseHeaders(headers);
-                    if (response.getStatusCode() < 100) response.setStatusCodeAndReasonPhrase(200, "OK");
                 }
                 return response;
             }
