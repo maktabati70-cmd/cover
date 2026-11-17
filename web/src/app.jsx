@@ -582,7 +582,7 @@ function hijriNow() {
 // ─────────────────────────────────────────────────────────────
 
 const DEFAULT_REFINE = { hardness: 0.4, shrink: 1.2, feather: 0.8, decontaminate: true };
-const WORK_MAX_SIDE = 2048;
+const WORK_MAX_SIDE = 1800; // كافٍ للغلاف وأسرع على الهاتف
 
 function makeCanvas(w, h) {
   const c = document.createElement('canvas');
@@ -730,18 +730,38 @@ function refineCutout(original, rawMask, params = DEFAULT_REFINE, scale = 1) {
 
 
 const QUALITY_MODES = [
-  { id: 'high', label: 'دقة عالية', model: 'isnet' },
+  { id: 'high', label: 'دقة قصوى', model: 'isnet' },
   { id: 'balanced', label: 'متوازن', model: 'isnet_fp16' },
   { id: 'fast', label: 'سريع', model: 'isnet_quint8' },
 ];
 
+// في تطبيق أندرويد: نموذج «متوازن» ومحرك التشغيل مدمجان داخل التطبيق (لا تنزيل)
+const LOCAL_MODEL = 'isnet_fp16';
+let localPathPromise = null;
+function localEnginePath() {
+  if (!localPathPromise) {
+    const path = typeof window !== 'undefined' && window.__LOCAL_IMGLY_PATH__;
+    localPathPromise = !path
+      ? Promise.resolve(null)
+      : fetch(path + 'resources.json', { cache: 'no-store' })
+          .then((r) => (r.ok ? path : null))
+          .catch(() => null);
+  }
+  return localPathPromise;
+}
+
+function hasLocalEngine() {
+  return typeof window !== 'undefined' && !!window.__LOCAL_IMGLY_PATH__;
+}
+
 const QUALITY_KEY = 'cover-studio-cut-quality';
 
 function getCutQuality() {
+  const fallback = hasLocalEngine() ? 'balanced' : 'high';
   try {
-    return localStorage.getItem(QUALITY_KEY) || 'high';
+    return localStorage.getItem(QUALITY_KEY) || fallback;
   } catch {
-    return 'high';
+    return fallback;
   }
 }
 
@@ -793,11 +813,24 @@ async function aiMask(input, onProgress, quality = getCutQuality()) {
   bitmap.close?.();
 
   const model = (QUALITY_MODES.find((q) => q.id === quality) || QUALITY_MODES[0]).model;
-  const fg = await removeBackground(await canvasToBlob(original), {
+  const localPath = model === LOCAL_MODEL ? await localEnginePath() : null;
+  const workBlob = await canvasToBlob(original);
+  const config = {
     ...BG_REMOVAL_CONFIG,
+    ...(localPath ? { publicPath: localPath } : {}),
     model,
     progress: (key, current, total) => onProgress?.(describeProgress(key, current, total)),
-  });
+  };
+  let fg;
+  // كرت الشاشة (WebGPU) أسرع بكثير إن كان متاحاً — وإلا المعالج
+  if (typeof navigator !== 'undefined' && navigator.gpu) {
+    try {
+      fg = await removeBackground(workBlob, { ...config, device: "gpu" });
+    } catch (e) {
+      console.warn('WebGPU غير متاح — نستخدم المعالج', e);
+    }
+  }
+  if (!fg) fg = await removeBackground(workBlob, { ...config, device: "cpu" });
   const fgBitmap = await createImageBitmap(fg);
   const mask = alphaToMask(fgBitmap, original.width, original.height);
   fgBitmap.close?.();
@@ -2688,14 +2721,14 @@ async function iconToPngUrl(name, color, size = 1024) {
 // ───────── ويكيميديا كومنز ─────────
 const stripHtml = (s) => (s || '').replace(/<[^>]*>/g, '').trim();
 
-async function searchCommonsPNG(query, limit = 40) {
+async function searchCommonsPNG(query, limit = 50, hintTransparent = true) {
   const params = new URLSearchParams({
     action: 'query',
     format: 'json',
     origin: '*',
     generator: 'search',
     gsrnamespace: '6',
-    gsrsearch: `${query} filemime:image/png`,
+    gsrsearch: `${query}${hintTransparent ? ' transparent' : ''} filemime:image/png`,
     gsrlimit: String(limit),
     prop: 'imageinfo',
     iiprop: 'url|size|mime|extmetadata',
@@ -2720,6 +2753,57 @@ async function searchCommonsPNG(query, limit = 40) {
       };
     })
     .filter(Boolean);
+}
+
+/** يفحص الصورة المصغّرة: هل فيها شفافية حقيقية حول الأطراف؟ (نريد صور PNG مفرّغة فقط) */
+function hasTransparency(url) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try {
+        const S = 48;
+        const c = document.createElement('canvas');
+        c.width = S;
+        c.height = S;
+        const ctx = c.getContext('2d', { willReadFrequently: true });
+        ctx.drawImage(img, 0, 0, S, S);
+        const d = ctx.getImageData(0, 0, S, S).data;
+        let edge = 0, clear = 0;
+        for (let y = 0; y < S; y++) {
+          for (let x = 0; x < S; x++) {
+            if (x > 3 && x < S - 4 && y > 3 && y < S - 4) continue; // الأطراف فقط
+            edge++;
+            if (d[(y * S + x) * 4 + 3] < 40) clear++;
+          }
+        }
+        resolve(clear / edge > 0.35);
+      } catch {
+        resolve(false);
+      }
+    };
+    img.onerror = () => resolve(false);
+    img.src = url;
+  });
+}
+
+/** بحث + إبقاء الصور الشفافة فقط */
+async function searchTransparentPNG(query, onProgress) {
+  const [a, b] = await Promise.all([
+    searchCommonsPNG(query, 50, true),
+    searchCommonsPNG(query, 50, false).catch(() => []),
+  ]);
+  const seen = new Set();
+  const all = [...a, ...b].filter((it) => !seen.has(it.id) && seen.add(it.id));
+  const out = [];
+  let done = 0;
+  await Promise.all(
+    all.map(async (it) => {
+      if (await hasTransparency(it.thumb)) out.push(it);
+      onProgress?.(++done, all.length);
+    })
+  );
+  return out;
 }
 
 /** ينزّل نسخة مناسبة الحجم من الصورة كرابط blob: محلي */
@@ -3212,6 +3296,342 @@ const SHAPE_LIBRARY = [
         ctx.quadraticCurveTo(sgn * hw * 0.9, -hh * 0.6, sgn * hw, -hh * 0.1);
       }
       dPoly(ctx, [[0, -hh * 0.5], [hh * 0.5, 0], [0, hh * 0.5], [-hh * 0.5, 0]]);
+      ctx.fillStrokeShape(s);
+    },
+  },
+
+  // ═════════ زخارف إضافية ═════════
+  // ── خطوط ──
+  {
+    id: 'dashed', label: 'خط متقطّع', cat: 'lines', w: 500, h: 10, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      ctx.beginPath();
+      const seg = h * 3, gap = h * 1.6;
+      for (let x = -w / 2; x < w / 2; x += seg + gap) ctx.rect(x, -h / 2, Math.min(seg, w / 2 - x), h);
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'zigzag', label: 'خط متعرّج', cat: 'lines', w: 500, h: 30, fill: D_NONE, stroke: D_GOLD, strokeWidth: 3,
+    draw(ctx, w, h, s) {
+      ctx.beginPath();
+      const n = 14;
+      for (let i = 0; i <= n; i++) {
+        const x = -w / 2 + (w * i) / n, y = i % 2 ? h / 2 : -h / 2;
+        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+      }
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'arrowLine', label: 'خط بسهمين', cat: 'lines', w: 500, h: 40, fill: D_GOLD, stroke: D_GOLD, strokeWidth: 3,
+    draw(ctx, w, h, s) {
+      const a = h / 2;
+      ctx.beginPath();
+      ctx.moveTo(-w / 2 + a, 0); ctx.lineTo(w / 2 - a, 0);
+      dPoly(ctx, [[w / 2, 0], [w / 2 - a * 1.6, -a], [w / 2 - a * 1.6, a]]);
+      dPoly(ctx, [[-w / 2, 0], [-w / 2 + a * 1.6, -a], [-w / 2 + a * 1.6, a]]);
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'swash', label: 'خط خطّاطي', cat: 'lines', w: 560, h: 70, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2;
+      ctx.beginPath();
+      ctx.moveTo(-hw, hh * 0.2);
+      ctx.bezierCurveTo(-hw * 0.4, -hh * 0.9, hw * 0.3, hh * 0.9, hw, -hh * 0.6);
+      ctx.bezierCurveTo(hw * 0.3, hh * 0.4, -hw * 0.4, -hh * 0.3, -hw, hh * 0.2);
+      ctx.closePath();
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'beadDivider', label: 'فاصل خرز', cat: 'lines', w: 560, h: 34, fill: D_GOLD, stroke: D_GOLD, strokeWidth: 2,
+    draw(ctx, w, h, s) {
+      const r = h / 2;
+      ctx.beginPath();
+      ctx.moveTo(-w / 2, 0); ctx.lineTo(w / 2, 0);
+      for (const k of [-3, -2, -1, 0, 1, 2, 3]) {
+        const x = k * r * 3.2, rr = k === 0 ? r : r * (0.75 - Math.abs(k) * 0.12);
+        if (k === 0) dPoly(ctx, [[x, -rr], [x + rr, 0], [x, rr], [x - rr, 0]]);
+        else dEllipse(ctx, rr, rr, x, 0);
+      }
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'triDots', label: 'ثلاث نقاط', cat: 'lines', w: 120, h: 40, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const r = Math.min(h / 2, w / 7);
+      ctx.beginPath();
+      dEllipse(ctx, r, r, -w / 3, 0); dEllipse(ctx, r, r, 0, 0); dEllipse(ctx, r, r, w / 3, 0);
+      ctx.fillStrokeShape(s);
+    },
+  },
+  // ── إطارات ──
+  {
+    id: 'bracketFrame', label: 'إطار زوايا', cat: 'frames', w: 820, h: 1300, fill: D_NONE, stroke: D_GOLD, strokeWidth: 5,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2, L = Math.min(w, h) * 0.15;
+      ctx.beginPath();
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        ctx.moveTo(sx * hw, sy * hh + -sy * L); ctx.lineTo(sx * hw, sy * hh); ctx.lineTo(sx * hw - sx * L, sy * hh);
+      }
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'octagonFrame', label: 'إطار ثماني', cat: 'frames', w: 600, h: 600, fill: D_NONE, stroke: D_GOLD, strokeWidth: 5,
+    draw(ctx, w, h, s) {
+      ctx.beginPath();
+      dPoly(ctx, Array.from({ length: 8 }, (_, i) => [Math.cos(((i + 0.5) * D_TAU) / 8) * w / 2, Math.sin(((i + 0.5) * D_TAU) / 8) * h / 2]));
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'scallopFrame', label: 'إطار مموّج', cat: 'frames', w: 800, h: 1200, fill: D_NONE, stroke: D_GOLD, strokeWidth: 4,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2, r = 22;
+      ctx.beginPath();
+      const edge = (x0, y0, x1, y1) => {
+        const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(2, Math.round(len / (r * 2)));
+        for (let i = 0; i < n; i++) {
+          const ax = x0 + ((x1 - x0) * i) / n, ay = y0 + ((y1 - y0) * i) / n;
+          const bx = x0 + ((x1 - x0) * (i + 1)) / n, by = y0 + ((y1 - y0) * (i + 1)) / n;
+          const nx = -(by - ay), ny = bx - ax;
+          ctx.quadraticCurveTo((ax + bx) / 2 + nx * 0.6, (ay + by) / 2 + ny * 0.6, bx, by);
+        }
+      };
+      ctx.moveTo(-hw, -hh);
+      edge(-hw, -hh, hw, -hh); edge(hw, -hh, hw, hh); edge(hw, hh, -hw, hh); edge(-hw, hh, -hw, -hh);
+      ctx.closePath();
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'dotRing', label: 'حلقة منقّطة', cat: 'frames', w: 500, h: 500, fill: D_GOLD, stroke: D_GOLD, strokeWidth: 3,
+    draw(ctx, w, h, s) {
+      ctx.beginPath();
+      dEllipse(ctx, w / 2, h / 2);
+      for (let i = 0; i < 36; i++) {
+        const a = (i * D_TAU) / 36;
+        dEllipse(ctx, 5, 5, Math.cos(a) * (w / 2 - 18), Math.sin(a) * (h / 2 - 18));
+      }
+      ctx.moveTo(w / 2 - 34, 0);
+      dEllipse(ctx, w / 2 - 34, h / 2 - 34);
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'shieldFrame', label: 'درع', cat: 'frames', w: 420, h: 520, fill: D_NONE, stroke: D_GOLD, strokeWidth: 5,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2;
+      ctx.beginPath();
+      ctx.moveTo(-hw, -hh);
+      ctx.lineTo(hw, -hh);
+      ctx.lineTo(hw, -hh * 0.1);
+      ctx.bezierCurveTo(hw, hh * 0.5, hw * 0.4, hh * 0.8, 0, hh);
+      ctx.bezierCurveTo(-hw * 0.4, hh * 0.8, -hw, hh * 0.5, -hw, -hh * 0.1);
+      ctx.closePath();
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'cornerLeaf', label: 'زاوية نباتية', cat: 'frames', w: 200, h: 200, fill: D_GOLD, stroke: D_GOLD, strokeWidth: 3,
+    draw(ctx, w, h, s) {
+      const x0 = -w / 2, y0 = -h / 2;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0 + h * 0.9);
+      ctx.quadraticCurveTo(x0, y0, x0 + w * 0.9, y0);
+      for (const t of [0.3, 0.55, 0.8]) {
+        const lx = x0 + w * t * 0.25, ly = y0 + h * (1 - t) * 0.9;
+        ctx.moveTo(lx, ly);
+        ctx.quadraticCurveTo(lx + w * 0.14, ly - h * 0.02, lx + w * 0.16, ly - h * 0.12);
+        ctx.quadraticCurveTo(lx + w * 0.02, ly - h * 0.1, lx, ly);
+        const tx = x0 + w * (1 - t) * 0.9, ty = y0 + h * t * 0.25;
+        ctx.moveTo(tx, ty);
+        ctx.quadraticCurveTo(tx - w * 0.02, ty + h * 0.14, tx - w * 0.12, ty + h * 0.16);
+        ctx.quadraticCurveTo(tx - w * 0.1, ty + h * 0.02, tx, ty);
+      }
+      dEllipse(ctx, w * 0.05, w * 0.05, x0 + w * 0.12, y0 + h * 0.12);
+      ctx.fillStrokeShape(s);
+    },
+  },
+  // ── أشكال ──
+  {
+    id: 'heart', label: 'قلب', cat: 'shapes', w: 320, h: 300, fill: '#c8102e', stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2;
+      ctx.beginPath();
+      ctx.moveTo(0, hh);
+      ctx.bezierCurveTo(-hw * 1.1, hh * 0.1, -hw * 0.9, -hh * 1.1, 0, -hh * 0.45);
+      ctx.bezierCurveTo(hw * 0.9, -hh * 1.1, hw * 1.1, hh * 0.1, 0, hh);
+      ctx.closePath();
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'cloud', label: 'غيمة', cat: 'shapes', w: 480, h: 260, fill: '#f0ede8', stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2;
+      ctx.beginPath();
+      dEllipse(ctx, hw * 0.42, hh * 0.55, -hw * 0.45, hh * 0.25);
+      dEllipse(ctx, hw * 0.5, hh * 0.8, -hw * 0.05, -hh * 0.1);
+      dEllipse(ctx, hw * 0.4, hh * 0.6, hw * 0.45, hh * 0.2);
+      ctx.rect(-hw * 0.75, hh * 0.1, hw * 1.5, hh * 0.7);
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'speech', label: 'فقاعة كلام', cat: 'shapes', w: 460, h: 300, fill: '#f0ede8', stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2, bh = hh * 0.7;
+      ctx.beginPath();
+      dRoundRect(ctx, -hw, -hh, w, bh * 2, bh * 0.5);
+      dPoly(ctx, [[-hw * 0.35, -hh + bh * 2 - 2], [-hw * 0.6, hh], [-hw * 0.05, -hh + bh * 2 - 2]]);
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'scroll', label: 'لفافة', cat: 'shapes', w: 680, h: 160, fill: '#c9a974', stroke: '#5a3a18', strokeWidth: 3,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2, r = hh * 0.55;
+      ctx.beginPath();
+      ctx.rect(-hw + r, -hh * 0.7, w - r * 2, hh * 1.4);
+      dEllipse(ctx, r * 0.8, hh * 0.85, -hw + r, 0);
+      dEllipse(ctx, r * 0.8, hh * 0.85, hw - r, 0);
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'semicircle', label: 'نصف دائرة', cat: 'shapes', w: 600, h: 300, fill: '#1e4f7a', stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      ctx.beginPath();
+      ctx.moveTo(-w / 2, h / 2);
+      ctx.bezierCurveTo(-w / 2, -h * 0.85, w / 2, -h * 0.85, w / 2, h / 2);
+      ctx.closePath();
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'drop', label: 'قطرة', cat: 'shapes', w: 220, h: 320, fill: '#2a7fd1', stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2;
+      ctx.beginPath();
+      ctx.moveTo(0, -hh);
+      ctx.bezierCurveTo(hw * 0.3, -hh * 0.4, hw, 0, hw, hh * 0.35);
+      ctx.bezierCurveTo(hw, hh * 1.05, -hw, hh * 1.05, -hw, hh * 0.35);
+      ctx.bezierCurveTo(-hw, 0, -hw * 0.3, -hh * 0.4, 0, -hh);
+      ctx.fillStrokeShape(s);
+    },
+  },
+  // ── زخارف ورموز ──
+  {
+    id: 'star12', label: 'نجمة اثنا عشرية', cat: 'ornaments', w: 320, h: 320, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) { ctx.beginPath(); dPoly(ctx, dStarPts(12, Math.min(w, h) / 2, Math.min(w, h) * 0.34)); ctx.fillStrokeShape(s); },
+  },
+  {
+    id: 'lantern', label: 'فانوس', cat: 'ornaments', w: 180, h: 360, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2;
+      ctx.beginPath();
+      dEllipse(ctx, hw * 0.18, hw * 0.18, 0, -hh + hw * 0.18);
+      dPoly(ctx, [[-hw * 0.5, -hh * 0.72], [hw * 0.5, -hh * 0.72], [hw * 0.75, -hh * 0.5], [-hw * 0.75, -hh * 0.5]]);
+      dPoly(ctx, [[-hw * 0.75, -hh * 0.46], [hw * 0.75, -hh * 0.46], [hw, hh * 0.2], [hw * 0.55, hh * 0.62], [-hw * 0.55, hh * 0.62], [-hw, hh * 0.2]]);
+      dPoly(ctx, [[-hw * 0.45, hh * 0.66], [hw * 0.45, hh * 0.66], [hw * 0.2, hh], [-hw * 0.2, hh]]);
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'mosque', label: 'مسجد', cat: 'ornaments', w: 520, h: 360, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2;
+      ctx.beginPath();
+      // القبة
+      ctx.moveTo(-hw * 0.45, hh * 0.05);
+      ctx.bezierCurveTo(-hw * 0.5, -hh * 0.75, hw * 0.5, -hh * 0.75, hw * 0.45, hh * 0.05);
+      ctx.closePath();
+      dPoly(ctx, [[-hw * 0.03, -hh * 0.62], [hw * 0.03, -hh * 0.62], [hw * 0.02, -hh * 0.85], [-hw * 0.02, -hh * 0.85]]);
+      // المبنى
+      ctx.rect(-hw * 0.6, hh * 0.05, hw * 1.2, hh * 0.95);
+      // المئذنتان
+      for (const sx of [-1, 1]) {
+        ctx.rect(sx * hw * 0.82 - hw * 0.06, -hh * 0.6, hw * 0.12, hh * 1.6);
+        dPoly(ctx, [[sx * hw * 0.82 - hw * 0.08, -hh * 0.6], [sx * hw * 0.82 + hw * 0.08, -hh * 0.6], [sx * hw * 0.82, -hh * 0.95]]);
+      }
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'moonStar', label: 'هلال ونجمة', cat: 'ornaments', w: 320, h: 300, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const R = Math.min(w, h) / 2, d = R * 0.38, r = R * 0.86;
+      const x = (R * R - r * r + d * d) / (2 * d);
+      const y = Math.sqrt(Math.max(0, R * R - x * x));
+      const t1 = Math.atan2(y, x);
+      ctx.beginPath();
+      ctx.arc(-R * 0.15, 0, R, t1, D_TAU - t1, false);
+      ctx.arc(d - R * 0.15, 0, r, Math.atan2(-y, x - d), Math.atan2(y, x - d), true);
+      ctx.closePath();
+      ctx.save && ctx.save();
+      const pts = dStarPts(5, R * 0.3, R * 0.12).map(([px, py]) => [px + R * 0.55, py - R * 0.05]);
+      dPoly(ctx, pts);
+      ctx.restore && ctx.restore();
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'sun', label: 'شمس', cat: 'ornaments', w: 320, h: 320, fill: '#ffb347', stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const R = Math.min(w, h) / 2;
+      ctx.beginPath();
+      dEllipse(ctx, R * 0.5, R * 0.5);
+      for (let i = 0; i < 12; i++) {
+        const a = (i * D_TAU) / 12, b = a + 0.13, c = a - 0.13;
+        dPoly(ctx, [[Math.cos(c) * R * 0.6, Math.sin(c) * R * 0.6], [Math.cos(a) * R, Math.sin(a) * R], [Math.cos(b) * R * 0.6, Math.sin(b) * R * 0.6]]);
+      }
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'openBook', label: 'كتاب مفتوح', cat: 'ornaments', w: 420, h: 260, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2;
+      ctx.beginPath();
+      for (const sx of [-1, 1]) {
+        ctx.moveTo(sx * hw * 0.04, -hh * 0.75);
+        ctx.quadraticCurveTo(sx * hw * 0.5, -hh, sx * hw, -hh * 0.8);
+        ctx.lineTo(sx * hw, hh * 0.75);
+        ctx.quadraticCurveTo(sx * hw * 0.5, hh * 0.55, sx * hw * 0.04, hh);
+        ctx.closePath();
+      }
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'quill', label: 'ريشة قلم', cat: 'ornaments', w: 160, h: 420, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const hw = w / 2, hh = h / 2;
+      ctx.beginPath();
+      ctx.moveTo(0, hh);
+      ctx.quadraticCurveTo(-hw * 0.2, hh * 0.3, -hw, -hh * 0.4);
+      ctx.quadraticCurveTo(-hw * 0.4, -hh, hw * 0.3, -hh);
+      ctx.quadraticCurveTo(hw * 0.6, -hh * 0.2, 0, hh);
+      ctx.closePath();
+      ctx.fillStrokeShape(s);
+    },
+  },
+  {
+    id: 'flower', label: 'زهرة', cat: 'ornaments', w: 300, h: 300, fill: D_GOLD, stroke: D_NONE, strokeWidth: 0,
+    draw(ctx, w, h, s) {
+      const R = Math.min(w, h) / 2;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = (i * D_TAU) / 8;
+        const cx = Math.cos(a) * R * 0.55, cy = Math.sin(a) * R * 0.55;
+        dEllipse(ctx, R * 0.32, R * 0.32, cx, cy);
+      }
       ctx.fillStrokeShape(s);
     },
   },
@@ -4165,6 +4585,21 @@ const CoverCanvas = forwardRef(function CoverCanvas(
 
   useImperativeHandle(ref, () => ({
     getStage: () => stageRef.current,
+    /** نسخة فورية من التصميم للمشاهدة (بدون ترميز PNG — أسرع بكثير) */
+    previewCanvas(logicalRatio = 1) {
+      const stage = stageRef.current;
+      const tr = trRef.current;
+      const previous = tr ? tr.nodes() : [];
+      tr?.nodes([]);
+      setGuides([]);
+      stage.draw();
+      try {
+        return stage.toCanvas({ pixelRatio: logicalRatio / (stage.scaleX() || 1) });
+      } finally {
+        tr?.nodes(previous);
+        stage.draw();
+      }
+    },
     async exportPNG(pixelRatio = 2) {
       const stage = stageRef.current;
       const tr = trRef.current;
@@ -4968,12 +5403,15 @@ function LibraryTab({ onAddImage }) {
     if (!term) return;
     setStatus({ loading: true, error: null, adding: null });
     try {
-      const list = mode === 'icons' ? await searchIcons(term) : await searchCommonsPNG(term);
+      const list =
+        mode === 'icons'
+          ? await searchIcons(term)
+          : await searchTransparentPNG(term, (done, total) => setStatus((st) => ({ ...st, progress: `فحص الشفافية ${done}/${total}` })));
       setResults(list);
       setStatus({
         loading: false,
         adding: null,
-        error: list.length ? null : 'لا توجد نتائج — جرّب كلمة إنجليزية (مثل: sword, lion, moon)',
+        error: list.length ? null : mode === 'icons' ? 'لا توجد نتائج — جرّب كلمة إنجليزية (مثل: sword, lion, moon)' : 'لا توجد صور PNG شفافة لهذه الكلمة — جرّب كلمة إنجليزية أخرى',
       });
     } catch (err) {
       setStatus({ loading: false, error: err.message, adding: null });
@@ -5012,7 +5450,7 @@ function LibraryTab({ onAddImage }) {
 
   return (
     <>
-      <Section title="مكتبة العناصر المجانية" hint="أيقونات وصور PNG شفافة من مصادر مفتوحة">
+      <Section title="مكتبة العناصر المجانية" hint="أيقونات وصور PNG شفافة فقط من مصادر مفتوحة">
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-ink-900 p-1">
           {[['icons', 'أيقونات'], ['png', 'صور PNG']].map(([id, label]) => (
             <button
@@ -5061,12 +5499,12 @@ function LibraryTab({ onAddImage }) {
         </div>
 
         {mode === 'icons' && <ColorField label="لون الأيقونة" value={color} onChange={setColor} />}
-        {status.loading && <p className="text-[12px] text-stone-400">جارٍ البحث…</p>}
+        {status.loading && <p className="text-[12px] text-stone-400">{status.progress || 'جارٍ البحث…'}</p>}
         {status.error && <p className="text-[12px] text-red-300">{status.error}</p>}
       </Section>
 
       {results.length > 0 && (
-        <Section title={`النتائج (${results.length})`} hint="اضغط على أي عنصر لإضافته إلى الغلاف">
+        <Section title={`النتائج (${results.length})`} hint={mode === 'icons' ? 'اضغط على أي عنصر لإضافته إلى الغلاف' : 'صور PNG شفافة فقط (فُحصت تلقائياً) — اضغط لإضافتها'}>
           {mode === 'icons' ? (
             <div className="grid grid-cols-6 gap-1.5">
               {results.map((name) => (
@@ -5702,29 +6140,39 @@ function ControlPanel(props) {
   const tab = props.activeTab || localTab;
   const current = PANEL_TABS.find((t) => t.id === tab);
 
-  // على الهاتف: لوحة منزلقة فوق التصميم تُغلق لرؤية التصميم كاملاً — على الحاسوب: مثبتة بجانبه
+  // على الهاتف: لوحة أسفل التصميم (التصميم يبقى ظاهراً في الأعلى) — على الحاسوب: مثبتة بجانبه
   return (
     <aside
-      className={`absolute inset-y-0 right-0 z-30 flex w-[min(400px,calc(100vw-64px))] flex-col border-l border-white/10 bg-ink-900/[0.97] shadow-[-20px_0_60px_rgba(0,0,0,.6)] backdrop-blur transition-transform duration-200 lg:static lg:z-auto lg:w-[380px] lg:translate-x-0 lg:shadow-none ${
-        props.open ? 'translate-x-0' : 'pointer-events-none translate-x-[110%] lg:pointer-events-auto'
-      }`}
+      className={`w-full shrink-0 flex-col border-t border-white/10 bg-ink-900 transition-[height] duration-200 lg:flex lg:h-auto lg:w-[380px] lg:border-l lg:border-t-0 lg:border-white/5 ${
+        props.open ? 'flex' : 'hidden'
+      } ${props.tall ? 'h-[68%]' : 'h-[44%]'}`}
     >
-      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/5 px-4 py-3">
-        <div className="flex items-center gap-2 text-[15px] font-bold text-gold-300">
+      <div className="flex shrink-0 items-center justify-between gap-2 border-b border-white/5 px-3 py-2 lg:px-4 lg:py-3">
+        <div className="flex items-center gap-2 text-[14px] font-bold text-gold-300 lg:text-[15px]">
           <span>{current?.icon}</span>
           {current?.label}
         </div>
-        <button
-          type="button"
-          onClick={props.onClose}
-          className="rounded-lg px-3 py-1.5 text-[12px] text-stone-400 hover:bg-white/5 lg:hidden"
-          title="إغلاق لرؤية التصميم"
-        >
-          ✕ إغلاق
-        </button>
+        <div className="flex items-center gap-1 lg:hidden">
+          <button
+            type="button"
+            onClick={props.onToggleTall}
+            className="rounded-lg px-2.5 py-1 text-[12px] text-stone-400 hover:bg-white/5"
+            title="تكبير/تصغير اللوحة"
+          >
+            {props.tall ? '⬇ تصغير' : '⬆ تكبير'}
+          </button>
+          <button
+            type="button"
+            onClick={props.onClose}
+            className="rounded-lg px-2.5 py-1 text-[12px] text-stone-400 hover:bg-white/5"
+            title="إغلاق اللوحة"
+          >
+            ✕
+          </button>
+        </div>
       </div>
 
-      <div className="scroll-thin flex-1 space-y-4 overflow-y-auto p-4">
+      <div className="scroll-thin min-h-0 flex-1 space-y-4 overflow-y-auto p-3 lg:p-4">
         {tab === 'elements' && (
           <ElementsTab
             texts={props.texts}
@@ -6572,6 +7020,26 @@ const createDefaultDoc = () => ({
 const SLOT_LABELS = { title: 'العنوان', subtitle: 'النص الفرعي', tag: 'الوسم', publisher: 'دار النشر', date: 'التاريخ' };
 const WIZARD_KEY = 'cover-studio-wizard-seen';
 
+/** يعرض لوحة الرسم الجاهزة مباشرة داخل شاشة المشاهدة */
+function PreviewHost({ canvas }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const host = ref.current;
+    if (!host || !canvas) return;
+    canvas.style.maxWidth = '100%';
+    canvas.style.maxHeight = '100%';
+    canvas.style.width = 'auto';
+    canvas.style.height = 'auto';
+    canvas.style.objectFit = 'contain';
+    canvas.style.boxShadow = '0 30px 100px rgba(0,0,0,.9)';
+    host.appendChild(canvas);
+    return () => {
+      if (canvas.parentNode === host) host.removeChild(canvas);
+    };
+  }, [canvas]);
+  return <div ref={ref} className="grid h-full w-full place-items-center [&>canvas]:max-h-full [&>canvas]:max-w-full" />;
+}
+
 function App() {
   const canvasRef = useRef(null);
   const openRef = useRef(null);
@@ -6589,6 +7057,7 @@ function App() {
     }
   });
   const [panelOpen, setPanelOpen] = useState(false);
+  const [panelTall, setPanelTall] = useState(false);
   const [multiSelect, setMultiSelect] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -7033,19 +7502,16 @@ function App() {
   };
 
   // ── المشاهدة: عرض التصميم كاملاً بدون أدوات ──
-  const openPreview = async () => {
+  const openPreview = () => {
     try {
-      await document.fonts.ready;
-      const blob = await canvasRef.current.exportPNG(1);
-      setPreviewUrl(URL.createObjectURL(blob));
+      // دقة تناسب الشاشة فقط — تظهر فوراً
+      const ratio = Math.min(1.5, Math.max(0.5, (window.innerHeight * (window.devicePixelRatio || 1)) / COVER_H));
+      setPreviewUrl(canvasRef.current.previewCanvas(ratio));
     } catch (err) {
       flash('تعذّر عرض التصميم', 'error');
     }
   };
-  const closePreview = () => {
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
-  };
+  const closePreview = () => setPreviewUrl(null);
 
   const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
   const zoomStep = (dir) => {
@@ -7104,10 +7570,13 @@ function App() {
         }}
       />
 
-      <div className="relative flex min-w-0 flex-1">
+      {/* الهاتف: التصميم في الأعلى ولوحة التعديل أسفله — الحاسوب: اللوحة بجانب التصميم */}
+      <div className="relative flex min-w-0 flex-1 flex-col-reverse lg:flex-row">
         <ControlPanel
           open={panelOpen}
           onClose={() => setPanelOpen(false)}
+          tall={panelTall}
+          onToggleTall={() => setPanelTall((v) => !v)}
           texts={doc.texts}
           onChangeText={updateText}
           images={doc.images}
@@ -7217,8 +7686,7 @@ function App() {
             </button>
           </div>
           <div className="grid min-h-0 flex-1 place-items-center p-3">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewUrl} alt="معاينة الغلاف" className="max-h-full max-w-full object-contain shadow-[0_30px_100px_rgba(0,0,0,.9)]" />
+            <PreviewHost canvas={previewUrl} />
           </div>
         </div>
       )}

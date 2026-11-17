@@ -92,7 +92,11 @@ input[type='color'].swatch::-webkit-color-swatch {
     #070605;
 }
 </style>
-<script>window.__LOCAL_FONTS__ = true;</script>
+<script>
+  window.__LOCAL_FONTS__ = true;
+  // محرك إزالة الخلفية المدمج داخل التطبيق
+  window.__LOCAL_IMGLY_PATH__ = new URL('imgly/', location.href).href;
+</script>
 </head>
 <body class="font-ui antialiased">
 <div id="root">

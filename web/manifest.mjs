@@ -11,7 +11,7 @@ const walk = (d) => {
     if (e.isDirectory()) walk(p);
     else {
       const rel = path.relative(dir, p).split(path.sep).join('/');
-      if (rel === 'version.json') continue;
+      if (rel === 'version.json' || rel.startsWith('imgly/')) continue; // المحرك ثابت داخل التطبيق
       files[rel] = createHash('sha256').update(fs.readFileSync(p)).digest('hex');
     }
   }

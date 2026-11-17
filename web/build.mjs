@@ -68,7 +68,36 @@ for (const f of fonts) {
 writeFileSync(`${out}/fonts.css`, css);
 console.log(`✓ fonts: ${count} font faces`);
 
-// ── 3) مكتبة إزالة الخلفية ──
+// ── 3) محرك إزالة الخلفية داخل التطبيق: نموذج isnet_fp16 + ملفات onnxruntime ──
+try {
+  execSync('npm install --no-save --no-audit --no-fund @imgly/background-removal-data@1.5.5', { stdio: 'inherit' });
+  const dist = 'node_modules/@imgly/background-removal-data/dist';
+  const res = JSON.parse(readFileSync(path.join(dist, 'resources.json'), 'utf8'));
+  const keep = {};
+  for (const [key, val] of Object.entries(res)) {
+    if (key === '/models/isnet_fp16' || key.startsWith('/onnxruntime-web/')) keep[key] = val;
+  }
+  const imglyDir = `${out}/imgly`;
+  if (existsSync(imglyDir)) rmSync(imglyDir, { recursive: true });
+  mkdirSync(imglyDir, { recursive: true });
+  let copied = 0, bytes = 0;
+  const copyRef = (v) => {
+    if (typeof v === 'string' && v.length > 8 && existsSync(path.join(dist, v)) && !v.includes('/')) {
+      copyFileSync(path.join(dist, v), path.join(imglyDir, v));
+      copied++;
+      bytes += readFileSync(path.join(dist, v)).length;
+    } else if (v && typeof v === 'object') {
+      Object.values(v).forEach(copyRef);
+    }
+  };
+  copyRef(keep);
+  writeFileSync(path.join(imglyDir, 'resources.json'), JSON.stringify(keep));
+  console.log(`✓ background-removal engine bundled: ${copied} files, ${(bytes / 1048576).toFixed(1)} MB`);
+} catch (e) {
+  console.warn('⚠ تعذّر دمج محرك القص — سيُنزَّل من الإنترنت عند أول استخدام:', e.message);
+}
+
+// ── 4) مكتبة إزالة الخلفية ──
 try {
   await esbuild.build({
     entryPoints: ['src/imgly-entry.js'],
