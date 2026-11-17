@@ -73,6 +73,7 @@ jobs:
         run: |
           rm -rf /tmp/webupd && mkdir -p /tmp/webupd
           cp -r app/src/main/assets/. /tmp/webupd/
+          rm -rf /tmp/webupd/imgly
           cd /tmp/webupd
           git init -q
           git checkout -q -b web-update
