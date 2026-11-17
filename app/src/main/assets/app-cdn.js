@@ -13,7 +13,7 @@ const EXPORT_PIXEL_RATIO = 2;
 // دقة توليد طبقات المؤثرات (أعلى من 1 لتبقى حادة عند التصدير)
 const OVERLAY_SCALE = 1.5;
 // ===== lib/palettes.js =====
-// 17 نمطاً لونياً داكناً وترابياً.
+// أنماط لونية داكنة وترابية وفاتحة.
 // colors: [اللون الأساسي, لون الإضاءة, لون الأطراف]
 // type: linear تدرّج قُطري | radial تدرّج دائري من المنتصف
 const PALETTES = [
@@ -34,14 +34,47 @@ const PALETTES = [
     { id: 'rust', name: 'صدأ', type: 'radial', colors: ['#2e140a', '#843a16', '#0f0603'] },
     { id: 'slate', name: 'حجر الإردواز', type: 'linear', colors: ['#1c1f22', '#40464c', '#0a0b0c'] },
     { id: 'night-dunes', name: 'كثبان الليل', type: 'radial', colors: ['#1e1812', '#4f3e2b', '#080604'] },
+    // ── أنماط إضافية: spot = بقعة ضوء من الأعلى، horizon = أفق، corner = ضوء من الزاوية ──
+    { id: 'royal-navy', name: 'كحلي ملكي', type: 'spot', colors: ['#0a1a33', '#2c5a9e', '#030812'] },
+    { id: 'emerald-night', name: 'زمرّد الليل', type: 'spot', colors: ['#06261c', '#1f7a5a', '#020d09'] },
+    { id: 'ruby', name: 'ياقوتي', type: 'spot', colors: ['#3a0612', '#a3182f', '#12020a'] },
+    { id: 'sapphire', name: 'ياقوت أزرق', type: 'radial', colors: ['#0b1c4a', '#2e5bd6', '#040a1c'] },
+    { id: 'teal-depth', name: 'فيروزي عميق', type: 'radial', colors: ['#06303a', '#1b8a9c', '#021216'] },
+    { id: 'plum', name: 'برقوقي', type: 'linear', colors: ['#2a0f2e', '#6b2a6e', '#0f0412'] },
+    { id: 'mocha', name: 'موكا', type: 'spot', colors: ['#2b1b14', '#7a5440', '#0f0905'] },
+    { id: 'gunmetal', name: 'رصاصي معدني', type: 'corner', colors: ['#1a1d21', '#5b636c', '#08090a'] },
+    { id: 'bronze-light', name: 'ضوء برونزي', type: 'corner', colors: ['#2a1a0e', '#b07a3a', '#0c0703'] },
+    { id: 'crimson-dusk', name: 'غسق قرمزي', type: 'horizon', colors: ['#1a0612', '#c0392b', '#3a0d10'] },
+    { id: 'desert-gold', name: 'ذهب الصحراء', type: 'horizon', colors: ['#2a1608', '#e0a040', '#5a3412'] },
+    { id: 'arctic', name: 'قطبي', type: 'horizon', colors: ['#0c1a2a', '#8fb8d8', '#1d3348'] },
+    { id: 'forest-dawn', name: 'فجر الغابة', type: 'horizon', colors: ['#0d1f14', '#7aa35a', '#16301e'] },
+    { id: 'ink-blue', name: 'حبر أزرق', type: 'linear', colors: ['#0a1530', '#203f7a', '#040915'] },
+    { id: 'olive-gold', name: 'زيتون وذهب', type: 'corner', colors: ['#1f2210', '#9a8a3a', '#0a0b05'] },
+    { id: 'smoke-gray', name: 'رمادي دخاني', type: 'spot', colors: ['#1e1e20', '#6a6a70', '#0a0a0b'] },
+    { id: 'sunset-pink', name: 'غروب وردي', type: 'horizon', colors: ['#24102e', '#e46a8a', '#3a1630'] },
+    { id: 'midnight-teal', name: 'منتصف الليل', type: 'corner', colors: ['#071a1f', '#2a7c86', '#020a0c'] },
+    { id: 'ivory', name: 'عاجي فاتح', type: 'radial', colors: ['#e9e2d4', '#fbf8f1', '#cfc4b0'] },
+    { id: 'sand-light', name: 'رملي فاتح', type: 'linear', colors: ['#d9c7a5', '#efe3c8', '#b8a07a'] },
+    { id: 'sky-light', name: 'سماء صافية', type: 'horizon', colors: ['#2f6fb5', '#cfe6f7', '#7fb2dc'] },
+    { id: 'mint-light', name: 'نعناعي', type: 'radial', colors: ['#bfe3d0', '#eefaf3', '#8cc7aa'] },
+    { id: 'peach', name: 'خوخي', type: 'linear', colors: ['#f2b08c', '#ffe0cc', '#e08060'] },
 ];
 const getPalette = (id, custom) => id === 'custom' && custom ? { id: 'custom', ...custom } : PALETTES.find((p) => p.id === id) || PALETTES[0];
 // CSS مطابق لتدرّج الكانفاس — لعرض المعاينات الصغيرة في لوحة التحكم
 function paletteToCss(p) {
     const [a, b, c] = p.colors;
-    return p.type === 'radial'
-        ? `radial-gradient(circle at 50% 40%, ${b} 0%, ${a} 55%, ${c} 100%)`
-        : `linear-gradient(165deg, ${b} 0%, ${a} 50%, ${c} 100%)`;
+    switch (p.type) {
+        case 'radial':
+            return `radial-gradient(circle at 50% 40%, ${b} 0%, ${a} 55%, ${c} 100%)`;
+        case 'spot':
+            return `radial-gradient(ellipse at 50% 8%, ${b} 0%, ${a} 45%, ${c} 100%)`;
+        case 'corner':
+            return `radial-gradient(circle at 95% 5%, ${b} 0%, ${a} 50%, ${c} 100%)`;
+        case 'horizon':
+            return `linear-gradient(180deg, ${a} 0%, ${b} 62%, ${c} 100%)`;
+        default:
+            return `linear-gradient(165deg, ${b} 0%, ${a} 50%, ${c} 100%)`;
+    }
 }
 // ===== lib/fonts.js =====
 // ─────────────────────────────────────────────────────────────
@@ -2508,6 +2541,182 @@ const TEMPLATES = [
         layers: { stars: 0.6, bokeh: 0.4 },
         textAboveLayers: true,
     },
+    // ── الإصدار 2.3: قوالب على خلفيات جاهزة وأنماط جديدة ──
+    {
+        id: 'scene-mountains', category: 'novel', name: 'جبال الغروب', sample: 'الطريق إلى القمة',
+        paletteId: 'crimson-dusk', background: { scene: 'mountains', dim: 0.1 },
+        title: { font: 'El Messiri', weight: 700, size: 130, color: '#fff3e0', effect: 'none', y: 150, shadow: true },
+        subtitle: { font: 'Tajawal', weight: 500, size: 44, color: '#ffe2c4', y: 1300 },
+        layers: { grain: 0.2, flare: 0.35 },
+    },
+    {
+        id: 'scene-dunes', category: 'poetry', name: 'كثبان القمر', sample: 'ليالي الصحراء',
+        paletteId: 'night-dunes', background: { scene: 'dunes', dim: 0.05 },
+        title: { font: 'Aref Ruqaa', weight: 700, size: 140, color: '#f3ead2', effect: 'glow', glowColor: '#c9b98a', y: 470, shadow: false },
+        subtitle: { font: 'Amiri', weight: 400, size: 46, color: '#e6dcc0', y: 1300 },
+        shapes: [{ kind: 'flourish', x: 500, y: 700, width: 440, height: 70, fill: '#f3ead2', stroke: '#f3ead2', opacity: 0.85 }],
+        layers: { grain: 0.2 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'scene-city', category: 'novel', name: 'أضواء المدينة', sample: 'مدينة لا تنام',
+        paletteId: 'ink-blue', background: { scene: 'city', dim: 0.1 },
+        title: { font: 'Changa', weight: 800, size: 140, color: '#ffffff', glowColor: '#ff7a3d', effect: 'neon', y: 140, shadow: false },
+        subtitle: { font: 'Readex Pro', weight: 400, size: 42, color: '#ffd9b8', y: 520 },
+        layers: { rain: 0.4, bokeh: 0.35, grain: 0.2 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'scene-sea', category: 'novel', name: 'البحر الهائج', sample: 'رحلة السفينة',
+        paletteId: 'steel-blue', background: { scene: 'sea', dim: 0.1 },
+        title: { font: 'Lalezar', weight: 400, size: 150, color: '#e9f2f7', color2: '#0b1621', effect: 'extrude', y: 150, shadow: false },
+        subtitle: { font: 'Cairo', weight: 700, size: 42, color: '#d6e4ee', y: 1300 },
+        layers: { lightning: 0.6, rain: 0.5, vignette: 0.6 },
+        grade: 'cold', gradeAmount: 0.4,
+        textAboveLayers: true,
+    },
+    {
+        id: 'scene-forest', category: 'horror', name: 'الغابة الصامتة', sample: 'الغابة الصامتة',
+        paletteId: 'smoke-gray', background: { scene: 'forest', dim: 0.2 },
+        title: { font: 'Blaka', weight: 400, size: 160, color: '#1a2422', effect: 'none', y: 140, shadow: false },
+        subtitle: { font: 'Tajawal', weight: 700, size: 42, color: '#1a2422', y: 1320, shadow: false },
+        layers: { groundfog: 0.6, grain: 0.35, vignette: 0.5 },
+        grade: 'noir', gradeAmount: 0.4,
+    },
+    {
+        id: 'scene-galaxy', category: 'novel', name: 'المجرّة', sample: 'ما وراء النجوم',
+        paletteId: 'night-violet', background: { scene: 'galaxy', dim: 0 },
+        title: { font: 'Kufam', weight: 900, size: 140, color: '#ffffff', color2: '#b49bff', effect: 'gradient', y: 160, shadow: true },
+        subtitle: { font: 'Readex Pro', weight: 400, size: 42, color: '#d6ccff', y: 1300 },
+        shapes: [{ kind: 'ring', x: 500, y: 760, width: 560, height: 560, stroke: '#b49bff', strokeWidth: 2, opacity: 0.6 }],
+        layers: { sparkles: 0.4, flare: 0.3 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'scene-mosques', category: 'religious', name: 'مآذن الغروب', sample: 'نفحات إيمانية',
+        paletteId: 'desert-gold', background: { scene: 'mosques', dim: 0.05 },
+        title: { font: 'Aref Ruqaa', weight: 700, size: 140, effect: 'gold', y: 150, shadow: true },
+        subtitle: { font: 'Scheherazade New', weight: 700, size: 50, color: '#fff1d6', y: 470 },
+        shapes: [{ kind: 'starDivider', x: 500, y: 420, width: 420, height: 50, fill: '#f0d27a', stroke: '#f0d27a' }],
+        layers: { rays: 0.3, grain: 0.15 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'scene-oldcity', category: 'history', name: 'المدينة القديمة', sample: 'أسوار دمشق',
+        paletteId: 'royal-navy', background: { scene: 'oldcity', dim: 0.05 },
+        title: { font: 'Qahiri', weight: 400, size: 150, color: '#efe3c3', effect: 'engraved', y: 1060, shadow: false },
+        subtitle: { font: 'Amiri', weight: 700, size: 46, color: '#efe3c3', y: 1290 },
+        layers: { stars: 0.4, grain: 0.25 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'scene-marble', category: 'essay', name: 'الرخام الأسود', sample: 'فلسفة الجمال',
+        paletteId: 'charcoal-gold', background: { scene: 'marble', dim: 0 },
+        title: { font: 'Noto Kufi Arabic', weight: 900, size: 120, effect: 'gold', y: 230, shadow: true },
+        subtitle: { font: 'Noto Kufi Arabic', weight: 400, size: 40, color: '#d8d2c4', y: 1300 },
+        shapes: [
+            { kind: 'doubleFrame', x: 500, y: 750, width: 860, height: 1360, stroke: '#d4af6a', strokeWidth: 2 },
+            { kind: 'line', x: 500, y: 480, width: 220, height: 20, stroke: '#d4af6a', strokeWidth: 3 },
+        ],
+        layers: { vignette: 0.4 },
+    },
+    {
+        id: 'scene-goldmarble', category: 'selfdev', name: 'رخام فاخر', sample: 'عادات الأثرياء',
+        paletteId: 'ivory', background: { scene: 'goldMarble', dim: 0 },
+        title: { font: 'Mada', weight: 900, size: 140, color: '#1a1714', effect: 'none', y: 220, shadow: false },
+        subtitle: { font: 'Mada', weight: 400, size: 44, color: '#4a453e', y: 1300, shadow: false },
+        shapes: [{ kind: 'rect', x: 500, y: 520, width: 160, height: 10, fill: '#b8914a' }],
+        layers: {},
+    },
+    {
+        id: 'scene-wood', category: 'history', name: 'الخشب العتيق', sample: 'حكايات الأجداد',
+        paletteId: 'coffee', background: { scene: 'wood', dim: 0.1 },
+        title: { font: 'Aref Ruqaa Ink', weight: 700, size: 140, color: '#f2dcb0', effect: 'engraved', y: 200, shadow: false },
+        subtitle: { font: 'Amiri', weight: 400, size: 48, color: '#e8cfa0', y: 1260 },
+        shapes: [{ kind: 'scroll', x: 500, y: 290, width: 860, height: 230, fill: '#c9a974', stroke: '#5a3a18', strokeWidth: 3 }],
+        layers: { vignette: 0.6, grain: 0.25 },
+    },
+    {
+        id: 'scene-leather', category: 'religious', name: 'الجلد المذهّب', sample: 'صحيح الأحاديث',
+        paletteId: 'burnt-clay', background: { scene: 'leather', dim: 0 },
+        title: { font: 'Amiri Quran', weight: 400, size: 130, effect: 'gold', y: 260, shadow: true },
+        subtitle: { font: 'Amiri', weight: 700, size: 48, color: '#e8c58a', y: 1220 },
+        shapes: [
+            { kind: 'rosette', x: 500, y: 760, width: 360, height: 360, stroke: '#d4af6a', strokeWidth: 4 },
+            { kind: 'corner', x: 140, y: 140, width: 120, height: 120, fill: '#d4af6a', stroke: '#d4af6a', rotation: 0 },
+            { kind: 'corner', x: 860, y: 140, width: 120, height: 120, fill: '#d4af6a', stroke: '#d4af6a', rotation: 90 },
+            { kind: 'corner', x: 860, y: 1360, width: 120, height: 120, fill: '#d4af6a', stroke: '#d4af6a', rotation: 180 },
+            { kind: 'corner', x: 140, y: 1360, width: 120, height: 120, fill: '#d4af6a', stroke: '#d4af6a', rotation: 270 },
+        ],
+        layers: {},
+    },
+    {
+        id: 'scene-tiles', category: 'religious', name: 'البلاط الأندلسي', sample: 'أيام الأندلس',
+        paletteId: 'teal-depth', background: { scene: 'tiles', dim: 0.35 },
+        title: { font: 'Reem Kufi', weight: 700, size: 130, color: '#ffffff', effect: 'none', bg: 'box', bgColor: '#0d3b4a', bgOpacity: 0.92, bgPadding: 30, bgRadius: 6, y: 250, shadow: false },
+        subtitle: { font: 'El Messiri', weight: 700, size: 46, color: '#ffffff', bg: 'box', bgColor: '#9c2f2f', bgOpacity: 1, bgPadding: 14, y: 520 },
+        layers: { vignette: 0.5 },
+    },
+    {
+        id: 'scene-hex', category: 'selfdev', name: 'الشبكة الذكية', sample: 'عقلية التقنية',
+        paletteId: 'midnight-teal', background: { scene: 'hexagons', dim: 0 },
+        title: { font: 'IBM Plex Sans Arabic', weight: 700, size: 130, color: '#ffffff', glowColor: '#4fd1ff', effect: 'glow', y: 200, shadow: false },
+        subtitle: { font: 'IBM Plex Sans Arabic', weight: 400, size: 40, color: '#a8d8ea', y: 1300 },
+        layers: { scanlines: 0.2, grain: 0.15 },
+    },
+    {
+        id: 'scene-watercolor', category: 'kids', name: 'الألوان المائية', sample: 'فراشة في الحديقة',
+        paletteId: 'ivory', background: { scene: 'watercolor', dim: 0 },
+        title: { font: 'Lemonada', weight: 700, size: 110, color: '#5a2a6e', effect: 'none', y: 200, shadow: false },
+        subtitle: { font: 'Baloo Bhaijaan 2', weight: 700, size: 46, color: '#5a2a6e', y: 1300, shadow: false },
+        shapes: [{ kind: 'flower', x: 820, y: 1120, width: 150, height: 150, fill: '#e46a8a', opacity: 0.9 }],
+        layers: {},
+    },
+    {
+        id: 'scene-mesh', category: 'selfdev', name: 'التدرّج العصري', sample: 'ابدأ بنفسك',
+        paletteId: 'plum', background: { scene: 'mesh', dim: 0 },
+        title: { font: 'Readex Pro', weight: 700, size: 150, color: '#ffffff', effect: 'none', y: 220, shadow: true },
+        subtitle: { font: 'Readex Pro', weight: 400, size: 44, color: '#ffffff', y: 1300 },
+        shapes: [{ kind: 'roundFrame', x: 500, y: 330, width: 820, height: 330, stroke: '#ffffff', strokeWidth: 3, opacity: 0.7 }],
+        layers: { grain: 0.2 },
+    },
+    {
+        id: 'scene-waves', category: 'essay', name: 'الأمواج الذهبية', sample: 'تأملات بحرية',
+        paletteId: 'sapphire', background: { scene: 'abstractWaves', dim: 0 },
+        title: { font: 'Markazi Text', weight: 700, size: 150, color: '#f0dfb5', effect: 'none', y: 200, shadow: true },
+        subtitle: { font: 'Markazi Text', weight: 400, size: 50, color: '#d9c58c', y: 470 },
+        layers: { grain: 0.15 },
+    },
+    {
+        id: 'scene-velvet', category: 'poetry', name: 'المخمل الأحمر', sample: 'رسائل الحب',
+        paletteId: 'ruby', background: { scene: 'velvet', dim: 0 },
+        title: { font: 'Noto Nastaliq Urdu', weight: 700, size: 104, effect: 'gold', y: 300, shadow: true, lineHeight: 1.6 },
+        subtitle: { font: 'Markazi Text', weight: 400, size: 48, color: '#f0d6c0', y: 1290 },
+        shapes: [
+            { kind: 'heart', x: 500, y: 820, width: 160, height: 150, fill: '#d4af6a', opacity: 0.85 },
+            { kind: 'flourish', x: 500, y: 650, width: 420, height: 70, fill: '#d4af6a', stroke: '#d4af6a' },
+        ],
+        layers: { sparkles: 0.35, vignette: 0.5 },
+    },
+    {
+        id: 'spot-royal', category: 'history', name: 'الإضاءة الملكية', sample: 'سيرة السلاطين',
+        paletteId: 'royal-navy',
+        title: { font: 'Amiri', weight: 700, size: 150, effect: 'silver', y: 170, shadow: true },
+        subtitle: { font: 'El Messiri', weight: 400, size: 46, color: '#c9d6ec', y: 1270 },
+        shapes: [
+            { kind: 'ornateFrame', x: 500, y: 750, width: 840, height: 1340, stroke: '#c9d6ec', fill: '#c9d6ec', strokeWidth: 2 },
+            { kind: 'star8', x: 500, y: 760, width: 140, height: 140, fill: '#c9d6ec', opacity: 0.8 },
+        ],
+        layers: { rays: 0.35, grain: 0.2 },
+    },
+    {
+        id: 'horizon-dawn', category: 'selfdev', name: 'فجر جديد', sample: 'غداً أجمل',
+        paletteId: 'sunset-pink',
+        title: { font: 'Marhey', weight: 700, size: 150, color: '#ffffff', effect: 'none', y: 230, shadow: true },
+        subtitle: { font: 'Tajawal', weight: 500, size: 44, color: '#ffe6ee', y: 1300 },
+        shapes: [{ kind: 'sun', x: 500, y: 920, width: 360, height: 360, fill: '#ffd1a8', opacity: 0.9, behind: true }],
+        layers: { sunburst: 0.3, grain: 0.15 },
+    },
 ];
 const STYLE_RESET = { effect: 'none', bg: 'none', secondColor: '', rotation: 0, letterSpacing: 0 };
 /** تطبيق القالب على المستند مع الاحتفاظ بنص المستخدم وصوره */
@@ -2533,6 +2742,22 @@ function applyTemplateToDoc(doc, tpl) {
             ...(doc.shapes || []).filter((sh) => !sh.fromTemplate),
             ...(tpl.shapes || []).map((sp) => createShape(sp.kind, { ...sp, fromTemplate: true })),
         ],
+        background: tpl.background
+            ? {
+                src: getSceneUrl(tpl.background.scene),
+                scene: tpl.background.scene,
+                scale: 1,
+                offsetX: 0,
+                offsetY: 0,
+                opacity: 1,
+                dim: tpl.background.dim ?? 0.12,
+                paletteMix: tpl.background.paletteMix ?? 0,
+                blend: tpl.background.blend || 'soft-light',
+                fromTemplate: true,
+            }
+            : doc.background?.fromTemplate
+                ? null
+                : doc.background,
         images: tpl.imageStyle
             ? doc.images.map((img) => ({ ...img, ...tpl.imageStyle, backdrop: { ...(img.backdrop || {}), ...(tpl.imageStyle.backdrop || {}) } }))
             : doc.images,
@@ -3630,6 +3855,534 @@ function createShape(kind, overrides = {}) {
     };
 }
 const TRANSPARENT = D_NONE;
+// ===== lib/scenes.js =====
+// ─────────────────────────────────────────────────────────────
+// خلفيات جاهزة مرسومة برمجياً (مشاهد وأنسجة) — بدون صور خارجية
+// كل مشهد يُرسم بأي مقاس (معاينة صغيرة أو 1000×1500 للغلاف)
+// ─────────────────────────────────────────────────────────────
+function sceneRng(seed) {
+    let a = seed >>> 0;
+    return () => {
+        a = (a + 0x6d2b79f5) >>> 0;
+        let t = a;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+const S_TAU = Math.PI * 2;
+function vGrad(ctx, w, h, stops, y0 = 0, y1 = h) {
+    const g = ctx.createLinearGradient(0, y0, 0, y1);
+    stops.forEach(([o, c]) => g.addColorStop(o, c));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+}
+function glow(ctx, x, y, r, color) {
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, color);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, S_TAU);
+    ctx.fill();
+}
+/** سلسلة جبال/كثبان: خط أفق متعرّج مملوء حتى الأسفل */
+function ridge(ctx, w, h, baseY, amp, rough, color, r, smooth = false) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    const n = smooth ? 6 : 40;
+    let y = baseY;
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+        y = baseY + (r() - 0.5) * amp + Math.sin(i * rough) * amp * 0.35;
+        pts.push([(w * i) / n, y]);
+    }
+    ctx.lineTo(pts[0][0], pts[0][1]);
+    if (smooth) {
+        for (let i = 1; i < pts.length; i++) {
+            const [px, py] = pts[i - 1], [x, yy] = pts[i];
+            ctx.quadraticCurveTo(px + (x - px) * 0.5, py, (px + x) / 2, (py + yy) / 2);
+        }
+        ctx.lineTo(w, pts[pts.length - 1][1]);
+    }
+    else {
+        pts.forEach(([x, yy]) => ctx.lineTo(x, yy));
+    }
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    ctx.fill();
+}
+function stars(ctx, w, h, r, count, maxY) {
+    for (let i = 0; i < count; i++) {
+        const s = r();
+        ctx.fillStyle = `rgba(255,250,235,${0.3 + s * 0.7})`;
+        ctx.beginPath();
+        ctx.arc(r() * w, r() * maxY, (0.4 + s * s * 1.6) * (w / 1000), 0, S_TAU);
+        ctx.fill();
+    }
+}
+function moon(ctx, x, y, R, color = '#f3ead2') {
+    glow(ctx, x, y, R * 3.2, 'rgba(255,240,210,0.25)');
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, R, 0, S_TAU);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(150,140,120,0.18)';
+    [[-0.3, -0.2, 0.22], [0.25, 0.1, 0.16], [-0.05, 0.35, 0.12]].forEach(([dx, dy, rr]) => {
+        ctx.beginPath();
+        ctx.arc(x + dx * R, y + dy * R, rr * R, 0, S_TAU);
+        ctx.fill();
+    });
+}
+const SCENES = [
+    {
+        id: 'mountains', label: 'جبال الغروب',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#1b1030'], [0.35, '#6b2c4a'], [0.55, '#e0794a'], [0.7, '#f3b36a']]);
+            glow(ctx, w * 0.5, h * 0.62, w * 0.35, 'rgba(255,200,120,0.7)');
+            ridge(ctx, w, h, h * 0.6, h * 0.08, 0.7, '#5a2a45', r);
+            ridge(ctx, w, h, h * 0.68, h * 0.07, 1.1, '#3a1a33', r);
+            ridge(ctx, w, h, h * 0.76, h * 0.06, 1.7, '#22101f', r);
+            ridge(ctx, w, h, h * 0.86, h * 0.04, 2.3, '#120810', r);
+        },
+    },
+    {
+        id: 'dunes', label: 'كثبان تحت القمر',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#070b1a'], [0.5, '#1c2547'], [0.75, '#3b3a5a']]);
+            stars(ctx, w, h, r, 500, h * 0.55);
+            moon(ctx, w * 0.7, h * 0.2, w * 0.09);
+            ridge(ctx, w, h, h * 0.66, h * 0.1, 0.8, '#5a4636', r, true);
+            ridge(ctx, w, h, h * 0.75, h * 0.08, 1.3, '#3d2e22', r, true);
+            ridge(ctx, w, h, h * 0.86, h * 0.06, 1.9, '#211810', r, true);
+        },
+    },
+    {
+        id: 'city', label: 'مدينة ليلية',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#05070f'], [0.6, '#16203d'], [0.85, '#3b2a4a']]);
+            stars(ctx, w, h, r, 260, h * 0.45);
+            glow(ctx, w * 0.5, h * 0.85, w * 0.7, 'rgba(255,140,80,0.25)');
+            for (let layer = 0; layer < 3; layer++) {
+                const shade = ['#141a2e', '#0d1122', '#070912'][layer];
+                let x = -20;
+                while (x < w) {
+                    const bw = (40 + r() * 90) * (w / 1000);
+                    const bh = h * (0.18 + r() * 0.32) * (1 - layer * 0.18);
+                    const top = h - bh - layer * h * 0.02;
+                    ctx.fillStyle = shade;
+                    ctx.fillRect(x, top, bw, h - top);
+                    if (layer > 0) {
+                        for (let wy = top + 10; wy < h - 10; wy += 14 * (w / 1000)) {
+                            for (let wx = x + 6; wx < x + bw - 6; wx += 11 * (w / 1000)) {
+                                if (r() < 0.32) {
+                                    ctx.fillStyle = r() < 0.8 ? 'rgba(255,210,140,0.85)' : 'rgba(160,210,255,0.8)';
+                                    ctx.fillRect(wx, wy, 4 * (w / 1000), 6 * (w / 1000));
+                                }
+                            }
+                        }
+                    }
+                    x += bw + 2;
+                }
+            }
+        },
+    },
+    {
+        id: 'sea', label: 'بحر هائج',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#0b1621'], [0.45, '#2a3e52'], [0.55, '#5d7387']]);
+            glow(ctx, w * 0.3, h * 0.3, w * 0.5, 'rgba(200,220,235,0.25)');
+            for (let i = 0; i < 9; i++) {
+                const y = h * (0.5 + i * 0.06);
+                const c = 40 - i * 3;
+                ctx.fillStyle = `rgb(${c - 20},${c + 15},${c + 30})`;
+                ctx.beginPath();
+                ctx.moveTo(0, h);
+                ctx.lineTo(0, y);
+                const n = 10;
+                for (let k = 0; k < n; k++) {
+                    const x0 = (w * k) / n, x1 = (w * (k + 1)) / n;
+                    ctx.quadraticCurveTo((x0 + x1) / 2, y - (20 + r() * 50) * (w / 1000) * (1 + i * 0.2), x1, y + (r() - 0.5) * 10);
+                }
+                ctx.lineTo(w, h);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(220,235,245,0.18)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        },
+    },
+    {
+        id: 'forest', label: 'غابة ضبابية',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#cfd6d4'], [0.5, '#8fa09c'], [1, '#2c3a36']]);
+            const tree = (x, base, th, color) => {
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                const tw = th * 0.32;
+                ctx.moveTo(x, base - th);
+                for (let k = 1; k <= 4; k++) {
+                    ctx.lineTo(x + (tw * k) / 4, base - th + (th * k) / 4.3);
+                    ctx.lineTo(x + (tw * k) / 8, base - th + (th * k) / 4.3);
+                }
+                ctx.lineTo(x + tw * 0.1, base);
+                ctx.lineTo(x - tw * 0.1, base);
+                for (let k = 4; k >= 1; k--) {
+                    ctx.lineTo(x - (tw * k) / 8, base - th + (th * k) / 4.3);
+                    ctx.lineTo(x - (tw * k) / 4, base - th + (th * k) / 4.3);
+                }
+                ctx.closePath();
+                ctx.fill();
+            };
+            const layers = ['rgba(110,128,124,0.6)', 'rgba(70,88,84,0.8)', '#2f3f3b', '#1a2422'];
+            layers.forEach((col, li) => {
+                const base = h * (0.62 + li * 0.11);
+                for (let i = 0; i < 18; i++)
+                    tree(r() * w * 1.1 - w * 0.05, base + r() * 20, h * (0.18 + li * 0.07) * (0.7 + r() * 0.6), col);
+                const g = ctx.createLinearGradient(0, base - h * 0.15, 0, base + h * 0.05);
+                g.addColorStop(0, 'rgba(210,218,216,0)');
+                g.addColorStop(1, 'rgba(210,218,216,0.35)');
+                ctx.fillStyle = g;
+                ctx.fillRect(0, base - h * 0.15, w, h * 0.2);
+            });
+        },
+    },
+    {
+        id: 'galaxy', label: 'مجرّة ونجوم',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#04030a'], [0.5, '#0d0a24'], [1, '#05030c']]);
+            ctx.save();
+            ctx.translate(w / 2, h * 0.45);
+            ctx.rotate(-0.6);
+            ctx.scale(1, 0.32);
+            glow(ctx, 0, 0, w * 0.75, 'rgba(120,90,200,0.35)');
+            glow(ctx, w * 0.1, 0, w * 0.45, 'rgba(230,140,200,0.25)');
+            glow(ctx, -w * 0.15, 0, w * 0.3, 'rgba(120,200,255,0.25)');
+            ctx.restore();
+            stars(ctx, w, h, r, 1600, h);
+            for (let i = 0; i < 25; i++)
+                glow(ctx, r() * w, r() * h, (6 + r() * 14) * (w / 1000), 'rgba(255,250,240,0.8)');
+        },
+    },
+    {
+        id: 'mosques', label: 'مآذن وقباب',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#0f1a33'], [0.45, '#3a3a6a'], [0.7, '#c9734a'], [0.8, '#f2b462']]);
+            glow(ctx, w * 0.5, h * 0.74, w * 0.45, 'rgba(255,190,110,0.6)');
+            moon(ctx, w * 0.78, h * 0.16, w * 0.05);
+            const base = h * 0.8, sil = '#120d14';
+            ctx.fillStyle = sil;
+            ctx.fillRect(0, base, w, h - base);
+            const dome = (cx, R) => {
+                ctx.beginPath();
+                ctx.moveTo(cx - R, base);
+                ctx.bezierCurveTo(cx - R * 1.1, base - R * 1.5, cx + R * 1.1, base - R * 1.5, cx + R, base);
+                ctx.fill();
+                ctx.fillRect(cx - R * 0.04, base - R * 1.45, R * 0.08, R * 0.3);
+            };
+            const minaret = (x, mh, mw) => {
+                ctx.fillRect(x - mw / 2, base - mh, mw, mh);
+                ctx.fillRect(x - mw * 0.8, base - mh * 0.7, mw * 1.6, mw * 0.35);
+                ctx.beginPath();
+                ctx.moveTo(x - mw * 0.6, base - mh);
+                ctx.lineTo(x, base - mh - mw * 2.2);
+                ctx.lineTo(x + mw * 0.6, base - mh);
+                ctx.fill();
+            };
+            const k = w / 1000;
+            dome(w * 0.5, 170 * k);
+            dome(w * 0.28, 90 * k);
+            dome(w * 0.72, 90 * k);
+            ctx.fillRect(w * 0.18, base - 70 * k, w * 0.64, 70 * k);
+            minaret(w * 0.12, 420 * k, 34 * k);
+            minaret(w * 0.88, 420 * k, 34 * k);
+            minaret(w * 0.36, 300 * k, 26 * k);
+            minaret(w * 0.64, 300 * k, 26 * k);
+            stars(ctx, w, h, r, 160, h * 0.4);
+        },
+    },
+    {
+        id: 'oldcity', label: 'قمر فوق مدينة قديمة',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#050913'], [0.6, '#1d2a3e'], [1, '#2b3346']]);
+            moon(ctx, w * 0.5, h * 0.33, w * 0.24, '#efe3c3');
+            stars(ctx, w, h, r, 300, h * 0.5);
+            const base = h * 0.83, k = w / 1000;
+            ctx.fillStyle = '#0a0d14';
+            let x = 0;
+            while (x < w) {
+                const bw = (60 + r() * 120) * k, bh = (90 + r() * 200) * k;
+                ctx.fillRect(x, base - bh, bw, h);
+                if (r() < 0.35) {
+                    ctx.beginPath();
+                    ctx.moveTo(x, base - bh);
+                    ctx.bezierCurveTo(x, base - bh - bw * 0.7, x + bw, base - bh - bw * 0.7, x + bw, base - bh);
+                    ctx.fill();
+                }
+                if (r() < 0.25)
+                    ctx.fillRect(x + bw * 0.4, base - bh - 120 * k, bw * 0.2, 120 * k);
+                x += bw;
+            }
+        },
+    },
+    {
+        id: 'marble', label: 'رخام أسود',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#141416'], [1, '#0a0a0b']]);
+            for (let i = 0; i < 40; i++)
+                glow(ctx, r() * w, r() * h, (100 + r() * 300) * (w / 1000), 'rgba(60,60,66,0.25)');
+            const vein = (alpha, width) => {
+                let x = r() * w, y = -20, a = Math.PI / 2 + (r() - 0.5);
+                ctx.strokeStyle = `rgba(220,215,200,${alpha})`;
+                ctx.lineWidth = width * (w / 1000);
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                while (y < h + 20 && x > -50 && x < w + 50) {
+                    a += (r() - 0.5) * 0.5;
+                    x += Math.cos(a) * 14 * (w / 1000);
+                    y += Math.abs(Math.sin(a)) * 14 * (w / 1000) + 2;
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            };
+            for (let i = 0; i < 8; i++)
+                vein(0.25 + r() * 0.3, 1 + r() * 2.5);
+            for (let i = 0; i < 16; i++)
+                vein(0.08 + r() * 0.12, 0.6);
+            for (let i = 0; i < 3; i++)
+                vein(0.35, 1.5);
+        },
+    },
+    {
+        id: 'goldMarble', label: 'رخام بعروق ذهبية',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#ece7df'], [1, '#d9d2c6']]);
+            for (let i = 0; i < 30; i++)
+                glow(ctx, r() * w, r() * h, (120 + r() * 280) * (w / 1000), 'rgba(180,170,160,0.18)');
+            const vein = (color, width) => {
+                let x = r() * w, y = -20, a = Math.PI / 2 + (r() - 0.5) * 1.2;
+                ctx.strokeStyle = color;
+                ctx.lineWidth = width * (w / 1000);
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                while (y < h + 20 && x > -60 && x < w + 60) {
+                    a += (r() - 0.5) * 0.45;
+                    x += Math.cos(a) * 16 * (w / 1000);
+                    y += Math.abs(Math.sin(a)) * 16 * (w / 1000) + 2;
+                    ctx.lineTo(x, y);
+                }
+                ctx.stroke();
+            };
+            for (let i = 0; i < 5; i++)
+                vein('rgba(196,150,60,0.85)', 2 + r() * 2.5);
+            for (let i = 0; i < 12; i++)
+                vein('rgba(120,110,100,0.25)', 0.8);
+        },
+    },
+    {
+        id: 'wood', label: 'خشب داكن',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#3a2414'], [1, '#24160c']]);
+            const k = w / 1000;
+            for (let i = 0; i < 160; i++) {
+                const x = r() * w;
+                ctx.strokeStyle = `rgba(${r() < 0.5 ? '20,10,4' : '110,70,40'},${0.1 + r() * 0.25})`;
+                ctx.lineWidth = (0.6 + r() * 2.5) * k;
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                for (let y = 0; y <= h; y += 40 * k)
+                    ctx.lineTo(x + Math.sin(y * 0.004 + i) * 14 * k + (r() - 0.5) * 3, y);
+                ctx.stroke();
+            }
+            for (let i = 0; i < 5; i++) {
+                const cx = r() * w, cy = r() * h;
+                for (let rr = 6; rr < 50; rr += 5) {
+                    ctx.strokeStyle = 'rgba(20,10,4,0.35)';
+                    ctx.lineWidth = 1.2 * k;
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy, rr * 0.5 * k, rr * 1.6 * k, 0, 0, S_TAU);
+                    ctx.stroke();
+                }
+            }
+            for (let px = w / 4; px < w; px += w / 4) {
+                ctx.fillStyle = 'rgba(0,0,0,0.45)';
+                ctx.fillRect(px, 0, 3 * k, h);
+            }
+        },
+    },
+    {
+        id: 'leather', label: 'جلد عتيق',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#5a2e1a'], [1, '#3a1c10']]);
+            for (let i = 0; i < 60; i++)
+                glow(ctx, r() * w, r() * h, (80 + r() * 200) * (w / 1000), `rgba(${r() < 0.5 ? '30,12,4' : '120,70,40'},0.2)`);
+            for (let i = 0; i < 9000 * (w / 1000) ** 2; i++) {
+                ctx.fillStyle = `rgba(0,0,0,${r() * 0.22})`;
+                ctx.fillRect(r() * w, r() * h, 1.5, 1.5);
+            }
+            const g = ctx.createRadialGradient(w / 2, h / 2, h * 0.25, w / 2, h / 2, h * 0.75);
+            g.addColorStop(0, 'rgba(0,0,0,0)');
+            g.addColorStop(1, 'rgba(0,0,0,0.6)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, 0, w, h);
+            const k = w / 1000;
+            ctx.strokeStyle = 'rgba(200,150,90,0.55)';
+            ctx.setLineDash([10 * k, 8 * k]);
+            ctx.lineWidth = 2 * k;
+            ctx.strokeRect(40 * k, 40 * k, w - 80 * k, h - 80 * k);
+            ctx.setLineDash([]);
+        },
+    },
+    {
+        id: 'tiles', label: 'بلاط إسلامي',
+        draw(ctx, w, h) {
+            ctx.fillStyle = '#0d3b4a';
+            ctx.fillRect(0, 0, w, h);
+            const cell = 125 * (w / 1000);
+            const star = (cx, cy, R, rot, fill) => {
+                ctx.beginPath();
+                for (let i = 0; i < 16; i++) {
+                    const a = rot + (i * Math.PI) / 8;
+                    const rr = i % 2 ? R * 0.62 : R;
+                    const x = cx + Math.cos(a) * rr, y = cy + Math.sin(a) * rr;
+                    i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+                }
+                ctx.closePath();
+                ctx.fillStyle = fill;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(240,230,200,0.85)';
+                ctx.lineWidth = 2 * (w / 1000);
+                ctx.stroke();
+            };
+            for (let y = 0; y <= h + cell; y += cell) {
+                for (let x = 0; x <= w + cell; x += cell) {
+                    star(x, y, cell * 0.46, Math.PI / 8, '#1d6f86');
+                    star(x, y, cell * 0.22, 0, '#e2b14f');
+                    ctx.fillStyle = '#9c2f2f';
+                    ctx.beginPath();
+                    ctx.arc(x + cell / 2, y + cell / 2, cell * 0.12, 0, S_TAU);
+                    ctx.fill();
+                }
+            }
+        },
+    },
+    {
+        id: 'hexagons', label: 'خلايا سداسية',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#0b0f14'], [1, '#141c26']]);
+            const R = 46 * (w / 1000), dx = R * Math.sqrt(3), dy = R * 1.5;
+            for (let row = -1, y = 0; y < h + R; row++, y = row * dy) {
+                for (let x = row % 2 ? dx / 2 : 0; x < w + dx; x += dx) {
+                    ctx.beginPath();
+                    for (let i = 0; i < 6; i++) {
+                        const a = Math.PI / 6 + (i * S_TAU) / 6;
+                        ctx.lineTo(x + Math.cos(a) * R * 0.92, y + Math.sin(a) * R * 0.92);
+                    }
+                    ctx.closePath();
+                    const lit = r();
+                    ctx.fillStyle = lit > 0.93 ? 'rgba(212,175,106,0.55)' : `rgba(40,60,80,${0.15 + lit * 0.25})`;
+                    ctx.fill();
+                    ctx.strokeStyle = 'rgba(120,160,200,0.18)';
+                    ctx.lineWidth = 1.2;
+                    ctx.stroke();
+                }
+            }
+            glow(ctx, w * 0.5, h * 0.45, w * 0.6, 'rgba(60,120,200,0.18)');
+        },
+    },
+    {
+        id: 'watercolor', label: 'ألوان مائية',
+        draw(ctx, w, h, r) {
+            ctx.fillStyle = '#f4efe6';
+            ctx.fillRect(0, 0, w, h);
+            const cols = ['200,90,110', '90,140,200', '230,170,80', '120,180,150', '160,110,200'];
+            for (let i = 0; i < 26; i++) {
+                const c = cols[Math.floor(r() * cols.length)];
+                const x = r() * w, y = r() * h, rad = (120 + r() * 260) * (w / 1000);
+                for (let k = 0; k < 5; k++)
+                    glow(ctx, x + (r() - 0.5) * rad * 0.5, y + (r() - 0.5) * rad * 0.5, rad * (0.6 + r() * 0.5), `rgba(${c},0.12)`);
+            }
+            for (let i = 0; i < 6000 * (w / 1000) ** 2; i++) {
+                ctx.fillStyle = `rgba(120,100,80,${r() * 0.08})`;
+                ctx.fillRect(r() * w, r() * h, 1.5, 1.5);
+            }
+        },
+    },
+    {
+        id: 'mesh', label: 'تدرّج عصري',
+        draw(ctx, w, h) {
+            ctx.fillStyle = '#120d2a';
+            ctx.fillRect(0, 0, w, h);
+            glow(ctx, w * 0.15, h * 0.2, w * 0.8, 'rgba(255,80,140,0.75)');
+            glow(ctx, w * 0.9, h * 0.35, w * 0.8, 'rgba(90,110,255,0.7)');
+            glow(ctx, w * 0.4, h * 0.85, w * 0.9, 'rgba(255,170,60,0.6)');
+            glow(ctx, w * 0.75, h * 0.95, w * 0.5, 'rgba(60,220,200,0.45)');
+        },
+    },
+    {
+        id: 'abstractWaves', label: 'أمواج تجريدية',
+        draw(ctx, w, h) {
+            vGrad(ctx, w, h, [[0, '#0b2140'], [1, '#04101f']]);
+            const cols = ['#103a6b', '#1a5590', '#2a74b5', '#d4af6a', '#f0dfb5'];
+            cols.forEach((c, i) => {
+                const y0 = h * (0.45 + i * 0.1);
+                ctx.fillStyle = c;
+                ctx.beginPath();
+                ctx.moveTo(0, h);
+                ctx.lineTo(0, y0);
+                ctx.bezierCurveTo(w * 0.3, y0 - h * 0.12, w * 0.6, y0 + h * 0.1, w, y0 - h * 0.05);
+                ctx.lineTo(w, h);
+                ctx.closePath();
+                ctx.globalAlpha = i >= 3 ? 0.9 : 0.85;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+        },
+    },
+    {
+        id: 'velvet', label: 'مخمل أحمر',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#3a0610'], [1, '#1a0207']]);
+            const k = w / 1000;
+            for (let i = 0; i < 14; i++) {
+                const x = (w * i) / 13 + (r() - 0.5) * 20;
+                const g = ctx.createLinearGradient(x - 40 * k, 0, x + 40 * k, 0);
+                g.addColorStop(0, 'rgba(0,0,0,0)');
+                g.addColorStop(0.5, `rgba(${150 + r() * 60},20,40,0.35)`);
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = g;
+                ctx.fillRect(x - 40 * k, 0, 80 * k, h);
+            }
+            glow(ctx, w * 0.5, h * 0.25, w * 0.6, 'rgba(255,190,120,0.18)');
+        },
+    },
+];
+const sceneCache = new Map();
+/** يرسم المشهد بدقة الغلاف ويعيده رابط صورة (يُخزَّن بعد أول مرة) */
+function getSceneUrl(id, W = 1000, H = 1500) {
+    const key = `${id}@${W}`;
+    if (sceneCache.has(key))
+        return sceneCache.get(key);
+    const scene = SCENES.find((s) => s.id === id);
+    if (!scene)
+        return null;
+    const c = document.createElement('canvas');
+    c.width = W;
+    c.height = H;
+    scene.draw(c.getContext('2d'), W, H, sceneRng([...id].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 11)));
+    const url = c.toDataURL('image/jpeg', 0.92);
+    sceneCache.set(key, url);
+    return url;
+}
+/** معاينة مصغّرة على canvas موجود */
+function drawScenePreview(canvas, id) {
+    const scene = SCENES.find((s) => s.id === id);
+    if (!scene)
+        return;
+    scene.draw(canvas.getContext('2d'), canvas.width, canvas.height, sceneRng([...id].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 11)));
+}
 // ===== hooks/useArabicFonts.js =====
 /**
  * يحمّل الخطوط الأساسية عند البدء، ويحمّل أي خط آخر عند استخدامه فقط (ensureFont).
@@ -3924,6 +4677,24 @@ function FontPicker({ value, onChange, sample = 'أبجد هوز' }) {
 // ===== components/CoverCanvas.jsx =====
 function paletteFill(palette) {
     const [base, light, edge] = palette.colors;
+    if (palette.type === 'spot' || palette.type === 'corner') {
+        const cx = palette.type === 'spot' ? COVER_W / 2 : COVER_W * 0.95;
+        const cy = palette.type === 'spot' ? COVER_H * 0.08 : COVER_H * 0.05;
+        return {
+            fillRadialGradientStartPoint: { x: cx, y: cy },
+            fillRadialGradientEndPoint: { x: cx, y: cy },
+            fillRadialGradientStartRadius: 0,
+            fillRadialGradientEndRadius: COVER_H * (palette.type === 'spot' ? 1.0 : 1.15),
+            fillRadialGradientColorStops: [0, light, 0.45, base, 1, edge],
+        };
+    }
+    if (palette.type === 'horizon') {
+        return {
+            fillLinearGradientStartPoint: { x: 0, y: 0 },
+            fillLinearGradientEndPoint: { x: 0, y: COVER_H },
+            fillLinearGradientColorStops: [0, base, 0.62, light, 1, edge],
+        };
+    }
     if (palette.type === 'radial') {
         return {
             fillRadialGradientStartPoint: { x: COVER_W / 2, y: COVER_H * 0.4 },
@@ -4242,6 +5013,15 @@ const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, shapes = []
 });
 // ===== components/tabs/TemplatesTab.jsx =====
 const GOLD_CSS = 'linear-gradient(180deg,#fff4c8 0%,#e6c46a 30%,#9c7426 50%,#f2d47c 62%,#b8892f 85%,#76531a 100%)';
+/** خلفية المشهد داخل بطاقة القالب */
+function TplScene({ id }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        if (ref.current)
+            drawScenePreview(ref.current, id);
+    }, [id]);
+    return React.createElement("canvas", { ref: ref, width: 90, height: 135, className: "pointer-events-none absolute inset-0 h-full w-full" });
+}
 function bgStyle(t) {
     switch (t.bg) {
         case 'bars':
@@ -4294,6 +5074,7 @@ function TemplatesTab({ onApplyTemplate, activeTemplateId }) {
             const category = TEMPLATE_CATEGORIES.find((c) => c.id === tpl.category)?.label;
             return (React.createElement("button", { key: tpl.id, type: "button", onClick: () => onApplyTemplate(tpl), className: `group overflow-hidden rounded-xl border text-right transition ${activeTemplateId === tpl.id ? 'border-gold-400 ring-2 ring-gold-400/30' : 'border-white/10 hover:border-gold-500/50'}` },
                 React.createElement("div", { className: "relative flex aspect-[2/3] flex-col items-center justify-between overflow-hidden px-2 py-4 text-center", style: { background: paletteToCss(palette), boxShadow: 'inset 0 0 50px rgba(0,0,0,.6)' } },
+                    tpl.background?.scene && React.createElement(TplScene, { id: tpl.background.scene }),
                     tpl.layers?.frame && React.createElement("div", { className: "pointer-events-none absolute inset-2 rounded-sm border border-gold-400/60" }),
                     tpl.layers?.thinframe && React.createElement("div", { className: "pointer-events-none absolute inset-2 border border-white/50" }),
                     tpl.layers?.torn && React.createElement("div", { className: "pointer-events-none absolute inset-0", style: { boxShadow: 'inset 0 0 0 5px #0a0908, inset 0 0 18px 8px rgba(0,0,0,.9)' } }),
@@ -4668,6 +5449,29 @@ const BLEND_OPTIONS = [
     { value: 'color', label: 'تلوين' },
     { value: 'source-over', label: 'عادي' },
 ];
+function ScenePreview({ id }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        if (ref.current)
+            drawScenePreview(ref.current, id);
+    }, [id]);
+    return React.createElement("canvas", { ref: ref, width: 100, height: 150, className: "aspect-[2/3] w-full" });
+}
+/** خلفيات جاهزة مرسومة داخل التطبيق — تعمل دون إنترنت */
+function SceneGallery({ onPick, activeScene }) {
+    const [busy, setBusy] = useState(null);
+    return (React.createElement(Section, { title: "\u062E\u0644\u0641\u064A\u0627\u062A \u062C\u0627\u0647\u0632\u0629", hint: "\u0645\u0634\u0627\u0647\u062F \u0648\u0623\u0646\u0633\u062C\u0629 \u0645\u0631\u0633\u0648\u0645\u0629 \u062F\u0627\u062E\u0644 \u0627\u0644\u062A\u0637\u0628\u064A\u0642 \u2014 \u062A\u0639\u0645\u0644 \u062F\u0648\u0646 \u0625\u0646\u062A\u0631\u0646\u062A" },
+        React.createElement("div", { className: "grid grid-cols-3 gap-2" }, SCENES.map((sc) => (React.createElement("button", { key: sc.id, type: "button", disabled: !!busy, onClick: () => {
+                setBusy(sc.id);
+                // نؤجل قليلاً ليظهر مؤشر التحميل قبل الرسم بدقة كاملة
+                setTimeout(() => {
+                    onPick(getSceneUrl(sc.id), sc.id);
+                    setBusy(null);
+                }, 30);
+            }, className: `overflow-hidden rounded-xl border text-right transition ${activeScene === sc.id ? 'border-gold-400 ring-2 ring-gold-400/30' : 'border-white/10 hover:border-white/30'} ${busy === sc.id ? 'animate-pulse' : ''}` },
+            React.createElement(ScenePreview, { id: sc.id }),
+            React.createElement("div", { className: "truncate bg-ink-900 px-2 py-1.5 text-[11px] text-stone-300" }, sc.label)))))));
+}
 function AIGenerator({ onResult }) {
     const [prompt, setPrompt] = useState('');
     const [enhance, setEnhance] = useState(true);
@@ -4702,6 +5506,7 @@ function PalettesTab({ paletteId, customPalette, onChangePalette, background, on
         ...PALETTES.map((p, i) => ({ value: p.id, label: `${i + 1}. ${p.name}` })),
     ];
     return (React.createElement(React.Fragment, null,
+        React.createElement(SceneGallery, { activeScene: background?.scene, onPick: (src, scene) => onSetBackground(src, { scene }) }),
         React.createElement(AIGenerator, { onResult: (src) => onSetBackground(src, { generated: true }) }),
         React.createElement(Section, { title: "\u0635\u0648\u0631\u0629 \u062E\u0644\u0641\u064A\u0629 \u0643\u0627\u0645\u0644\u0629", hint: "\u0627\u0631\u0641\u0639 \u0635\u0648\u0631\u0629 \u0644\u062A\u0645\u0644\u0623 \u0627\u0644\u063A\u0644\u0627\u0641 \u0628\u062F\u0644 \u0627\u0644\u062A\u062F\u0631\u0651\u062C \u0627\u0644\u0644\u0648\u0646\u064A" },
             React.createElement(UploadDrop, { onFile: (file) => onSetBackground(URL.createObjectURL(file)), title: background ? 'استبدال صورة الخلفية' : 'رفع صورة خلفية', subtitle: "JPG \u00B7 PNG \u00B7 WEBP" }),
@@ -4715,7 +5520,7 @@ function PalettesTab({ paletteId, customPalette, onChangePalette, background, on
                 React.createElement("div", { className: "grid grid-cols-2 gap-2" },
                     React.createElement(Button, { onClick: () => onSuggestColors(background.src), className: "text-[12px]" }, "\uD83C\uDFA8 \u0623\u0644\u0648\u0627\u0646 \u0645\u0646 \u0627\u0644\u062E\u0644\u0641\u064A\u0629"),
                     React.createElement(Button, { variant: "danger", onClick: onRemoveBackground, className: "text-[12px]" }, "\u0625\u0632\u0627\u0644\u0629 \u0627\u0644\u062E\u0644\u0641\u064A\u0629"))))),
-        React.createElement(Section, { title: "\u0627\u0644\u0646\u0645\u0637 \u0627\u0644\u0644\u0648\u0646\u064A", hint: "17 \u0646\u0645\u0637\u0627\u064B \u062F\u0627\u0643\u0646\u0627\u064B \u0648\u062A\u0631\u0627\u0628\u064A\u0627\u064B + \u0627\u0644\u0646\u0645\u0637 \u0627\u0644\u0645\u0642\u062A\u0631\u062D \u0645\u0646 \u0635\u0648\u0631\u0643" },
+        React.createElement(Section, { title: "\u0627\u0644\u0646\u0645\u0637 \u0627\u0644\u0644\u0648\u0646\u064A", hint: `${PALETTES.length} نمطاً لونياً + النمط المقترح من صورك` },
             React.createElement(SelectField, { value: paletteId, onChange: onChangePalette, options: options }),
             React.createElement("div", { className: "grid grid-cols-3 gap-2.5" },
                 customPalette && (React.createElement(PaletteCard, { palette: { id: 'custom', ...customPalette }, active: paletteId === 'custom', onClick: () => onChangePalette('custom'), star: true })),
@@ -5588,19 +6393,20 @@ function App() {
             background: {
                 src,
                 generated: !!meta.generated,
+                scene: meta.scene || null,
                 scale: 1,
                 offsetX: 0,
                 offsetY: 0,
                 opacity: 1,
-                dim: 0.3,
-                paletteMix: 0.3,
+                dim: meta.scene ? 0.12 : 0.3,
+                paletteMix: meta.scene ? 0 : 0.3,
                 blend: 'soft-light',
             },
         }));
-        if (autoColors && meta.suggest !== false)
+        if (autoColors && meta.suggest !== false && !meta.scene)
             suggestColors(src, { silent: true });
         if (!meta.quiet)
-            flash(meta.generated ? 'تم توليد الخلفية' : 'تمت إضافة صورة الخلفية');
+            flash(meta.generated ? 'تم توليد الخلفية' : meta.scene ? 'تم تطبيق الخلفية' : 'تمت إضافة صورة الخلفية');
     }, [setDoc, autoColors, suggestColors, flash]);
     const changeBackground = useCallback((patch) => setDoc((d) => (d.background ? { ...d, background: { ...d.background, ...patch } } : d), {
         key: `bg:${Object.keys(patch).join(',')}`,
