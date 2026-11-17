@@ -39,6 +39,7 @@ jobs:
           node build.mjs
           ls -la ../app/src/main/assets
           test -s ../app/src/main/assets/app.js || (echo "❌ app.js لم يُنشأ" && exit 1)
+          node manifest.mjs
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -46,6 +47,8 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         run: gradle assembleRelease --no-daemon --stacktrace
 
       - name: Rename APK
@@ -65,3 +68,14 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           name: استوديو الأغلفة v1.0.${{ github.run_number }}
           files: out/*.apk
+
+      - name: Publish silent web update (التحديث الصامت داخل التطبيق)
+        run: |
+          rm -rf /tmp/webupd && mkdir -p /tmp/webupd
+          cp -r app/src/main/assets/. /tmp/webupd/
+          cd /tmp/webupd
+          git init -q
+          git checkout -q -b web-update
+          git add -A
+          git -c user.name="github-actions" -c user.email="actions@github.com" commit -qm "web update ${{ github.run_number }}"
+          git push -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" web-update
