@@ -2790,6 +2790,147 @@ const TEMPLATES = [
     shapes: [{ kind: 'sun', x: 500, y: 920, width: 360, height: 360, fill: '#ffd1a8', opacity: 0.9, behind: true }],
     layers: { sunburst: 0.3, grain: 0.15 },
   },
+  // ── الإصدار 2.4: قوالب على الخلفيات الجديدة ──
+  {
+    id: 'scene-library', category: 'essay', name: 'المكتبة العتيقة', sample: 'في صحبة الكتب',
+    paletteId: 'coffee', background: { scene: 'library', dim: 0.35 },
+    title: { font: 'Aref Ruqaa', weight: 700, size: 140, color: '#f0dfb5', effect: 'gold', y: 520, shadow: true, bg: 'plaque', bgColor: '#120b06', bgStroke: '#d4af6a', bgOpacity: 0.85, bgPadding: 34 },
+    subtitle: { font: 'Amiri', weight: 400, size: 46, color: '#e6c98a', y: 1300 },
+    layers: { grain: 0.3, vignette: 0.5 },
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-candle', category: 'poetry', name: 'ضوء الشمعة', sample: 'خواطر الليل',
+    paletteId: 'amber', background: { scene: 'candle', dim: 0 },
+    title: { font: 'Noto Nastaliq Urdu', weight: 700, size: 120, color: '#ffe2a8', effect: 'glow', glowColor: '#ff9a3a', y: 170, shadow: false },
+    subtitle: { font: 'Tajawal', weight: 400, size: 40, color: '#c9a77a', y: 1360 },
+    layers: { grain: 0.25, embers: 0.3 },
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-ruins', category: 'history', name: 'أطلال الحضارة', sample: 'ممالك منسية',
+    paletteId: 'burnt-clay', background: { scene: 'ruins', dim: 0.05 },
+    title: { font: 'Reem Kufi', weight: 700, size: 140, color: '#fff0d8', color2: '#3a1a0e', effect: 'extrude', y: 1000, shadow: false },
+    subtitle: { font: 'Cairo', weight: 600, size: 42, color: '#ffd9b0', y: 1320 },
+    layers: { dust: 0.5, grain: 0.3, rays: 0.3 },
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-oasis', category: 'novel', name: 'واحة الغروب', sample: 'سرّ الواحة',
+    paletteId: 'desert-gold', background: { scene: 'oasis', dim: 0.05 },
+    title: { font: 'Lalezar', weight: 400, size: 150, color: '#fff2d6', effect: 'none', y: 140, shadow: true },
+    subtitle: { font: 'Tajawal', weight: 500, size: 42, color: '#ffe0b0', y: 1340 },
+    layers: { grain: 0.2, flare: 0.3 },
+  },
+  {
+    id: 'scene-snow', category: 'novel', name: 'قمم الثلج', sample: 'شتاء طويل',
+    paletteId: 'arctic', background: { scene: 'snowpeaks', dim: 0.05 },
+    title: { font: 'El Messiri', weight: 700, size: 140, color: '#ffffff', effect: 'silver', y: 140, shadow: true },
+    subtitle: { font: 'Readex Pro', weight: 400, size: 40, color: '#1a2a40', y: 1350, shadow: false },
+    layers: { snow: 0.5, grain: 0.15 },
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-sunrise', category: 'selfdev', name: 'فجر جديد', sample: 'ابدأ من جديد',
+    paletteId: 'sunset-pink', background: { scene: 'seaSunrise', dim: 0 },
+    title: { font: 'Cairo', weight: 800, size: 150, color: '#ffffff', effect: 'none', y: 170, shadow: true },
+    subtitle: { font: 'Tajawal', weight: 500, size: 44, color: '#ffe6cc', y: 470 },
+    layers: { flare: 0.45, grain: 0.15 },
+  },
+  {
+    id: 'scene-rainwindow', category: 'poetry', name: 'خلف النافذة', sample: 'مطرٌ وحنين',
+    paletteId: 'ink-blue', background: { scene: 'rainyWindow', dim: 0.1 },
+    title: { font: 'Aref Ruqaa', weight: 700, size: 145, color: '#f0f4ff', effect: 'glow', glowColor: '#7aa8ff', y: 560, shadow: false },
+    subtitle: { font: 'Amiri', weight: 400, size: 44, color: '#c8d4ee', y: 1320 },
+    layers: { rain: 0.35, grain: 0.2 },
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-fog', category: 'horror', name: 'طريق الضباب', sample: 'لا عودة',
+    paletteId: 'smoke-gray', background: { scene: 'foggyRoad', dim: 0.1 },
+    title: { font: 'Blaka', weight: 400, size: 170, color: '#e8e8e8', effect: 'none', y: 130, shadow: true },
+    subtitle: { font: 'Tajawal', weight: 700, size: 40, color: '#d0d0d0', y: 1350 },
+    layers: { groundfog: 0.7, grain: 0.4, scratches: 0.3, vignette: 0.6 },
+    grade: 'noir', gradeAmount: 0.5,
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-lanterns', category: 'religious', name: 'ليالي رمضان', sample: 'رمضانيات',
+    paletteId: 'night-violet', background: { scene: 'lanterns', dim: 0 },
+    title: { font: 'Aref Ruqaa', weight: 700, size: 150, color: '#f6d58a', effect: 'gold', y: 820, shadow: true },
+    subtitle: { font: 'Amiri', weight: 700, size: 44, color: '#e6d6ff', y: 1320 },
+    shapes: [{ kind: 'flourish', x: 500, y: 1040, width: 420, height: 64, fill: '#f6d58a', stroke: '#f6d58a', opacity: 0.85 }],
+    layers: { sparkles: 0.4, grain: 0.15 },
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-arabesque', category: 'religious', name: 'زخرفة أرابيسك', sample: 'أصول الفقه',
+    paletteId: 'emerald-night', background: { scene: 'arabesque', dim: 0.1 },
+    title: { font: 'Amiri', weight: 700, size: 130, color: '#f0dfb5', effect: 'gold', y: 560, shadow: true, bg: 'plaque', bgColor: '#0d1a1a', bgStroke: '#d4af6a', bgOpacity: 0.95, bgPadding: 40 },
+    subtitle: { font: 'Amiri', weight: 400, size: 44, color: '#e6c98a', y: 1300 },
+    layers: { grain: 0.15 },
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-caravan', category: 'history', name: 'القافلة', sample: 'طريق الحرير',
+    paletteId: 'desert-dusk', background: { scene: 'caravan', dim: 0 },
+    title: { font: 'Reem Kufi', weight: 700, size: 145, color: '#3a1408', effect: 'none', y: 150, shadow: false },
+    subtitle: { font: 'Cairo', weight: 700, size: 42, color: '#fff0d0', y: 1340 },
+    layers: { dust: 0.4, grain: 0.25 },
+  },
+  {
+    id: 'scene-aurora', category: 'novel', name: 'الشفق', sample: 'أضواء الشمال',
+    paletteId: 'midnight-teal', background: { scene: 'aurora', dim: 0 },
+    title: { font: 'Changa', weight: 700, size: 145, color: '#d8fff0', effect: 'neon', glowColor: '#3affb0', y: 640, shadow: false },
+    subtitle: { font: 'Readex Pro', weight: 400, size: 40, color: '#b8e8ff', y: 1320 },
+    layers: { stars: 0.3, grain: 0.15 },
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-ink', category: 'essay', name: 'بقعة حبر', sample: 'الكتابة',
+    paletteId: 'ivory', background: { scene: 'inkSplash', dim: 0 },
+    title: { font: 'Lalezar', weight: 400, size: 170, color: '#f5efe2', effect: 'none', y: 820, shadow: false },
+    subtitle: { font: 'Tajawal', weight: 700, size: 44, color: '#0d0b0a', y: 1360, shadow: false },
+    layers: { grain: 0.25 },
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-goldfoil', category: 'selfdev', name: 'الذهب', sample: 'عقلية الثراء',
+    paletteId: 'charcoal-gold', background: { scene: 'goldFoil', dim: 0.15 },
+    title: { font: 'Cairo', weight: 900, size: 150, color: '#120c04', effect: 'none', y: 560, shadow: false, bg: 'box', bgColor: '#f6e6b8', bgOpacity: 0.92, bgPadding: 30, bgRadius: 6 },
+    subtitle: { font: 'Tajawal', weight: 700, size: 42, color: '#1a1206', y: 1340, shadow: false },
+    layers: { sparkles: 0.3 },
+  },
+  {
+    id: 'scene-deco', category: 'novel', name: 'آرت ديكو', sample: 'غاتسبي',
+    paletteId: 'charcoal-gold', background: { scene: 'artDeco', dim: 0.1 },
+    title: { font: 'Reem Kufi', weight: 700, size: 140, color: '#e6c98a', effect: 'gold', y: 600, shadow: true },
+    subtitle: { font: 'Tajawal', weight: 400, size: 40, color: '#d4af6a', y: 1340 },
+    shapes: [{ kind: 'flourish', x: 500, y: 520, width: 440, height: 60, fill: '#d4af6a', stroke: '#d4af6a', opacity: 0.85 }],
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-storm-blue', category: 'horror', name: 'العاصفة', sample: 'ليلة العاصفة',
+    paletteId: 'gunmetal', background: { scene: 'stormSky', dim: 0.05 },
+    title: { font: 'Lalezar', weight: 400, size: 160, color: '#e6eeff', effect: 'glow', glowColor: '#9fbaff', y: 1000, shadow: false },
+    subtitle: { font: 'Cairo', weight: 700, size: 40, color: '#c0ccee', y: 1340 },
+    layers: { rain: 0.55, vignette: 0.5, grain: 0.25 },
+    textAboveLayers: true,
+  },
+  {
+    id: 'scene-mountains-night', category: 'poetry', name: 'جبال زرقاء', sample: 'قصائد المساء',
+    paletteId: 'royal-navy', background: { scene: 'mountains', dim: 0.05, hue: 170, sat: 0.9 },
+    title: { font: 'Aref Ruqaa', weight: 700, size: 140, color: '#eaf2ff', effect: 'glow', glowColor: '#8ab4ff', y: 160, shadow: false },
+    subtitle: { font: 'Amiri', weight: 400, size: 44, color: '#d0dcf5', y: 1300 },
+    layers: { stars: 0.4, grain: 0.15 },
+  },
+  {
+    id: 'scene-bokeh', category: 'selfdev', name: 'أضواء النجاح', sample: 'لحظة التألّق',
+    paletteId: 'amber', background: { scene: 'bokeh', dim: 0.1 },
+    title: { font: 'El Messiri', weight: 700, size: 150, color: '#ffe8b0', effect: 'gold', y: 560, shadow: true },
+    subtitle: { font: 'Tajawal', weight: 500, size: 42, color: '#ffd890', y: 1330 },
+    textAboveLayers: true,
+  },
 ];
 
 const STYLE_RESET = { effect: 'none', bg: 'none', secondColor: '', rotation: 0, letterSpacing: 0 };
@@ -2829,6 +2970,9 @@ function applyTemplateToDoc(doc, tpl) {
           dim: tpl.background.dim ?? 0.12,
           paletteMix: tpl.background.paletteMix ?? 0,
           blend: tpl.background.blend || 'soft-light',
+          hue: tpl.background.hue || 0,
+          sat: tpl.background.sat ?? 1,
+          bright: tpl.background.bright ?? 1,
           fromTemplate: true,
         }
       : doc.background?.fromTemplate
@@ -4429,6 +4573,527 @@ const SCENES = [
       glow(ctx, w * 0.5, h * 0.25, w * 0.6, 'rgba(255,190,120,0.18)');
     },
   },
+  // ═════════════ مشاهد جديدة ═════════════
+  {
+    id: 'library', label: 'مكتبة قديمة',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#120b06'], [0.5, '#24160c'], [1, '#0b0704']]);
+      const k = w / 1000;
+      const shelfH = 150 * k;
+      for (let y = 40 * k, row = 0; y < h; y += shelfH, row++) {
+        let x = 20 * k;
+        while (x < w - 20 * k) {
+          const bw = (16 + r() * 26) * k;
+          const bh = shelfH * (0.62 + r() * 0.28);
+          const hue = [18, 28, 8, 40, 0, 200, 120][Math.floor(r() * 7)];
+          const l = 12 + r() * 18;
+          ctx.fillStyle = `hsl(${hue},${30 + r() * 35}%,${l}%)`;
+          const tilt = r() < 0.06;
+          ctx.save();
+          ctx.translate(x, y + shelfH - 12 * k);
+          if (tilt) ctx.rotate(-0.12);
+          ctx.fillRect(0, -bh, bw, bh);
+          ctx.fillStyle = `rgba(212,175,106,${0.25 + r() * 0.35})`;
+          ctx.fillRect(bw * 0.15, -bh * 0.82, bw * 0.7, 2 * k);
+          ctx.fillRect(bw * 0.15, -bh * 0.2, bw * 0.7, 2 * k);
+          ctx.restore();
+          x += bw + (tilt ? 10 : 1.5) * k;
+        }
+        ctx.fillStyle = '#2a170b';
+        ctx.fillRect(0, y + shelfH - 12 * k, w, 12 * k);
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(0, y + shelfH, w, 6 * k);
+      }
+      glow(ctx, w * 0.5, h * 0.42, w * 0.9, 'rgba(255,170,80,0.28)');
+      const v = ctx.createRadialGradient(w / 2, h / 2, w * 0.2, w / 2, h / 2, h * 0.75);
+      v.addColorStop(0, 'rgba(0,0,0,0)');
+      v.addColorStop(1, 'rgba(0,0,0,0.85)');
+      ctx.fillStyle = v;
+      ctx.fillRect(0, 0, w, h);
+    },
+  },
+  {
+    id: 'candle', label: 'شمعة في الظلام',
+    draw(ctx, w, h) {
+      ctx.fillStyle = '#050302';
+      ctx.fillRect(0, 0, w, h);
+      const cx = w * 0.5, cy = h * 0.6;
+      glow(ctx, cx, cy - w * 0.08, w * 0.85, 'rgba(255,150,50,0.32)');
+      glow(ctx, cx, cy - w * 0.08, w * 0.3, 'rgba(255,190,90,0.4)');
+      const cw = w * 0.11, ch = h * 0.3;
+      const g = ctx.createLinearGradient(cx - cw / 2, 0, cx + cw / 2, 0);
+      g.addColorStop(0, '#3a2a1a'); g.addColorStop(0.35, '#e9d9b8'); g.addColorStop(1, '#4a3420');
+      ctx.fillStyle = g;
+      ctx.fillRect(cx - cw / 2, cy, cw, ch);
+      ctx.strokeStyle = '#111'; ctx.lineWidth = w * 0.004;
+      ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx, cy - w * 0.025); ctx.stroke();
+      const fy = cy - w * 0.07;
+      const fl = ctx.createRadialGradient(cx, fy + w * 0.02, 0, cx, fy, w * 0.06);
+      fl.addColorStop(0, '#fffbe8'); fl.addColorStop(0.4, '#ffd27a'); fl.addColorStop(1, 'rgba(255,120,20,0)');
+      ctx.fillStyle = fl;
+      ctx.beginPath();
+      ctx.ellipse(cx, fy, w * 0.022, w * 0.055, 0, 0, S_TAU);
+      ctx.fill();
+      const fg = ctx.createLinearGradient(0, cy + ch, 0, h);
+      fg.addColorStop(0, '#1a0f07'); fg.addColorStop(1, '#030201');
+      ctx.fillStyle = fg;
+      ctx.fillRect(0, cy + ch, w, h - cy - ch);
+    },
+  },
+  {
+    id: 'ruins', label: 'أعمدة أثرية',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#1a1426'], [0.45, '#7a3b2e'], [0.7, '#d98a4a'], [1, '#2a170e']]);
+      glow(ctx, w * 0.5, h * 0.66, w * 0.5, 'rgba(255,190,110,0.55)');
+      const k = w / 1000;
+      const base = h * 0.8;
+      ctx.fillStyle = '#1a0e09';
+      const cols = [[0.08, 0.5], [0.24, 0.42], [0.4, 0.3], [0.6, 0.33], [0.76, 0.47], [0.92, 0.25]];
+      cols.forEach(([fx, top]) => {
+        const cx = w * fx, cw = 62 * k, ty = h * top + r() * 40 * k;
+        ctx.fillRect(cx - cw / 2, ty, cw, base - ty);
+        ctx.fillRect(cx - cw * 0.75, ty - 14 * k, cw * 1.5, 18 * k);
+        ctx.fillRect(cx - cw * 0.75, base - 16 * k, cw * 1.5, 16 * k);
+      });
+      ctx.fillRect(w * 0.36, h * 0.28, w * 0.28, 26 * k);
+      ctx.fillRect(0, base, w, h - base);
+      ridge(ctx, w, h, base + 20 * k, 20 * k, 2, '#0d0705', r);
+    },
+  },
+  {
+    id: 'oasis', label: 'واحة نخيل',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#2a1838'], [0.4, '#b0503e'], [0.6, '#f0a35a'], [0.62, '#5a3a2a'], [1, '#1a0f0a']]);
+      glow(ctx, w * 0.62, h * 0.58, w * 0.3, 'rgba(255,220,150,0.8)');
+      // ماء مع انعكاس
+      ctx.fillStyle = 'rgba(255,190,120,0.25)';
+      for (let i = 0; i < 40; i++) ctx.fillRect(w * (0.45 + r() * 0.35), h * (0.63 + r() * 0.1), w * (0.03 + r() * 0.1), 2 * (w / 1000));
+      ridge(ctx, w, h, h * 0.78, h * 0.05, 1, '#1a0d08', r, true);
+      const palm = (x, y, s, lean) => {
+        ctx.strokeStyle = '#0c0604'; ctx.fillStyle = '#0c0604';
+        ctx.lineWidth = 9 * s; ctx.lineCap = 'round';
+        const tx = x + lean * 120 * s, ty = y - 330 * s;
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x + lean * 20 * s, y - 180 * s, tx, ty); ctx.stroke();
+        for (let i = 0; i < 9; i++) {
+          const a = -Math.PI / 2 + (i - 4) * 0.42 + (r() - 0.5) * 0.2;
+          const len = (130 + r() * 50) * s;
+          const ex = tx + Math.cos(a) * len, ey = ty + Math.sin(a) * len * 0.6 + len * 0.45;
+          ctx.lineWidth = 3 * s;
+          ctx.beginPath(); ctx.moveTo(tx, ty);
+          ctx.quadraticCurveTo(tx + Math.cos(a) * len * 0.6, ty + Math.sin(a) * len * 0.6 - 30 * s, ex, ey);
+          ctx.stroke();
+          for (let j = 1; j < 10; j++) {
+            const t = j / 10;
+            const px = tx + (ex - tx) * t, py = ty + (ey - ty) * t - Math.sin(t * Math.PI) * 30 * s;
+            ctx.lineWidth = 2 * s;
+            ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(px + 14 * s * Math.cos(a + 1.2), py + 22 * s); ctx.stroke();
+          }
+        }
+      };
+      const k = w / 1000;
+      palm(w * 0.18, h * 0.84, 1.15 * k, 0.25);
+      palm(w * 0.32, h * 0.82, 0.8 * k, -0.15);
+      palm(w * 0.88, h * 0.86, 1.0 * k, -0.3);
+    },
+  },
+  {
+    id: 'snowpeaks', label: 'جبال مثلجة',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#060b18'], [0.5, '#1d3354'], [0.8, '#6b86a8']]);
+      stars(ctx, w, h, r, 350, h * 0.45);
+      const peak = (bx, by, pw, ph, col, snow) => {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.moveTo(bx - pw, h); ctx.lineTo(bx - pw * 0.4, by + ph * 0.5); ctx.lineTo(bx, by); ctx.lineTo(bx + pw * 0.35, by + ph * 0.4); ctx.lineTo(bx + pw, h); ctx.fill();
+        ctx.fillStyle = snow;
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx - pw * 0.22, by + ph * 0.28); ctx.lineTo(bx - pw * 0.08, by + ph * 0.22); ctx.lineTo(bx + pw * 0.05, by + ph * 0.3); ctx.lineTo(bx + pw * 0.2, by + ph * 0.24); ctx.closePath(); ctx.fill();
+      };
+      peak(w * 0.25, h * 0.42, w * 0.55, h * 0.5, '#2c3e5c', '#dfe9f5');
+      peak(w * 0.75, h * 0.36, w * 0.6, h * 0.55, '#22324d', '#f2f6fb');
+      peak(w * 0.5, h * 0.55, w * 0.45, h * 0.4, '#18253b', '#c8d6e8');
+      ridge(ctx, w, h, h * 0.86, h * 0.03, 1.4, '#e9f0f8', r, true);
+      ctx.fillStyle = 'rgba(255,255,255,0.8)';
+      for (let i = 0; i < 260; i++) { ctx.beginPath(); ctx.arc(r() * w, r() * h, r() * 2.2 * (w / 1000), 0, S_TAU); ctx.fill(); }
+    },
+  },
+  {
+    id: 'seaSunrise', label: 'شروق على البحر',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#14203a'], [0.3, '#5a4a7a'], [0.5, '#f29a6a'], [0.56, '#ffd6a0'], [0.56, '#3a3550'], [1, '#0a0c18']]);
+      glow(ctx, w * 0.5, h * 0.56, w * 0.45, 'rgba(255,200,120,0.6)');
+      ctx.fillStyle = '#fff1c8';
+      ctx.beginPath(); ctx.arc(w * 0.5, h * 0.56, w * 0.09, Math.PI, 0); ctx.fill();
+      for (let i = 0; i < 70; i++) {
+        const y = h * 0.565 + Math.pow(r(), 1.6) * h * 0.42;
+        const spread = (y - h * 0.56) / (h * 0.44);
+        const len = w * (0.02 + r() * 0.12) * (1 + spread);
+        ctx.fillStyle = `rgba(255,${190 + r() * 50},${120 + r() * 60},${0.5 - spread * 0.35})`;
+        ctx.fillRect(w * 0.5 + (r() - 0.5) * w * (0.15 + spread * 0.6) - len / 2, y, len, (1.5 + spread * 3) * (w / 1000));
+      }
+    },
+  },
+  {
+    id: 'rainyWindow', label: 'نافذة ممطرة',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#0b1220'], [1, '#1b2232']]);
+      const cols = ['255,170,80', '255,120,90', '120,190,255', '255,220,140', '200,120,255'];
+      for (let i = 0; i < 70; i++) {
+        const c = cols[Math.floor(r() * cols.length)];
+        glow(ctx, r() * w, h * (0.25 + r() * 0.7), w * (0.03 + r() * 0.09), `rgba(${c},${0.18 + r() * 0.3})`);
+      }
+      ctx.fillStyle = 'rgba(10,16,28,0.35)';
+      ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 520; i++) {
+        const x = r() * w, y = r() * h, s = (1 + r() * r() * 7) * (w / 1000);
+        ctx.fillStyle = 'rgba(200,220,255,0.18)';
+        ctx.beginPath(); ctx.ellipse(x, y, s, s * 1.25, 0, 0, S_TAU); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.beginPath(); ctx.arc(x - s * 0.3, y - s * 0.4, s * 0.3, 0, S_TAU); ctx.fill();
+        if (s > 4 * (w / 1000) && r() < 0.5) {
+          ctx.strokeStyle = 'rgba(200,220,255,0.12)'; ctx.lineWidth = s * 0.6;
+          ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (r() - 0.5) * 10, y + h * (0.05 + r() * 0.15)); ctx.stroke();
+        }
+      }
+    },
+  },
+  {
+    id: 'goldenClouds', label: 'غيوم ذهبية',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#2a1a2e'], [0.5, '#a0583a'], [1, '#f2c27a']]);
+      glow(ctx, w * 0.55, h * 0.75, w * 0.6, 'rgba(255,230,160,0.6)');
+      for (let layer = 0; layer < 5; layer++) {
+        const y0 = h * (0.15 + layer * 0.17);
+        const tone = 40 + layer * 30;
+        for (let i = 0; i < 34; i++) {
+          const x = r() * w * 1.2 - w * 0.1, y = y0 + (r() - 0.5) * h * 0.08, R = w * (0.06 + r() * 0.1);
+          const g = ctx.createRadialGradient(x, y - R * 0.3, 0, x, y, R);
+          g.addColorStop(0, `rgba(255,${180 + layer * 12},${tone + 60},0.3)`);
+          g.addColorStop(0.7, `rgba(${150 + layer * 20},${70 + layer * 25},${tone},0.25)`);
+          g.addColorStop(1, 'rgba(0,0,0,0)');
+          ctx.fillStyle = g;
+          ctx.save(); ctx.translate(x, y); ctx.scale(2.2, 0.8); ctx.translate(-x, -y);
+          ctx.beginPath(); ctx.arc(x, y, R, 0, S_TAU); ctx.fill();
+          ctx.restore();
+        }
+      }
+    },
+  },
+  {
+    id: 'foggyRoad', label: 'طريق في الضباب',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#5d6670'], [0.45, '#9aa3a8'], [1, '#1b1e22']]);
+      const vy = h * 0.46;
+      ctx.fillStyle = '#26292d';
+      ctx.beginPath(); ctx.moveTo(w * 0.48, vy); ctx.lineTo(w * 0.52, vy); ctx.lineTo(w * 0.95, h); ctx.lineTo(w * 0.05, h); ctx.fill();
+      ctx.fillStyle = 'rgba(230,220,180,0.55)';
+      for (let i = 0; i < 12; i++) {
+        const t0 = Math.pow(i / 12, 1.8), t1 = Math.pow((i + 0.5) / 12, 1.8);
+        const y0 = vy + (h - vy) * t0, y1 = vy + (h - vy) * t1;
+        const hw0 = w * 0.004 * (1 + t0 * 4), hw1 = w * 0.004 * (1 + t1 * 4);
+        ctx.beginPath(); ctx.moveTo(w / 2 - hw0, y0); ctx.lineTo(w / 2 + hw0, y0); ctx.lineTo(w / 2 + hw1, y1); ctx.lineTo(w / 2 - hw1, y1); ctx.fill();
+      }
+      for (let side = -1; side <= 1; side += 2) {
+        for (let i = 0; i < 9; i++) {
+          const t = Math.pow((i + 1) / 9, 1.6);
+          const x = w / 2 + side * (w * 0.06 + t * w * 0.55);
+          const y = vy + (h - vy) * t * 0.9;
+          const th = h * (0.06 + t * 0.55);
+          const a = 0.25 + t * 0.7;
+          ctx.fillStyle = `rgba(20,24,26,${a})`;
+          ctx.fillRect(x - 3 * t * (w / 300), y - th, 6 * t * (w / 300) + 2, th);
+          ctx.beginPath(); ctx.moveTo(x, y - th * 1.1); ctx.lineTo(x - th * 0.18, y - th * 0.35); ctx.lineTo(x + th * 0.18, y - th * 0.35); ctx.fill();
+        }
+      }
+      const f = ctx.createLinearGradient(0, h * 0.25, 0, h * 0.7);
+      f.addColorStop(0, 'rgba(170,178,184,0)'); f.addColorStop(0.5, 'rgba(170,178,184,0.55)'); f.addColorStop(1, 'rgba(170,178,184,0)');
+      ctx.fillStyle = f; ctx.fillRect(0, 0, w, h);
+    },
+  },
+  {
+    id: 'goldFoil', label: 'رقائق ذهبية',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#6b4a1a'], [0.5, '#c9a04a'], [1, '#5a3c12']]);
+      for (let i = 0; i < 380; i++) {
+        const x = r() * w, y = r() * h, s = w * (0.02 + r() * 0.08);
+        const l = r();
+        ctx.fillStyle = l > 0.6 ? `rgba(255,236,170,${0.15 + r() * 0.3})` : `rgba(70,45,10,${0.1 + r() * 0.25})`;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        for (let j = 0; j < 4; j++) ctx.lineTo(x + (r() - 0.5) * s * 2, y + (r() - 0.5) * s * 2);
+        ctx.closePath(); ctx.fill();
+      }
+      glow(ctx, w * 0.3, h * 0.25, w * 0.5, 'rgba(255,240,190,0.35)');
+    },
+  },
+  {
+    id: 'artDeco', label: 'آرت ديكو',
+    draw(ctx, w, h) {
+      ctx.fillStyle = '#0b0b0d'; ctx.fillRect(0, 0, w, h);
+      const k = w / 1000;
+      const R = 110 * k;
+      ctx.strokeStyle = 'rgba(222,188,120,0.9)'; ctx.lineWidth = 2.4 * k;
+      for (let row = 0; row * R * 0.5 < h + R; row++) {
+        const y = row * R * 0.5;
+        for (let col = -1; col * R < w + R; col++) {
+          const x = col * R + (row % 2 ? R / 2 : 0);
+          for (let ring = 1; ring <= 4; ring++) {
+            ctx.beginPath(); ctx.arc(x, y, (R / 2) * (ring / 4), Math.PI, 0); ctx.stroke();
+          }
+          ctx.fillStyle = '#0b0b0d';
+        }
+      }
+      const v = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, h * 0.7);
+      v.addColorStop(0, 'rgba(11,11,13,0.55)'); v.addColorStop(0.5, 'rgba(11,11,13,0.05)'); v.addColorStop(1, 'rgba(0,0,0,0.55)');
+      ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
+    },
+  },
+  {
+    id: 'smoke', label: 'دخان ملوّن',
+    draw(ctx, w, h, r) {
+      ctx.fillStyle = '#060508'; ctx.fillRect(0, 0, w, h);
+      const cols = ['180,60,255', '255,80,140', '60,160,255', '255,150,60'];
+      ctx.globalCompositeOperation = 'lighter';
+      for (let s = 0; s < 4; s++) {
+        const c = cols[s];
+        let x = w * (0.2 + r() * 0.6), y = h;
+        for (let i = 0; i < 90; i++) {
+          x += (r() - 0.5) * w * 0.06 + Math.sin(i * 0.15 + s) * w * 0.012;
+          y -= h * 0.011;
+          glow(ctx, x, y, w * (0.04 + i * 0.0018), `rgba(${c},${0.05})`);
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    },
+  },
+  {
+    id: 'papyrus', label: 'ورق بردي',
+    draw(ctx, w, h, r) {
+      ctx.fillStyle = '#c9a96a'; ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 160; i++) {
+        const x = r() * w;
+        ctx.fillStyle = `rgba(${r() < 0.5 ? '120,85,35' : '235,210,150'},${0.08 + r() * 0.12})`;
+        ctx.fillRect(x, 0, (2 + r() * 10) * (w / 1000), h);
+      }
+      for (let i = 0; i < 160; i++) {
+        const y = r() * h;
+        ctx.fillStyle = `rgba(${r() < 0.5 ? '120,85,35' : '235,210,150'},${0.05 + r() * 0.08})`;
+        ctx.fillRect(0, y, w, (2 + r() * 8) * (w / 1000));
+      }
+      const v = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, h * 0.75);
+      v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(70,40,10,0.65)');
+      ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
+    },
+  },
+  {
+    id: 'arabesque', label: 'أرابيسك كامل',
+    draw(ctx, w, h) {
+      ctx.fillStyle = '#0d1a1a'; ctx.fillRect(0, 0, w, h);
+      const k = w / 1000, S = 125 * k;
+      ctx.strokeStyle = 'rgba(222,188,120,0.85)'; ctx.lineWidth = 2.6 * k;
+      const star = (cx, cy, R) => {
+        ctx.beginPath();
+        for (let i = 0; i <= 16; i++) {
+          const a = (i * Math.PI) / 8 - Math.PI / 2;
+          const rr = i % 2 ? R * 0.62 : R;
+          const px = cx + Math.cos(a) * rr, py = cy + Math.sin(a) * rr;
+          i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+        }
+        ctx.stroke();
+      };
+      for (let y = 0; y < h + S; y += S) {
+        for (let x = 0; x < w + S; x += S) {
+          star(x, y, S * 0.48);
+          star(x, y, S * 0.28);
+          ctx.beginPath(); ctx.moveTo(x + S * 0.48, y); ctx.lineTo(x + S * 0.52, y); ctx.stroke();
+          ctx.save(); ctx.translate(x + S / 2, y + S / 2); ctx.rotate(Math.PI / 4);
+          ctx.strokeRect(-S * 0.14, -S * 0.14, S * 0.28, S * 0.28); ctx.restore();
+        }
+      }
+      const v = ctx.createRadialGradient(w / 2, h / 2, w * 0.15, w / 2, h / 2, h * 0.7);
+      v.addColorStop(0, 'rgba(13,26,26,0.5)'); v.addColorStop(1, 'rgba(0,0,0,0.5)');
+      ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
+    },
+  },
+  {
+    id: 'grainGradient', label: 'تدرّج حبيبي',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#1b1446'], [0.5, '#c2416b'], [1, '#f6a457']]);
+      glow(ctx, w * 0.2, h * 0.3, w * 0.7, 'rgba(90,60,255,0.45)');
+      glow(ctx, w * 0.85, h * 0.8, w * 0.6, 'rgba(255,210,120,0.4)');
+      const img = ctx.getImageData(0, 0, w, h);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const n = (r() - 0.5) * 38;
+        d[i] += n; d[i + 1] += n; d[i + 2] += n;
+      }
+      ctx.putImageData(img, 0, 0);
+    },
+  },
+  {
+    id: 'stormSky', label: 'سماء عاصفة',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#07090f'], [0.6, '#1d2433'], [1, '#0a0c12']]);
+      for (let i = 0; i < 90; i++) {
+        const x = r() * w, y = r() * h * 0.7, R = w * (0.08 + r() * 0.15);
+        const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+        g.addColorStop(0, `rgba(${60 + r() * 40},${70 + r() * 40},${95 + r() * 40},0.35)`);
+        g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, R, 0, S_TAU); ctx.fill();
+      }
+      const bolt = (x, y, len, width, depth) => {
+        ctx.lineWidth = width; ctx.beginPath(); ctx.moveTo(x, y);
+        let cx = x, cy = y;
+        const steps = 14;
+        for (let i = 0; i < steps; i++) {
+          cx += (r() - 0.5) * w * 0.06; cy += len / steps;
+          ctx.lineTo(cx, cy);
+          if (depth < 2 && r() < 0.15) { ctx.stroke(); bolt(cx, cy, len * 0.4, width * 0.5, depth + 1); ctx.lineWidth = width; ctx.beginPath(); ctx.moveTo(cx, cy); }
+        }
+        ctx.stroke();
+      };
+      glow(ctx, w * 0.62, h * 0.35, w * 0.45, 'rgba(160,190,255,0.25)');
+      ctx.strokeStyle = 'rgba(225,235,255,0.95)'; ctx.shadowColor = '#9fbaff'; ctx.shadowBlur = 25 * (w / 1000);
+      bolt(w * 0.6, h * 0.12, h * 0.6, 4 * (w / 1000), 0);
+      ctx.shadowBlur = 0;
+      ridge(ctx, w, h, h * 0.88, h * 0.04, 1.5, '#040508', r);
+    },
+  },
+  {
+    id: 'lanterns', label: 'فوانيس رمضان',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#0a0718'], [0.7, '#24153a'], [1, '#120a1c']]);
+      stars(ctx, w, h, r, 200, h);
+      const k = w / 1000;
+      const lantern = (x, len, s) => {
+        ctx.strokeStyle = 'rgba(212,175,106,0.6)'; ctx.lineWidth = 1.5 * k;
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, len); ctx.stroke();
+        const y = len;
+        glow(ctx, x, y + 70 * s, 200 * s, 'rgba(255,170,60,0.35)');
+        ctx.fillStyle = '#b8914a';
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 26 * s, y + 30 * s); ctx.lineTo(x + 26 * s, y + 30 * s); ctx.fill();
+        const body = ctx.createLinearGradient(x - 34 * s, 0, x + 34 * s, 0);
+        body.addColorStop(0, '#7a3a10'); body.addColorStop(0.5, '#ffcf6a'); body.addColorStop(1, '#7a3a10');
+        ctx.fillStyle = body;
+        ctx.beginPath(); ctx.moveTo(x - 26 * s, y + 30 * s); ctx.lineTo(x - 36 * s, y + 80 * s); ctx.lineTo(x - 22 * s, y + 125 * s); ctx.lineTo(x + 22 * s, y + 125 * s); ctx.lineTo(x + 36 * s, y + 80 * s); ctx.lineTo(x + 26 * s, y + 30 * s); ctx.fill();
+        ctx.strokeStyle = '#5a3a12'; ctx.lineWidth = 2 * s;
+        for (let i = -1; i <= 1; i++) { ctx.beginPath(); ctx.moveTo(x + i * 14 * s, y + 32 * s); ctx.lineTo(x + i * 12 * s, y + 123 * s); ctx.stroke(); }
+        ctx.fillStyle = '#b8914a';
+        ctx.beginPath(); ctx.moveTo(x - 22 * s, y + 125 * s); ctx.lineTo(x, y + 150 * s); ctx.lineTo(x + 22 * s, y + 125 * s); ctx.fill();
+      };
+      lantern(w * 0.2, h * 0.12, 1.1 * k);
+      lantern(w * 0.45, h * 0.04, 0.8 * k);
+      lantern(w * 0.7, h * 0.18, 1.3 * k);
+      lantern(w * 0.9, h * 0.06, 0.7 * k);
+      ctx.fillStyle = '#f3ead2';
+      ctx.beginPath(); ctx.arc(w * 0.82, h * 0.72, w * 0.1, 0, S_TAU); ctx.fill();
+      ctx.fillStyle = '#1b1030';
+      ctx.beginPath(); ctx.arc(w * 0.86, h * 0.7, w * 0.09, 0, S_TAU); ctx.fill();
+    },
+  },
+  {
+    id: 'aurora', label: 'شفق قطبي',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#020611'], [0.7, '#0a1a2a'], [1, '#02050a']]);
+      stars(ctx, w, h, r, 450, h * 0.7);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let band = 0; band < 3; band++) {
+        const col = ['60,255,170', '90,200,255', '170,90,255'][band];
+        for (let i = 0; i < 120; i++) {
+          const t = i / 120;
+          const x = t * w;
+          const y = h * (0.28 + band * 0.07) + Math.sin(t * 5 + band) * h * 0.07;
+          const g = ctx.createLinearGradient(x, y - h * 0.22, x, y);
+          g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, `rgba(${col},${0.05 + r() * 0.04})`);
+          ctx.fillStyle = g;
+          ctx.fillRect(x, y - h * 0.22, w / 100, h * 0.22 + 4);
+        }
+      }
+      ctx.globalCompositeOperation = 'source-over';
+      ridge(ctx, w, h, h * 0.78, h * 0.08, 1.2, '#050a10', r);
+      ridge(ctx, w, h, h * 0.88, h * 0.04, 2, '#020406', r);
+    },
+  },
+  {
+    id: 'oldPaper', label: 'ورق عتيق',
+    draw(ctx, w, h, r) {
+      ctx.fillStyle = '#e4d3b0'; ctx.fillRect(0, 0, w, h);
+      for (let i = 0; i < 26; i++) glow(ctx, r() * w, r() * h, w * (0.05 + r() * 0.18), `rgba(150,105,50,${0.06 + r() * 0.1})`);
+      const img = ctx.getImageData(0, 0, w, h); const d = img.data;
+      for (let i = 0; i < d.length; i += 4) { const n = (r() - 0.5) * 16; d[i] += n; d[i + 1] += n; d[i + 2] += n; }
+      ctx.putImageData(img, 0, 0);
+      const v = ctx.createRadialGradient(w / 2, h / 2, w * 0.35, w / 2, h / 2, h * 0.72);
+      v.addColorStop(0, 'rgba(0,0,0,0)'); v.addColorStop(1, 'rgba(90,55,15,0.6)');
+      ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
+    },
+  },
+  {
+    id: 'bokeh', label: 'أضواء ذهبية',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#0a0805'], [1, '#1a120a']]);
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 110; i++) {
+        const x = r() * w, y = r() * h, R = w * (0.015 + r() * r() * 0.08);
+        const a = 0.08 + r() * 0.25;
+        ctx.fillStyle = `rgba(255,${170 + r() * 60},${70 + r() * 60},${a})`;
+        ctx.beginPath(); ctx.arc(x, y, R, 0, S_TAU); ctx.fill();
+        ctx.strokeStyle = `rgba(255,220,150,${a * 0.8})`; ctx.lineWidth = 1.5 * (w / 1000);
+        ctx.stroke();
+      }
+      ctx.globalCompositeOperation = 'source-over';
+    },
+  },
+  {
+    id: 'caravan', label: 'قافلة في الصحراء',
+    draw(ctx, w, h, r) {
+      vGrad(ctx, w, h, [[0, '#3a1a20'], [0.45, '#d0603a'], [0.62, '#ffc070'], [1, '#ffd890']]);
+      glow(ctx, w * 0.3, h * 0.6, w * 0.3, 'rgba(255,240,190,0.9)');
+      ridge(ctx, w, h, h * 0.7, h * 0.07, 0.9, '#7a3a20', r, true);
+      ridge(ctx, w, h, h * 0.8, h * 0.05, 1.4, '#3a180c', r, true);
+      const k = w / 1000;
+      const camel = (x, y, s) => {
+        ctx.fillStyle = '#1a0a05'; ctx.strokeStyle = '#1a0a05'; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.ellipse(x, y, 42 * s, 20 * s, 0, 0, S_TAU); ctx.fill();
+        ctx.beginPath(); ctx.ellipse(x + 2 * s, y - 18 * s, 18 * s, 16 * s, 0, 0, S_TAU); ctx.fill();
+        ctx.lineWidth = 8 * s;
+        ctx.beginPath(); ctx.moveTo(x - 36 * s, y - 5 * s); ctx.quadraticCurveTo(x - 60 * s, y - 20 * s, x - 62 * s, y - 45 * s); ctx.stroke();
+        ctx.beginPath(); ctx.ellipse(x - 68 * s, y - 46 * s, 12 * s, 6 * s, -0.2, 0, S_TAU); ctx.fill();
+        ctx.lineWidth = 5 * s;
+        [-28, -18, 22, 32].forEach((dx) => { ctx.beginPath(); ctx.moveTo(x + dx * s, y + 10 * s); ctx.lineTo(x + dx * s + 2 * s, y + 58 * s); ctx.stroke(); });
+        ctx.lineWidth = 6 * s;
+        ctx.beginPath(); ctx.moveTo(x + 2 * s, y - 34 * s); ctx.lineTo(x + 2 * s, y - 62 * s); ctx.stroke();
+        ctx.beginPath(); ctx.arc(x + 2 * s, y - 68 * s, 7 * s, 0, S_TAU); ctx.fill();
+      };
+      [[0.3, 0.73, 1], [0.48, 0.725, 0.9], [0.64, 0.72, 0.8], [0.78, 0.716, 0.7]].forEach(([fx, fy, s]) => camel(w * fx, h * fy, s * k));
+    },
+  },
+  {
+    id: 'inkSplash', label: 'حبر على ورق',
+    draw(ctx, w, h, r) {
+      ctx.fillStyle = '#efe6d4'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#0d0b0a';
+      const blob = (cx, cy, R, n) => {
+        const ph = [r() * 6, r() * 6, r() * 6];
+        const pts = [];
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * S_TAU;
+          const rr = R * (0.82 + 0.12 * Math.sin(a * 3 + ph[0]) + 0.08 * Math.sin(a * 7 + ph[1]) + 0.05 * Math.sin(a * 13 + ph[2]));
+          pts.push([cx + Math.cos(a) * rr, cy + Math.sin(a) * rr]);
+        }
+        ctx.beginPath();
+        pts.forEach(([x, y], i) => {
+          const [nx, ny] = pts[(i + 1) % n];
+          if (i === 0) ctx.moveTo((x + nx) / 2, (y + ny) / 2);
+          else ctx.quadraticCurveTo(x, y, (x + nx) / 2, (y + ny) / 2);
+        });
+        ctx.quadraticCurveTo(pts[0][0], pts[0][1], (pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2);
+        ctx.closePath(); ctx.fill();
+      };
+      blob(w * 0.55, h * 0.62, w * 0.32, 60);
+      for (let i = 0; i < 70; i++) {
+        const a = r() * S_TAU, d = w * (0.3 + r() * 0.35);
+        blob(w * 0.55 + Math.cos(a) * d, h * 0.62 + Math.sin(a) * d, w * (0.004 + r() * r() * 0.03), 12);
+      }
+    },
+  },
 ];
 
 const sceneCache = new Map();
@@ -4591,6 +5256,30 @@ function Section({ title, hint, children, action }) {
   );
 }
 
+// مجموعة خصائص قابلة للطي — تتذكر حالتها (مفتوحة/مطوية) طوال الجلسة
+const GROUP_STATE = {};
+function PropGroup({ id, title, icon, summary, defaultOpen = false, children }) {
+  const [open, setOpen] = useState(() => (id && id in GROUP_STATE ? GROUP_STATE[id] : defaultOpen));
+  const toggle = () => {
+    const next = !open;
+    if (id) GROUP_STATE[id] = next;
+    setOpen(next);
+  };
+  return (
+    <div className={`overflow-hidden rounded-xl border transition-colors ${open ? 'border-gold-500/20 bg-ink-900/70' : 'border-white/5 bg-ink-900/40'}`}>
+      <button type="button" onClick={toggle} className="flex w-full items-center gap-2.5 px-3 py-2.5 text-start">
+        {icon && <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[14px] ${open ? 'bg-gold-400/15 text-gold-300' : 'bg-ink-800 text-stone-400'}`}>{icon}</span>}
+        <span className="min-w-0 flex-1">
+          <span className={`block text-[12.5px] font-bold ${open ? 'text-gold-200' : 'text-stone-300'}`}>{title}</span>
+          {!open && summary && <span className="block truncate text-[10.5px] text-stone-500">{summary}</span>}
+        </span>
+        <span className={`text-[10px] text-stone-500 transition-transform ${open ? '-rotate-90' : ''}`}>◀</span>
+      </button>
+      {open && <div className="space-y-3.5 border-t border-white/5 px-3 pb-3.5 pt-3">{children}</div>}
+    </div>
+  );
+}
+
 function FieldLabel({ children, value }) {
   return (
     <div className="mb-1.5 flex items-center justify-between text-[12px] text-stone-400">
@@ -4600,21 +5289,224 @@ function FieldLabel({ children, value }) {
   );
 }
 
-function RangeField({ label, value, min, max, step = 1, onChange, format, disabled }) {
+// ———————————————————————————————————————————————
+// منزلق لمسي هادئ: لا يقفز عند اللمس، لا يتأثر بالتمرير العمودي،
+// السحب نسبي وبطيء للدقة، مع − / + وإدخال رقمي وإرجاع للأصل
+// ———————————————————————————————————————————————
+const SLIDER_SENSITIVITY = 0.35; // سحب عرض المسار كاملاً = 35% من المدى
+const DRAG_START_PX = 9;
+
+function sliderHaptic(strong) {
+  try {
+    if (window.AndroidBridge?.haptic) window.AndroidBridge.haptic(strong ? 1 : 0);
+    else if (navigator.vibrate) navigator.vibrate(strong ? 12 : 6);
+  } catch (e) {}
+}
+
+function snapToStep(v, min, max, step) {
+  const n = Math.round((v - min) / step) * step + min;
+  const decimals = (String(step).split('.')[1] || '').length;
+  return Math.min(max, Math.max(min, parseFloat(n.toFixed(Math.min(decimals + 1, 6)))));
+}
+
+function TouchSlider({ value, min, max, step = 1, onChange, disabled, className = '' }) {
+  const trackRef = useRef(null);
+  const drag = useRef(null);
+  const raf = useRef(0);
+  const pending = useRef(null);
+  const [active, setActive] = useState(false);
+  const range = max - min || 1;
+  const pct = Math.min(1, Math.max(0, (value - min) / range));
+
+  const emit = (v) => {
+    pending.current = v;
+    if (raf.current) return;
+    raf.current = requestAnimationFrame(() => {
+      raf.current = 0;
+      if (pending.current !== null) onChange(pending.current);
+    });
+  };
+
+  const onPointerDown = (e) => {
+    if (disabled) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    drag.current = { id: e.pointerId, x: e.clientX, y: e.clientY, start: value, engaged: false, last: value, type: e.pointerType };
+  };
+  const onPointerMove = (e) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    const dx = e.clientX - d.x;
+    const dy = e.clientY - d.y;
+    if (!d.engaged) {
+      if (Math.abs(dy) > DRAG_START_PX && Math.abs(dy) > Math.abs(dx)) { drag.current = null; return; }
+      if (Math.abs(dx) < DRAG_START_PX || Math.abs(dx) < Math.abs(dy) * 1.3) return;
+      d.engaged = true;
+      d.x = e.clientX; // ابدأ من هنا حتى لا تقفز القيمة
+      try { trackRef.current?.setPointerCapture(e.pointerId); } catch (err) {}
+      setActive(true);
+      return;
+    }
+    e.preventDefault();
+    const width = trackRef.current?.clientWidth || 200;
+    const rtl = getComputedStyle(trackRef.current).direction === 'rtl';
+    const move = (rtl ? -(e.clientX - d.x) : e.clientX - d.x) / width;
+    const fine = e.shiftKey ? 0.25 : 1;
+    const next = snapToStep(d.start + move * range * SLIDER_SENSITIVITY * fine, min, max, step);
+    if (next !== d.last) {
+      if (next === min || next === max) sliderHaptic(false);
+      d.last = next;
+      emit(next);
+    }
+  };
+  const end = (e) => {
+    const d = drag.current;
+    if (!d || d.id !== e.pointerId) return;
+    drag.current = null;
+    setActive(false);
+  };
+
   return (
-    <label className="block">
-      <FieldLabel value={format ? format(value) : value}>{label}</FieldLabel>
-      <input
-        type="range"
-        className="slider"
-        min={min}
-        max={max}
-        step={step}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange(parseFloat(e.target.value))}
+    <div
+      ref={trackRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={end}
+      onPointerCancel={end}
+      onLostPointerCapture={end}
+      style={{ touchAction: 'pan-y' }}
+      className={`relative h-8 select-none ${disabled ? 'opacity-35' : 'cursor-ew-resize'} ${className}`}
+    >
+      <div className="absolute inset-x-0 top-1/2 h-1.5 -translate-y-1/2 overflow-hidden rounded-full bg-ink-600">
+        <div className="absolute inset-y-0 start-0 rounded-full bg-gradient-to-l from-gold-300 to-gold-600" style={{ width: `${pct * 100}%` }} />
+      </div>
+      <div
+        className={`absolute top-1/2 -translate-y-1/2 rounded-full border-[3px] border-ink-800 bg-gold-400 shadow transition-[width,height] ${
+          active ? 'h-6 w-6 ring-4 ring-gold-400/25' : 'h-[18px] w-[18px]'
+        }`}
+        style={{ insetInlineStart: `calc(${pct * 100}% - ${active ? 12 : 9}px)` }}
       />
-    </label>
+    </div>
+  );
+}
+
+function StepButton({ dir, onStep, disabled }) {
+  const st = useRef({ timer: null, repeating: false, down: false, x: 0, y: 0 });
+  const clear = () => { clearTimeout(st.current.timer); clearInterval(st.current.timer); st.current.timer = null; };
+  const onDown = (e) => {
+    if (disabled) return;
+    const s = st.current;
+    s.down = true; s.repeating = false; s.x = e.clientX; s.y = e.clientY;
+    clear();
+    s.timer = setTimeout(() => {
+      s.repeating = true;
+      onStep(dir);
+      s.timer = setInterval(() => onStep(dir), 80);
+    }, 450);
+  };
+  const onUp = () => {
+    const s = st.current;
+    if (s.down && !s.repeating && !disabled) onStep(dir); // نقرة قصيرة = خطوة واحدة
+    s.down = false;
+    clear();
+  };
+  const onCancel = () => { st.current.down = false; clear(); };
+  const onMove = (e) => {
+    const s = st.current;
+    if (s.down && Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10) onCancel(); // المستخدم يمرّر
+  };
+  useEffect(() => clear, []);
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onPointerDown={onDown}
+      onPointerUp={onUp}
+      onPointerMove={onMove}
+      onPointerLeave={onCancel}
+      onPointerCancel={onCancel}
+      onContextMenu={(e) => e.preventDefault()}
+      className="grid h-8 w-8 shrink-0 select-none place-items-center rounded-lg border border-white/10 bg-ink-900 text-[16px] leading-none text-stone-300 active:bg-gold-400/20 active:text-gold-200 disabled:opacity-30"
+      style={{ touchAction: 'pan-y' }}
+      aria-label={dir > 0 ? 'زيادة' : 'إنقاص'}
+    >
+      {dir > 0 ? '+' : '−'}
+    </button>
+  );
+}
+
+function RangeField({ label, value, min, max, step = 1, onChange, format, disabled, defaultValue, compact }) {
+  const initial = useRef(defaultValue ?? value);
+  const valueRef = useRef(value);
+  valueRef.current = value;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const lastTap = useRef(0);
+
+  const stepBy = (dir) => {
+    const next = snapToStep((valueRef.current ?? min) + dir * step, min, max, step);
+    if (next !== valueRef.current) {
+      valueRef.current = next;
+      onChange(next);
+      if (next === min || next === max) sliderHaptic(false);
+    }
+  };
+  const reset = () => {
+    if (disabled) return;
+    onChange(initial.current);
+    sliderHaptic(true);
+  };
+  const onLabelTap = () => {
+    const now = Date.now();
+    if (now - lastTap.current < 350) reset();
+    lastTap.current = now;
+  };
+  const commit = () => {
+    setEditing(false);
+    const n = parseFloat(String(draft).replace(/[^\d.\-]/g, ''));
+    if (!Number.isFinite(n)) return;
+    // إن كانت القيمة المعروضة نسبة مئوية لقيمة بين 0 و1
+    const shown = format ? format(value) : String(value);
+    const isPercentOfUnit = max <= 1 && /%/.test(String(shown));
+    onChange(snapToStep(isPercentOfUnit ? n / 100 : n, min, max, step));
+  };
+  const changed = Math.abs((value ?? 0) - initial.current) > step / 2;
+
+  return (
+    <div className={`block ${disabled ? 'pointer-events-none' : ''}`}>
+      <div className="mb-0.5 flex items-center justify-between text-[12px] text-stone-400">
+        <button type="button" onClick={onLabelTap} className="flex items-center gap-1.5 text-start" title="نقرتان لإرجاع القيمة الأصلية">
+          <span>{label}</span>
+          {changed && !disabled && <span className="h-1.5 w-1.5 rounded-full bg-gold-400/70" />}
+        </button>
+        {editing ? (
+          <input
+            autoFocus
+            dir="ltr"
+            inputMode="decimal"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); if (e.key === 'Escape') setEditing(false); }}
+            className="w-20 rounded-md border border-gold-500/50 bg-ink-950 px-2 py-0.5 text-center text-[12px] text-gold-100 outline-none"
+          />
+        ) : (
+          <button
+            type="button"
+            dir="ltr"
+            onClick={() => { if (disabled) return; setDraft(String(format ? format(value) : value).replace(/[^\d.\-]/g, '')); setEditing(true); }}
+            className="rounded-md px-1.5 py-0.5 tabular-nums text-stone-400 hover:bg-white/5 hover:text-gold-200"
+            title="اضغط لكتابة الرقم"
+          >
+            {format ? format(value) : value}
+          </button>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        {!compact && <StepButton dir={-1} onStep={stepBy} disabled={disabled || value <= min} />}
+        <TouchSlider value={value} min={min} max={max} step={step} onChange={onChange} disabled={disabled} className="flex-1" />
+        {!compact && <StepButton dir={1} onStep={stepBy} disabled={disabled || value >= max} />}
+      </div>
+    </div>
   );
 }
 
@@ -5087,12 +5979,48 @@ function paletteFill(palette) {
 }
 
 /** صورة الخلفية الكاملة (مرفوعة أو مولّدة بالذكاء الاصطناعي) — تملأ الغلاف بنمط cover */
+/** تلوين الخلفية: تدوير الألوان + التشبّع + السطوع (يُحسب مرة لكل تغيير) */
+function useRecolored(img, hue = 0, sat = 1, bright = 1) {
+  return useMemo(() => {
+    if (!img || (!hue && sat === 1 && bright === 1)) return img;
+    const c = document.createElement('canvas');
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const ctx = c.getContext('2d');
+    if ('filter' in ctx) {
+      ctx.filter = `hue-rotate(${hue}deg) saturate(${sat}) brightness(${bright})`;
+      ctx.drawImage(img, 0, 0);
+      return c;
+    }
+    // بديل يدوي للمتصفحات القديمة: مصفوفة تدوير الألوان
+    ctx.drawImage(img, 0, 0);
+    const data = ctx.getImageData(0, 0, c.width, c.height);
+    const d = data.data;
+    const a = (hue * Math.PI) / 180, cos = Math.cos(a), sin = Math.sin(a);
+    const m = [
+      0.213 + cos * 0.787 - sin * 0.213, 0.715 - cos * 0.715 - sin * 0.715, 0.072 - cos * 0.072 + sin * 0.928,
+      0.213 - cos * 0.213 + sin * 0.143, 0.715 + cos * 0.285 + sin * 0.14, 0.072 - cos * 0.072 - sin * 0.283,
+      0.213 - cos * 0.213 - sin * 0.787, 0.715 - cos * 0.715 + sin * 0.715, 0.072 + cos * 0.928 + sin * 0.072,
+    ];
+    for (let i = 0; i < d.length; i += 4) {
+      const r = d[i], g = d[i + 1], b = d[i + 2];
+      let nr = m[0] * r + m[1] * g + m[2] * b, ng = m[3] * r + m[4] * g + m[5] * b, nb = m[6] * r + m[7] * g + m[8] * b;
+      const l = 0.2126 * nr + 0.7152 * ng + 0.0722 * nb;
+      nr = (l + (nr - l) * sat) * bright; ng = (l + (ng - l) * sat) * bright; nb = (l + (nb - l) * sat) * bright;
+      d[i] = nr; d[i + 1] = ng; d[i + 2] = nb;
+    }
+    ctx.putImageData(data, 0, 0);
+    return c;
+  }, [img, hue, sat, bright]);
+}
+
 function BackgroundImage({ bg, palette }) {
-  const img = useHTMLImage(bg.src);
-  if (!img) return null;
-  const base = Math.max(COVER_W / img.naturalWidth, COVER_H / img.naturalHeight) * bg.scale;
-  const w = img.naturalWidth * base;
-  const h = img.naturalHeight * base;
+  const raw = useHTMLImage(bg.src);
+  const img = useRecolored(raw, bg.hue || 0, bg.sat ?? 1, bg.bright ?? 1);
+  if (!img || !raw) return null;
+  const base = Math.max(COVER_W / raw.naturalWidth, COVER_H / raw.naturalHeight) * bg.scale;
+  const w = raw.naturalWidth * base;
+  const h = raw.naturalHeight * base;
   const x = (COVER_W - w) / 2 + (bg.offsetX * (w - COVER_W)) / 2;
   const y = (COVER_H - h) / 2 + (bg.offsetY * (h - COVER_H)) / 2;
   return (
@@ -5771,43 +6699,51 @@ function TextBlockEditor({ slot, value, onChange, onSelect, open, onToggleOpen, 
             </Button>
           )}
 
-          <FontPicker
-            value={value.font}
-            sample={(value.text || 'أبجد').split('\n')[0].slice(0, 12) || 'أبجد'}
-            onChange={(fontName) => set({ font: fontName, weight: closestWeight(fontName, value.weight) })}
-          />
-          <SelectField label="الوزن" value={String(value.weight)} options={weightOptions} onChange={(w) => set({ weight: Number(w) })} />
-
-          <RangeField label="الحجم" min={12} max={260} value={value.size} onChange={(size) => set({ size })} format={(v) => `${v}px`} />
-          <RangeField label="تباعد الأسطر" min={0.8} max={2.2} step={0.05} value={value.lineHeight} onChange={(lineHeight) => set({ lineHeight })} format={(v) => v.toFixed(2)} />
-          <RangeField label="عرض صندوق النص" min={120} max={COVER_W} step={10} value={value.width} onChange={(width) => set({ width })} />
-          <RangeField label="الموضع الأفقي" min={0} max={COVER_W} value={Math.round(value.x)} onChange={(x) => set({ x })} />
-          <RangeField label="الموضع العمودي" min={0} max={COVER_H - 20} value={Math.round(value.y)} onChange={(y) => set({ y })} />
-          <RangeField label="التدوير" min={-30} max={30} value={Math.round(value.rotation || 0)} onChange={(rotation) => set({ rotation })} format={(v) => `${v}°`} />
-          <RangeField
-            label="تباعد الأحرف (للنص اللاتيني فقط)"
-            min={0}
-            max={40}
-            value={value.letterSpacing || 0}
-            onChange={(letterSpacing) => set({ letterSpacing })}
-          />
-
-          <ColorField label={value.effect === 'gradient' ? 'لون البداية' : 'اللون'} value={value.color} onChange={(color) => set({ color })} />
-          <div className="flex items-center justify-between gap-3">
-            <Toggle
-              checked={!!value.secondColor}
-              onChange={(on) => set({ secondColor: on ? '#5fb39a' : '' })}
-              label="لون مختلف للسطر الثاني"
-              small
+          <PropGroup id="t-font" icon="ع" title="الخط والحجم" defaultOpen summary={`${value.font} · ${value.size}px`}>
+            <FontPicker
+              value={value.font}
+              sample={(value.text || 'أبجد').split('\n')[0].slice(0, 12) || 'أبجد'}
+              onChange={(fontName) => set({ font: fontName, weight: closestWeight(fontName, value.weight) })}
             />
-            {value.secondColor && (
-              <input type="color" className="swatch" value={value.secondColor} onChange={(e) => set({ secondColor: e.target.value })} />
-            )}
-          </div>
+            <SelectField label="الوزن" value={String(value.weight)} options={weightOptions} onChange={(w) => set({ weight: Number(w) })} />
+            <RangeField label="الحجم" min={12} max={260} value={value.size} onChange={(size) => set({ size })} format={(v) => `${v}px`} />
+            <RangeField label="تباعد الأسطر" min={0.8} max={2.2} step={0.05} value={value.lineHeight} onChange={(lineHeight) => set({ lineHeight })} format={(v) => v.toFixed(2)} />
+            <RangeField
+              label="تباعد الأحرف (للاتيني فقط)"
+              min={0}
+              max={40}
+              value={value.letterSpacing || 0}
+              onChange={(letterSpacing) => set({ letterSpacing })}
+            />
+          </PropGroup>
 
-          {/* خلفية النص */}
-          <div className="space-y-3 rounded-xl border border-white/5 bg-ink-900/60 p-3">
-            <FieldLabel>شكل خلف النص</FieldLabel>
+          <PropGroup id="t-color" icon="◐" title="الألوان" defaultOpen summary={value.secondColor ? 'لونان' : value.color}>
+            <ColorField label={value.effect === 'gradient' ? 'لون البداية' : 'اللون'} value={value.color} onChange={(color) => set({ color })} />
+            <div className="flex items-center justify-between gap-3">
+              <Toggle
+                checked={!!value.secondColor}
+                onChange={(on) => set({ secondColor: on ? '#5fb39a' : '' })}
+                label="لون مختلف للسطر الثاني"
+                small
+              />
+              {value.secondColor && (
+                <input type="color" className="swatch" value={value.secondColor} onChange={(e) => set({ secondColor: e.target.value })} />
+              )}
+            </div>
+          </PropGroup>
+
+          <PropGroup id="t-box" icon="⬚" title="الصندوق والموضع" summary={`عرض ${value.width} · ${Math.round(value.rotation || 0)}°`}>
+            <RangeField label="عرض صندوق النص" min={120} max={COVER_W} step={10} value={value.width} onChange={(width) => set({ width })} />
+            <RangeField label="الموضع الأفقي" min={0} max={COVER_W} value={Math.round(value.x)} onChange={(x) => set({ x })} />
+            <RangeField label="الموضع العمودي" min={0} max={COVER_H - 20} value={Math.round(value.y)} onChange={(y) => set({ y })} />
+            <RangeField label="التدوير" min={-30} max={30} value={Math.round(value.rotation || 0)} onChange={(rotation) => set({ rotation })} format={(v) => `${v}°`} defaultValue={0} />
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => set({ x: COVER_W / 2, rotation: 0 })} className="text-[12px]">توسيط أفقي</Button>
+              <Button onClick={() => onSelect(`text-${id}`)} className="text-[12px]">تحديد على الغلاف</Button>
+            </div>
+          </PropGroup>
+
+          <PropGroup id="t-bg" icon="▭" title="شكل خلف النص" summary={TEXT_BACKGROUNDS.find((b) => b.id === (value.bg || 'none'))?.label}>
             <ChipGroup items={TEXT_BACKGROUNDS} value={value.bg || 'none'} onChange={(bg) => set({ bg })} cols={4} />
             {value.bg && value.bg !== 'none' && (
               <>
@@ -5822,11 +6758,9 @@ function TextBlockEditor({ slot, value, onChange, onSelect, open, onToggleOpen, 
                 )}
               </>
             )}
-          </div>
+          </PropGroup>
 
-          {/* تأثير النص */}
-          <div className="space-y-3 rounded-xl border border-white/5 bg-ink-900/60 p-3">
-            <FieldLabel>تأثير النص</FieldLabel>
+          <PropGroup id="t-fx" icon="✦" title="التأثير والضوء" summary={`${TEXT_EFFECTS.find((e) => e.id === value.effect)?.label || 'بدون'}${value.shadow ? ' · ظل' : ''}`}>
             <ChipGroup items={TEXT_EFFECTS} value={value.effect} onChange={(effect) => set({ effect })} />
             {value.effect === 'gradient' && <ColorField label="لون النهاية" value={value.color2} onChange={(color2) => set({ color2 })} />}
             {(value.effect === 'glow' || value.effect === 'neon') && (
@@ -5848,15 +6782,8 @@ function TextBlockEditor({ slot, value, onChange, onSelect, open, onToggleOpen, 
               </>
             )}
             {value.effect === 'engraved' && <p className="text-[11px] text-stone-500">يبدو أفضل بلون نص أغمق قليلاً من الخلفية.</p>}
-          </div>
-
-          <div className="flex items-center justify-between">
             <Toggle checked={!!value.shadow} onChange={(shadow) => set({ shadow })} label="ظل سينمائي" small />
-            <div className="flex gap-2">
-              <Button onClick={() => set({ x: COVER_W / 2, rotation: 0 })} className="!px-2.5 text-[11px]">توسيط</Button>
-              <Button onClick={() => onSelect(`text-${id}`)} className="!px-2.5 text-[11px]">تحديد</Button>
-            </div>
-          </div>
+          </PropGroup>
         </div>
       )}
     </section>
@@ -5902,8 +6829,7 @@ function FiltersEditor({ item, paletteLight, onChange }) {
   const fx = { ...DEFAULT_FX, ...(item.fx || {}) };
   const set = (patch) => onChange(item.id, { fx: { ...fx, ...patch } });
   return (
-    <div className="space-y-3 rounded-xl border border-white/5 bg-ink-900/60 p-3">
-      <FieldLabel>المرشحات</FieldLabel>
+    <PropGroup id="i-fx" icon="◑" title="المرشحات والألوان" summary={FILTER_PRESETS.find((p) => p.id === fx.preset)?.label}>
       <div className="grid grid-cols-3 gap-1.5">
         {FILTER_PRESETS.map((p) => (
           <button
@@ -5933,7 +6859,7 @@ function FiltersEditor({ item, paletteLight, onChange }) {
           إعادة الضبط
         </Button>
       </div>
-    </div>
+    </PropGroup>
   );
 }
 
@@ -5974,8 +6900,7 @@ function AppearanceEditor({ item, onChange, paletteLight }) {
 
   return (
     <>
-      <div className="space-y-3 rounded-xl border border-white/5 bg-ink-900/60 p-3">
-        <FieldLabel>الظل والتوهّج</FieldLabel>
+      <PropGroup id="i-light" icon="☀" title="الظل والضوء والتلاشي" summary={SHADOW_MODES.find((m) => m.id === mode)?.label}>
         <div className="grid grid-cols-3 gap-1.5">
           {SHADOW_MODES.map((m) => (
             <button
@@ -5998,10 +6923,9 @@ function AppearanceEditor({ item, onChange, paletteLight }) {
         )}
         <RangeField label="تلاشي الأسفل (دمج مع الخلفية)" min={0} max={0.8} step={0.01} value={item.fadeBottom || 0} onChange={(fadeBottom) => onChange(item.id, { fadeBottom })} format={(v) => `${Math.round(v * 100)}%`} />
         <RangeField label="تلاشي الأطراف" min={0} max={0.9} step={0.01} value={item.fadeEdges || 0} onChange={(fadeEdges) => onChange(item.id, { fadeEdges })} format={(v) => `${Math.round(v * 100)}%`} />
-      </div>
+      </PropGroup>
 
-      <div className="space-y-3 rounded-xl border border-white/5 bg-ink-900/60 p-3">
-        <FieldLabel>شكل ملوّن خلف العنصر</FieldLabel>
+      <PropGroup id="i-backdrop" icon="◠" title="شكل ملوّن خلف العنصر" summary={BACKDROP_SHAPES.find((b) => b.id === bd.shape)?.label}>
         <Chips items={BACKDROP_SHAPES} value={bd.shape} onChange={pickShape} />
         {bd.shape !== 'none' && (
           <>
@@ -6025,7 +6949,7 @@ function AppearanceEditor({ item, onChange, paletteLight }) {
             )}
           </>
         )}
-      </div>
+      </PropGroup>
     </>
   );
 }
@@ -6147,33 +7071,39 @@ function CompositingTab({
           <Button variant="primary" onClick={() => onOpenCutout(selected.id)} className="w-full">
             ✂ تحسين القص يدوياً (ممحاة / استعادة / الحواف)
           </Button>
-          <RangeField label="الحجم" min={0.1} max={3} step={0.01} value={selected.scale} onChange={(scale) => onChangeNode(selected.id, { scale })} format={(v) => `${Math.round(v * 100)}%`} />
-          <RangeField label="التدوير" min={-180} max={180} value={Math.round(selected.rotation)} onChange={(rotation) => onChangeNode(selected.id, { rotation })} format={(v) => `${v}°`} />
-          <RangeField label="الشفافية" min={0} max={1} step={0.01} value={selected.opacity} onChange={(opacity) => onChangeNode(selected.id, { opacity })} format={(v) => `${Math.round(v * 100)}%`} />
+          <PropGroup id="i-size" icon="⤢" title="الحجم والدوران والشفافية" defaultOpen summary={`${Math.round(selected.scale * 100)}% · ${Math.round(selected.rotation)}°`}>
+            <RangeField label="الحجم" min={0.1} max={3} step={0.01} value={selected.scale} onChange={(scale) => onChangeNode(selected.id, { scale })} format={(v) => `${Math.round(v * 100)}%`} />
+            <RangeField label="التدوير" min={-180} max={180} value={Math.round(selected.rotation)} onChange={(rotation) => onChangeNode(selected.id, { rotation })} format={(v) => `${v}°`} defaultValue={0} />
+            <RangeField label="الشفافية" min={0} max={1} step={0.01} value={selected.opacity} onChange={(opacity) => onChangeNode(selected.id, { opacity })} format={(v) => `${Math.round(v * 100)}%`} defaultValue={1} />
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => onMoveImage(selected.id, 1)}>⬆ إلى الأمام</Button>
+              <Button onClick={() => onMoveImage(selected.id, -1)}>⬇ إلى الخلف</Button>
+            </div>
+          </PropGroup>
           <AppearanceEditor item={selected} onChange={onChangeNode} paletteLight={paletteLight} />
 
           <FiltersEditor item={selected} paletteLight={paletteLight} onChange={onChangeNode} />
 
-          <div className="grid grid-cols-2 gap-2">
-            <Button onClick={() => onMoveImage(selected.id, 1)}>⬆ إلى الأمام</Button>
-            <Button onClick={() => onMoveImage(selected.id, -1)}>⬇ إلى الخلف</Button>
-            <Button onClick={() => onSuggestColors(selected.src)} className="col-span-2">
-              🎨 اقتراح ألوان الغلاف من هذه الصورة
-            </Button>
-            {!selected.cutout && (
-              <Button variant="primary" onClick={removeFromSelected} disabled={busy} className="col-span-2">
-                ✦ إزالة خلفية هذه الصورة
+          <PropGroup id="i-actions" icon="⋯" title="إجراءات أخرى" summary="ألوان من الصورة، الأصل، حذف">
+            <div className="grid grid-cols-2 gap-2">
+              <Button onClick={() => onSuggestColors(selected.src)} className="col-span-2">
+                🎨 اقتراح ألوان الغلاف من هذه الصورة
               </Button>
-            )}
-            {selected.cutout && selected.originalSrc && selected.originalSrc !== selected.src && (
-              <Button onClick={() => onChangeNode(selected.id, { src: selected.originalSrc, cutout: false })} className="col-span-2">
-                استعادة الصورة الأصلية
+              {!selected.cutout && (
+                <Button variant="primary" onClick={removeFromSelected} disabled={busy} className="col-span-2">
+                  ✦ إزالة خلفية هذه الصورة
+                </Button>
+              )}
+              {selected.cutout && selected.originalSrc && selected.originalSrc !== selected.src && (
+                <Button onClick={() => onChangeNode(selected.id, { src: selected.originalSrc, cutout: false })} className="col-span-2">
+                  استعادة الصورة الأصلية
+                </Button>
+              )}
+              <Button variant="danger" onClick={() => onRemoveImage(selected.id)} className="col-span-2">
+                حذف العنصر
               </Button>
-            )}
-            <Button variant="danger" onClick={() => onRemoveImage(selected.id)} className="col-span-2">
-              حذف العنصر
-            </Button>
-          </div>
+            </div>
+          </PropGroup>
           {selected.credit && <p className="text-[11px] leading-relaxed text-stone-500">المصدر: {selected.credit}</p>}
         </Section>
         </div>
@@ -6433,6 +7363,17 @@ function LogoTab({ logo, onSetLogo, onChangeNode, onRemoveLogo, onSelect }) {
 
 
 
+const TINTS = [
+  { label: 'الأصل', hue: 0, sat: 1, sw: 'linear-gradient(135deg,#d98a4a,#3a1a33)' },
+  { label: 'ليلي', hue: 200, sat: 0.9, sw: 'linear-gradient(135deg,#2a5a9a,#0a1a33)' },
+  { label: 'زمردي', hue: 110, sat: 1, sw: 'linear-gradient(135deg,#3aa070,#0a2a1a)' },
+  { label: 'بنفسجي', hue: -70, sat: 1, sw: 'linear-gradient(135deg,#8a4ad9,#1a0a33)' },
+  { label: 'قرمزي', hue: -25, sat: 1.25, sw: 'linear-gradient(135deg,#d93a3a,#330a0a)' },
+  { label: 'ذهبي', hue: 18, sat: 1.15, sw: 'linear-gradient(135deg,#e6c070,#3a2a0a)' },
+  { label: 'رمادي', hue: 0, sat: 0, sw: 'linear-gradient(135deg,#aaa,#222)' },
+  { label: 'سيبيا', hue: 25, sat: 0.35, sw: 'linear-gradient(135deg,#b89a70,#2a1e10)' },
+];
+
 const BLEND_OPTIONS = [
   { value: 'soft-light', label: 'ضوء ناعم' },
   { value: 'overlay', label: 'تراكب' },
@@ -6450,12 +7391,33 @@ function ScenePreview({ id }) {
 }
 
 /** خلفيات جاهزة مرسومة داخل التطبيق — تعمل دون إنترنت */
+const TEXTURE_SCENES = new Set(['marble', 'goldMarble', 'wood', 'leather', 'tiles', 'hexagons', 'watercolor', 'mesh', 'abstractWaves', 'velvet', 'goldFoil', 'artDeco', 'smoke', 'papyrus', 'arabesque', 'grainGradient', 'oldPaper', 'bokeh', 'inkSplash']);
+const SCENE_TABS = [
+  { id: 'scenes', label: 'مشاهد' },
+  { id: 'textures', label: 'أنسجة وفن' },
+  { id: 'all', label: 'الكل' },
+];
+
 function SceneGallery({ onPick, activeScene }) {
   const [busy, setBusy] = useState(null);
+  const [tab, setTab] = useState('scenes');
+  const list = SCENES.filter((sc) => tab === 'all' || (tab === 'textures') === TEXTURE_SCENES.has(sc.id));
   return (
-    <Section title="خلفيات جاهزة" hint="مشاهد وأنسجة مرسومة داخل التطبيق — تعمل دون إنترنت">
+    <Section title="خلفيات جاهزة" hint={`${SCENES.length} مشهداً ونسيجاً مرسومة داخل التطبيق — تعمل دون إنترنت، وكل خلفية قابلة للتلوين`}>
+      <div className="grid grid-cols-3 gap-1.5">
+        {SCENE_TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`rounded-lg py-1.5 text-[12px] ${tab === t.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-900 text-stone-400'}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
       <div className="grid grid-cols-3 gap-2">
-        {SCENES.map((sc) => (
+        {list.map((sc) => (
           <button
             key={sc.id}
             type="button"
@@ -6547,29 +7509,59 @@ function PalettesTab({
     ...PALETTES.map((p, i) => ({ value: p.id, label: `${i + 1}. ${p.name}` })),
   ];
 
+  const bgSection = (
+      <Section title={background ? "الخلفية الحالية — تلوين وضبط" : "صورة خلفية كاملة"} hint="ارفع صورة، أو اختر مشهداً جاهزاً ثم لوّنه من هنا">
+      <UploadDrop onFile={(file) => onSetBackground(URL.createObjectURL(file))} title={background ? 'استبدال صورة الخلفية' : 'رفع صورة خلفية'} subtitle="JPG · PNG · WEBP" />
+      {background && (
+        <>
+          <PropGroup id="bg-tint" icon="🎨" title="تلوين الخلفية" defaultOpen summary={background.hue || (background.sat ?? 1) !== 1 ? 'ملوّنة' : 'الألوان الأصلية'}>
+            <div className="grid grid-cols-4 gap-1.5">
+              {TINTS.map((t) => {
+                const on = (background.hue || 0) === t.hue && (background.sat ?? 1) === t.sat;
+                return (
+                  <button
+                    key={t.label}
+                    type="button"
+                    onClick={() => onChangeBackground({ hue: t.hue, sat: t.sat, bright: 1 })}
+                    className={`overflow-hidden rounded-lg border text-[10.5px] ${on ? 'border-gold-400 text-gold-200' : 'border-white/10 text-stone-400'}`}
+                  >
+                    <span className="block h-6" style={{ background: t.sw }} />
+                    <span className="block bg-ink-900 py-1">{t.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <RangeField label="درجة اللون" min={-180} max={180} value={background.hue || 0} onChange={(hue) => onChangeBackground({ hue })} format={(v) => `${v}°`} defaultValue={0} />
+            <RangeField label="التشبّع" min={0} max={2} step={0.05} value={background.sat ?? 1} onChange={(sat) => onChangeBackground({ sat })} format={(v) => `${Math.round(v * 100)}%`} defaultValue={1} />
+            <RangeField label="الإضاءة" min={0.4} max={1.6} step={0.02} value={background.bright ?? 1} onChange={(bright) => onChangeBackground({ bright })} format={(v) => `${Math.round(v * 100)}%`} defaultValue={1} />
+          </PropGroup>
+          <PropGroup id="bg-frame" icon="⤢" title="الإطار والتعتيم" summary={`${Math.round(background.scale * 100)}% · تعتيم ${Math.round(background.dim * 100)}%`}>
+            <RangeField label="التكبير" min={1} max={3} step={0.01} value={background.scale} onChange={(scale) => onChangeBackground({ scale })} format={(v) => `${Math.round(v * 100)}%`} defaultValue={1} />
+            <RangeField label="إزاحة أفقية" min={-1} max={1} step={0.01} value={background.offsetX} onChange={(offsetX) => onChangeBackground({ offsetX })} format={(v) => Math.round(v * 100)} defaultValue={0} />
+            <RangeField label="إزاحة عمودية" min={-1} max={1} step={0.01} value={background.offsetY} onChange={(offsetY) => onChangeBackground({ offsetY })} format={(v) => Math.round(v * 100)} defaultValue={0} />
+            <RangeField label="تعتيم الصورة" min={0} max={0.9} step={0.01} value={background.dim} onChange={(dim) => onChangeBackground({ dim })} format={(v) => `${Math.round(v * 100)}%`} />
+            <RangeField label="مزج النمط اللوني فوقها" min={0} max={1} step={0.01} value={background.paletteMix} onChange={(paletteMix) => onChangeBackground({ paletteMix })} format={(v) => `${Math.round(v * 100)}%`} />
+            <SelectField label="طريقة المزج" value={background.blend} options={BLEND_OPTIONS} onChange={(blend) => onChangeBackground({ blend })} />
+          </PropGroup>
+          <div className="grid grid-cols-2 gap-2">
+            <Button onClick={() => onSuggestColors(background.src)} className="text-[12px]">🎨 ألوان من الخلفية</Button>
+            <Button variant="danger" onClick={onRemoveBackground} className="text-[12px]">إزالة الخلفية</Button>
+          </div>
+        </>
+      )}
+    </Section>
+  );
+
   return (
     <>
+      {background && bgSection}
+
       <SceneGallery activeScene={background?.scene} onPick={(src, scene) => onSetBackground(src, { scene })} />
 
       <AIGenerator onResult={(src) => onSetBackground(src, { generated: true })} />
 
-      <Section title="صورة خلفية كاملة" hint="ارفع صورة لتملأ الغلاف بدل التدرّج اللوني">
-        <UploadDrop onFile={(file) => onSetBackground(URL.createObjectURL(file))} title={background ? 'استبدال صورة الخلفية' : 'رفع صورة خلفية'} subtitle="JPG · PNG · WEBP" />
-        {background && (
-          <>
-            <RangeField label="التكبير" min={1} max={3} step={0.01} value={background.scale} onChange={(scale) => onChangeBackground({ scale })} format={(v) => `${Math.round(v * 100)}%`} />
-            <RangeField label="إزاحة أفقية" min={-1} max={1} step={0.01} value={background.offsetX} onChange={(offsetX) => onChangeBackground({ offsetX })} format={(v) => Math.round(v * 100)} />
-            <RangeField label="إزاحة عمودية" min={-1} max={1} step={0.01} value={background.offsetY} onChange={(offsetY) => onChangeBackground({ offsetY })} format={(v) => Math.round(v * 100)} />
-            <RangeField label="تعتيم الصورة" min={0} max={0.9} step={0.01} value={background.dim} onChange={(dim) => onChangeBackground({ dim })} format={(v) => `${Math.round(v * 100)}%`} />
-            <RangeField label="مزج النمط اللوني فوقها" min={0} max={1} step={0.01} value={background.paletteMix} onChange={(paletteMix) => onChangeBackground({ paletteMix })} format={(v) => `${Math.round(v * 100)}%`} />
-            <SelectField label="طريقة المزج" value={background.blend} options={BLEND_OPTIONS} onChange={(blend) => onChangeBackground({ blend })} />
-            <div className="grid grid-cols-2 gap-2">
-              <Button onClick={() => onSuggestColors(background.src)} className="text-[12px]">🎨 ألوان من الخلفية</Button>
-              <Button variant="danger" onClick={onRemoveBackground} className="text-[12px]">إزالة الخلفية</Button>
-            </div>
-          </>
-        )}
-      </Section>
+      {!background && bgSection}
+
 
       <Section title="النمط اللوني" hint={`${PALETTES.length} نمطاً لونياً + النمط المقترح من صورك`}>
         <SelectField value={paletteId} onChange={onChangePalette} options={options} />
@@ -6664,15 +7656,14 @@ function LayersTab({ layers, onChangeLayer, onResetLayers, textAboveLayers, onTo
                       {Math.round(state.opacity * 100)}%
                     </span>
                   </div>
-                  <input
-                    type="range"
-                    className="slider mt-3"
+                  <TouchSlider
+                    className="mt-2"
                     min={0}
                     max={1}
                     step={0.01}
                     value={state.opacity}
                     disabled={!state.enabled}
-                    onChange={(e) => onChangeLayer(item.id, { opacity: parseFloat(e.target.value) })}
+                    onChange={(v) => onChangeLayer(item.id, { opacity: v })}
                   />
                 </div>
               );
@@ -6881,7 +7872,7 @@ function ShapesTab({ shapes, selectedId, onAddShape, onChangeShape, onRemoveShap
               <Preview kind={selected.kind} fill={selected.fill} stroke={selected.stroke} />
             </div>
 
-            <div className="space-y-2 rounded-xl border border-white/5 bg-ink-900/60 p-3">
+            <PropGroup id="s-color" icon="◐" title="الألوان والحدّ" defaultOpen summary={noFill ? 'بدون تعبئة' : selected.fill}>
               <div className="flex items-center justify-between">
                 <span className="text-[12px] text-stone-400">لون التعبئة</span>
                 <Toggle checked={!noFill} onChange={(on) => set({ fill: on ? '#d4af6a' : TRANSPARENT })} label={noFill ? 'بدون' : ''} small />
@@ -6892,9 +7883,6 @@ function ShapesTab({ shapes, selectedId, onAddShape, onChangeShape, onRemoveShap
                   <Swatches onPick={(fill) => set({ fill })} />
                 </>
               )}
-            </div>
-
-            <div className="space-y-2 rounded-xl border border-white/5 bg-ink-900/60 p-3">
               <RangeField label="سماكة الحدّ" min={0} max={30} step={0.5} value={selected.strokeWidth} onChange={(strokeWidth) => set({ strokeWidth, stroke: selected.stroke === TRANSPARENT ? '#d4af6a' : selected.stroke })} />
               {selected.strokeWidth > 0 && (
                 <>
@@ -6902,12 +7890,14 @@ function ShapesTab({ shapes, selectedId, onAddShape, onChangeShape, onRemoveShap
                   <Swatches onPick={(stroke) => set({ stroke })} />
                 </>
               )}
-            </div>
+            </PropGroup>
 
+            <PropGroup id="s-size" icon="⤢" title="الحجم والدوران والشفافية" defaultOpen summary={`${Math.round(selected.width)}×${Math.round(selected.height)}`}>
             <RangeField label="العرض" min={10} max={1200} value={Math.round(selected.width)} onChange={(width) => set({ width })} />
             <RangeField label="الارتفاع" min={4} max={1600} value={Math.round(selected.height)} onChange={(height) => set({ height })} />
-            <RangeField label="التدوير" min={-180} max={180} value={Math.round(selected.rotation)} onChange={(rotation) => set({ rotation })} format={(v) => `${v}°`} />
+            <RangeField label="التدوير" min={-180} max={180} value={Math.round(selected.rotation)} onChange={(rotation) => set({ rotation })} format={(v) => `${v}°`} defaultValue={0} />
             <RangeField label="الشفافية" min={0.05} max={1} step={0.01} value={selected.opacity} onChange={(opacity) => set({ opacity })} format={(v) => `${Math.round(v * 100)}%`} />
+            </PropGroup>
             <Toggle checked={!!selected.shadow} onChange={(shadow) => set({ shadow })} label="ظل" small />
             <Toggle checked={!!selected.behind} onChange={(behind) => set({ behind })} label="خلف الصور" small />
             <div className="grid grid-cols-2 gap-2">
@@ -7239,6 +8229,104 @@ function TopBar({
         </button>
         <Btn title="تكبير" onClick={() => onZoom(1)}>+</Btn>
       </div>
+    </div>
+  );
+}
+
+// ===== components/QuickBar.jsx =====
+
+
+
+
+
+const QB_SELECT =
+  'h-8 shrink-0 rounded-lg border border-white/10 bg-ink-950 px-2 text-[12px] text-stone-200 outline-none focus:border-gold-500/60';
+
+function QbLabel({ children }) {
+  return <span className="shrink-0 text-[10.5px] text-stone-500">{children}</span>;
+}
+
+/**
+ * شريط سريع رفيع أسفل شريط الأدوات (لا يغطي التصميم):
+ * للنص: الخط، الحجم، اللون، التأثير، الظل.  للصورة/الزخرفة: الحجم والشفافية.
+ */
+function QuickBar({ kind, value, onChange }) {
+  if (!value) return null;
+
+  if (kind === 'text') {
+    const size = value.size || 40;
+    const stepSize = (dir) => onChange({ size: Math.max(12, Math.min(260, size + dir * 2)) });
+    return (
+      <div className="scroll-thin flex h-11 shrink-0 items-center gap-2 overflow-x-auto border-b border-white/5 bg-ink-800/80 px-2">
+        <select
+          className={`${QB_SELECT} max-w-[128px]`}
+          value={value.font}
+          onChange={(e) => onChange({ font: e.target.value, weight: closestWeight(e.target.value, value.weight) })}
+          style={{ fontFamily: `"${value.font}"` }}
+        >
+          {ARABIC_FONTS.map((f) => (
+            <option key={f.family} value={f.family}>{f.label}</option>
+          ))}
+        </select>
+        <div className="flex shrink-0 items-center gap-1">
+          <StepButton dir={-1} onStep={stepSize} disabled={size <= 12} />
+          <span className="w-9 text-center text-[12px] tabular-nums text-stone-200" dir="ltr">{size}</span>
+          <StepButton dir={1} onStep={stepSize} disabled={size >= 260} />
+        </div>
+        <label className="flex shrink-0 items-center gap-1.5">
+          <QbLabel>لون</QbLabel>
+          <input type="color" className="h-7 w-7 cursor-pointer rounded-md border border-white/15 bg-transparent p-0" value={value.color} onChange={(e) => onChange({ color: e.target.value })} />
+        </label>
+        <select className={QB_SELECT} value={value.effect || 'none'} onChange={(e) => onChange({ effect: e.target.value })}>
+          {TEXT_EFFECTS.map((fx) => (
+            <option key={fx.id} value={fx.id}>✦ {fx.label}</option>
+          ))}
+        </select>
+        <button
+          type="button"
+          onClick={() => onChange({ shadow: !value.shadow })}
+          className={`h-8 shrink-0 rounded-lg px-2.5 text-[12px] ${value.shadow ? 'bg-gold-400/20 text-gold-200' : 'border border-white/10 text-stone-400'}`}
+        >
+          ظل
+        </button>
+      </div>
+    );
+  }
+
+  // صورة / زخرفة / شعار
+  const isShape = kind === 'shape';
+  const scale = value.scale ?? 1;
+  const opacity = value.opacity ?? 1;
+  const stepScale = (dir) => {
+    if (isShape) {
+      const f = dir > 0 ? 1.05 : 1 / 1.05;
+      onChange({ width: Math.max(10, value.width * f), height: Math.max(4, value.height * f) });
+    } else onChange({ scale: Math.max(0.1, Math.min(3, Math.round((scale + dir * 0.03) * 100) / 100)) });
+  };
+  const stepOpacity = (dir) => onChange({ opacity: Math.max(0.05, Math.min(1, Math.round((opacity + dir * 0.05) * 100) / 100)) });
+  return (
+    <div className="scroll-thin flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-b border-white/5 bg-ink-800/80 px-2">
+      <div className="flex shrink-0 items-center gap-1">
+        <QbLabel>الحجم</QbLabel>
+        <StepButton dir={-1} onStep={stepScale} />
+        {!isShape && <span className="w-10 text-center text-[12px] tabular-nums text-stone-200" dir="ltr">{Math.round(scale * 100)}%</span>}
+        <StepButton dir={1} onStep={stepScale} />
+      </div>
+      <div className="flex shrink-0 items-center gap-1">
+        <QbLabel>الشفافية</QbLabel>
+        <StepButton dir={-1} onStep={stepOpacity} disabled={opacity <= 0.05} />
+        <span className="w-10 text-center text-[12px] tabular-nums text-stone-200" dir="ltr">{Math.round(opacity * 100)}%</span>
+        <StepButton dir={1} onStep={stepOpacity} disabled={opacity >= 1} />
+      </div>
+      <button type="button" onClick={() => onChange({ rotation: 0 })} className="h-8 shrink-0 rounded-lg border border-white/10 px-2.5 text-[12px] text-stone-400">
+        تصفير الدوران
+      </button>
+      {isShape && (
+        <label className="flex shrink-0 items-center gap-1.5">
+          <QbLabel>لون</QbLabel>
+          <input type="color" className="h-7 w-7 cursor-pointer rounded-md border border-white/15 bg-transparent p-0" value={value.fill && value.fill.startsWith('#') ? value.fill : '#d4af6a'} onChange={(e) => onChange({ fill: e.target.value })} />
+        </label>
+      )}
     </div>
   );
 }
@@ -7734,6 +8822,7 @@ function CutoutEditor({ item, onSave, onClose }) {
 }
 
 // ===== components/App.jsx =====
+
 
 
 
@@ -8483,6 +9572,17 @@ function App() {
             zoom={zoom}
             onZoom={zoomStep}
           />
+          {selection.length === 1 && (() => {
+            const id = selection[0];
+            if (id.startsWith('text-')) {
+              const key = id.slice(5);
+              return <QuickBar kind="text" value={doc.texts[key]} onChange={(patch) => updateText(key, patch)} />;
+            }
+            const node =
+              id === 'logo' ? doc.logo : id.startsWith('shp-') ? (doc.shapes || []).find((n) => n.id === id) : doc.images.find((n) => n.id === id);
+            if (!node || node.locked) return null;
+            return <QuickBar kind={id.startsWith('shp-') ? 'shape' : 'image'} value={node} onChange={(patch) => changeNode(id, patch)} />;
+          })()}
           <div className="stage-backdrop relative min-h-0 flex-1">
             <CoverCanvas
               ref={canvasRef}

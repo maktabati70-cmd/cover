@@ -14,6 +14,7 @@ import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
 import android.util.Base64;
+import android.view.HapticFeedbackConstants;
 import android.webkit.JavascriptInterface;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -263,6 +264,17 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void appReady() {
             if (updater != null) updater.markHealthy();
+        }
+
+        /** اهتزاز خفيف عند حدود المنزلق أو إرجاع القيمة (0 = خفيف، 1 = أوضح) */
+        @JavascriptInterface
+        public void haptic(int kind) {
+            runOnUiThread(() -> {
+                if (web == null) return;
+                web.performHapticFeedback(kind == 1
+                        ? HapticFeedbackConstants.LONG_PRESS
+                        : HapticFeedbackConstants.CLOCK_TICK);
+            });
         }
 
         @JavascriptInterface
