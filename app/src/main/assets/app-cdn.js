@@ -1937,28 +1937,61 @@ function createDefaultLayerState() {
 }
 // ===== lib/textEffects.js =====
 // ─────────────────────────────────────────────────────────────
-// تأثيرات النص: ذهبي معدني، محفور، توهّج، حدّ خارجي، تدرّج لوني
+// تأثيرات النص الاحترافية
 // ─────────────────────────────────────────────────────────────
-// buildTextLayers تُرجع خصائص Konva للنص الأساسي + نُسخاً سفلية (underlays)
-// تُرسم خلفه لصنع تأثيرات تحتاج أكثر من ظل واحد (مثل الحفر والتوهّج القوي).
+// كل تأثير = طبقات: under (خلف النص) + main (النص نفسه) + over (لمعة/إضاءة فوقه).
+// الطبقات خصائص Konva.Text عادية، ويُرسم بها أيضاً معاينة مصغّرة في معرض التأثيرات.
 const TEXT_EFFECTS = [
-    { id: 'none', label: 'بدون' },
-    { id: 'gold', label: 'ذهبي معدني' },
-    { id: 'engraved', label: 'محفور' },
-    { id: 'glow', label: 'توهّج' },
-    { id: 'outline', label: 'حدّ خارجي' },
-    { id: 'gradient', label: 'تدرّج لوني' },
-    { id: 'silver', label: 'فضي معدني' },
-    { id: 'extrude', label: 'ثلاثي الأبعاد' },
-    { id: 'neon', label: 'نيون' },
-    { id: 'double', label: 'حدّ مزدوج' },
+    { id: 'none', label: 'بدون', group: 'basic' },
+    { id: 'cinematic', label: 'سينمائي', group: 'basic', needs: [] },
+    { id: 'gold', label: 'ذهب فاخر', group: 'metal' },
+    { id: 'goldFoil', label: 'رقائق ذهب', group: 'metal' },
+    { id: 'chrome', label: 'كروم', group: 'metal' },
+    { id: 'silver', label: 'فضّي', group: 'metal' },
+    { id: 'bronze', label: 'نحاسي', group: 'metal' },
+    { id: 'embossed', label: 'بارز', group: 'relief' },
+    { id: 'engraved', label: 'محفور', group: 'relief' },
+    { id: 'extrude', label: 'ثلاثي الأبعاد', group: 'relief', needs: ['color2'] },
+    { id: 'longShadow', label: 'ظل طويل', group: 'relief' },
+    { id: 'glow', label: 'توهّج ناعم', group: 'light', needs: ['glowColor'] },
+    { id: 'neon', label: 'نيون', group: 'light', needs: ['glowColor'] },
+    { id: 'fire', label: 'ناري', group: 'light' },
+    { id: 'ice', label: 'جليدي', group: 'light' },
+    { id: 'blood', label: 'رعب دموي', group: 'light' },
+    { id: 'retro', label: 'ريترو', group: 'style', needs: ['color2'] },
+    { id: 'glitch', label: 'تشويش رقمي', group: 'style' },
+    { id: 'glass', label: 'زجاجي', group: 'style' },
+    { id: 'gradient', label: 'تدرّج لوني', group: 'style', needs: ['color2'] },
+    { id: 'outline', label: 'مفرّغ', group: 'style', needs: ['stroke'] },
+    { id: 'double', label: 'حدّ مزدوج', group: 'style', needs: ['stroke', 'color2'] },
 ];
+const EFFECT_GROUPS = [
+    { id: 'basic', label: 'أساسي' },
+    { id: 'metal', label: 'معادن' },
+    { id: 'relief', label: 'عمق وبروز' },
+    { id: 'light', label: 'ضوء' },
+    { id: 'style', label: 'أنماط' },
+];
+/** التأثيرات التي تحتاج تدرّجاً لكل سطر على حدة حتى يبدو المعدن صحيحاً */
+const PER_LINE_EFFECTS = new Set(['gold', 'goldFoil', 'chrome', 'silver', 'bronze', 'fire', 'ice', 'blood', 'gradient', 'cinematic', 'glass', 'embossed', 'engraved', 'extrude']);
+const needsPerLine = (effect) => PER_LINE_EFFECTS.has(effect);
 const TEXT_BACKGROUNDS = [
     { id: 'none', label: 'بدون' },
     { id: 'bars', label: 'شريط لكل سطر' },
     { id: 'box', label: 'صندوق' },
-    { id: 'pill', label: 'إطار بيضاوي' },
+    { id: 'glass', label: 'زجاج مضبّب' },
+    { id: 'fade', label: 'شريط متلاشٍ' },
+    { id: 'brush', label: 'ضربة فرشاة' },
+    { id: 'ribbon', label: 'شريط معقود' },
     { id: 'plaque', label: 'لوحة زخرفية' },
+    { id: 'frame', label: 'إطار مزدوج' },
+    { id: 'corners', label: 'زوايا' },
+    { id: 'ornament', label: 'خطّان ومعيّن' },
+    { id: 'pill', label: 'إطار بيضاوي' },
+    { id: 'stamp', label: 'ختم دائري' },
+    { id: 'torn', label: 'ورقة ممزقة' },
+    { id: 'tag', label: 'لوحة معدنية' },
+    { id: 'arch', label: 'قوس' },
     { id: 'halo', label: 'هالة ضوئية' },
     { id: 'underline', label: 'خط سفلي' },
 ];
@@ -1978,113 +2011,354 @@ const TEXT_EFFECT_DEFAULTS = {
     strokeColor: '#000000',
     strokeWidth: 5,
     outlineOnly: false,
+    // حدّ ملوّن حول النص (مستقل عن التأثير)
+    ring: false,
+    ringStyle: 'solid',
+    ringColor: '#000000',
+    ringWidth: 6,
+    ring2: false,
+    ring2Color: '#d4af6a',
+    ring2Width: 4,
 };
-const SILVER_STOPS = [0, '#ffffff', 0.3, '#cdd2da', 0.48, '#6b717b', 0.6, '#eef1f5', 0.84, '#9aa1ab', 1, '#4d525a'];
-const GOLD_STOPS = [0, '#fff4c8', 0.28, '#e6c46a', 0.48, '#9c7426', 0.6, '#f2d47c', 0.82, '#b8892f', 1, '#76531a'];
-function estimateHeight(t) {
-    const lines = Math.max(1, String(t.text || '').split('\n').length);
-    return lines * t.size * t.lineHeight;
+// ── أدوات الألوان ──
+function hexRgb(hex) {
+    let h = String(hex || '#000').replace('#', '');
+    if (h.length === 3)
+        h = h.split('').map((c) => c + c).join('');
+    const n = parseInt(h.slice(0, 6), 16) || 0;
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
-function buildTextLayers(t) {
-    const h = estimateHeight(t);
-    const shadow = t.shadow
-        ? { shadowEnabled: true, shadowColor: '#000', shadowBlur: 30, shadowOpacity: 0.9, shadowOffsetX: 0, shadowOffsetY: 6 }
-        : { shadowEnabled: false };
-    const gradient = (stops) => ({
+function mixHex(a, b, t) {
+    const A = hexRgb(a), B = hexRgb(b);
+    const c = A.map((v, i) => Math.round(v + (B[i] - v) * t));
+    return '#' + c.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
+const lighten = (c, t) => mixHex(c, '#ffffff', t);
+const darken = (c, t) => mixHex(c, '#000000', t);
+function rgbaHex(hex, a) {
+    const [r, g, b] = hexRgb(hex);
+    return `rgba(${r},${g},${b},${a})`;
+}
+const GOLD = [0, '#fff7d6', 0.2, '#f5d77e', 0.44, '#c28f2c', 0.5, '#7d5413', 0.56, '#d8a948', 0.78, '#f8e199', 1, '#946a20'];
+const GOLD_FOIL = [0, '#8a6420', 0.12, '#f9e7a4', 0.24, '#b98b30', 0.38, '#fff3c4', 0.5, '#a8792a', 0.64, '#f1d27c', 0.8, '#946a22', 0.92, '#f6df98', 1, '#7a5418'];
+const CHROME = [0, '#ffffff', 0.3, '#d6e6f5', 0.48, '#7ea6cc', 0.5, '#1a2433', 0.53, '#4a3a2a', 0.72, '#cdb391', 0.9, '#f5ead8', 1, '#ffffff'];
+const SILVER = [0, '#ffffff', 0.28, '#dfe3e9', 0.48, '#8a909a', 0.52, '#5f656f', 0.6, '#eef1f5', 0.85, '#a7aeb8', 1, '#5b616a'];
+const BRONZE = [0, '#ffe2c4', 0.25, '#e09a62', 0.48, '#8a4a22', 0.52, '#5a2a12', 0.6, '#c87a44', 0.85, '#f0b07a', 1, '#6a3618'];
+/**
+ * @param t خصائص النص
+ * @param box { lh: ارتفاع السطر, lines: عدد الأسطر داخل هذه القطعة, w: عرض الصندوق }
+ */
+function buildTextLayers(t, box = {}) {
+    const s = t.size || 60;
+    const lh = box.lh || s * (t.lineHeight || 1.2);
+    const nLines = box.lines || Math.max(1, String(t.text || '').split('\n').length);
+    const w = box.w || t.width || 600;
+    // حدود التدرّج: سطر واحد → حول جسم الحروف، عدة أسطر → كامل الكتلة
+    const gTop = nLines === 1 ? lh / 2 - s * 0.52 : 0;
+    const gBot = nLines === 1 ? lh / 2 + s * 0.46 : nLines * lh;
+    const grad = (stops, diagonal) => ({
         fillPriority: 'linear-gradient',
-        fillLinearGradientStartPoint: { x: 0, y: 0 },
-        fillLinearGradientEndPoint: { x: 0, y: h },
+        fillLinearGradientStartPoint: { x: diagonal ? w * 0.2 : 0, y: gTop },
+        fillLinearGradientEndPoint: { x: diagonal ? w * 0.8 : 0, y: gBot },
         fillLinearGradientColorStops: stops,
+    });
+    const noShadow = { shadowEnabled: false };
+    const dropShadow = t.shadow
+        ? { shadowEnabled: true, shadowColor: '#000', shadowBlur: s * 0.45, shadowOpacity: 0.85, shadowOffsetX: 0, shadowOffsetY: s * 0.08 }
+        : noShadow;
+    const glowOf = (color, blur, extra = {}) => ({
+        fill: color,
+        shadowEnabled: true,
+        shadowColor: color,
+        shadowBlur: blur,
+        shadowOpacity: 1,
+        shadowOffsetX: 0,
+        shadowOffsetY: 0,
+        ...extra,
+    });
+    // لمعة علوية ناعمة فوق الحروف
+    const gloss = (a = 0.5) => ({
+        fillPriority: 'linear-gradient',
+        fillLinearGradientStartPoint: { x: 0, y: gTop },
+        fillLinearGradientEndPoint: { x: 0, y: gTop + (gBot - gTop) * 0.55 },
+        fillLinearGradientColorStops: [0, `rgba(255,255,255,${a})`, 0.6, `rgba(255,255,255,${a * 0.25})`, 1, 'rgba(255,255,255,0)'],
+        ...noShadow,
+    });
+    // قاعدة داكنة رفيعة تفصل المعدن عن الخلفية
+    const metalBase = (edge) => ({
+        fill: edge,
+        stroke: edge,
+        strokeWidth: Math.max(2, s * 0.05),
+        lineJoin: 'round',
+        dy: s * 0.015,
+        ...(t.shadow
+            ? { shadowEnabled: true, shadowColor: '#000', shadowBlur: s * 0.35, shadowOpacity: 0.9, shadowOffsetY: s * 0.07, shadowOffsetX: 0 }
+            : { shadowEnabled: true, shadowColor: '#000', shadowBlur: s * 0.12, shadowOpacity: 0.6, shadowOffsetY: s * 0.03, shadowOffsetX: 0 }),
+    });
+    const metal = (stops, edge, diagonal) => ({
+        under: [metalBase(edge)],
+        main: { ...grad(stops, diagonal), stroke: lighten(edge, 0.35), strokeWidth: Math.max(0.8, s * 0.008), ...noShadow },
+        over: [gloss(0.38)],
     });
     switch (t.effect) {
         case 'gold':
-            return {
-                main: { ...gradient(GOLD_STOPS), stroke: '#4a330c', strokeWidth: Math.max(1, t.size * 0.012), fillAfterStrokeEnabled: true, ...shadow },
-                under: [],
-            };
+            return metal(GOLD, '#3d2706');
+        case 'goldFoil':
+            return metal(GOLD_FOIL, '#3a2405', true);
+        case 'chrome':
+            return metal(CHROME, '#0d131c');
         case 'silver':
+            return metal(SILVER, '#1f2329');
+        case 'bronze':
+            return metal(BRONZE, '#2a1206');
+        case 'cinematic':
             return {
-                main: { ...gradient(SILVER_STOPS), stroke: '#2b2e33', strokeWidth: Math.max(1, t.size * 0.012), fillAfterStrokeEnabled: true, ...shadow },
-                under: [],
-            };
-        case 'extrude': {
-            // نص بارز ثلاثي الأبعاد: نُسخ متتالية مزاحة بلون العمق
-            const depth = Math.max(4, t.size * 0.09);
-            const steps = 10;
-            const under = [];
-            for (let i = steps; i >= 1; i--) {
-                under.push({
-                    fill: t.color2,
-                    dx: (depth * i * 0.55) / steps,
-                    dy: (depth * i) / steps,
-                    ...(i === steps ? { shadowEnabled: true, shadowColor: '#000', shadowBlur: depth * 2, shadowOpacity: 0.8, shadowOffsetY: depth * 0.6 } : {}),
-                });
-            }
-            return { main: { fill: t.color, stroke: 'rgba(255,255,255,0.25)', strokeWidth: 1 }, under };
-        }
-        case 'neon':
-            return {
-                main: {
-                    fill: t.color,
-                    stroke: t.glowColor,
-                    strokeWidth: Math.max(1, t.size * 0.025),
-                    fillAfterStrokeEnabled: true,
-                    shadowEnabled: true,
-                    shadowColor: t.glowColor,
-                    shadowBlur: t.size * 0.3,
-                    shadowOpacity: 1,
-                    shadowOffsetX: 0,
-                    shadowOffsetY: 0,
-                },
                 under: [
+                    glowOf(rgbaHex(t.color, 0.55), s * 0.9, { fill: rgbaHex(t.color, 0.35) }),
+                    { fill: '#000', shadowEnabled: true, shadowColor: '#000', shadowBlur: s * 0.5, shadowOpacity: 0.9, shadowOffsetY: s * 0.1, shadowOffsetX: 0, opacity: 0.9 },
+                ],
+                main: { ...grad([0, lighten(t.color, 0.55), 0.5, t.color, 1, darken(t.color, 0.3)]), ...noShadow },
+                over: [gloss(0.18)],
+            };
+        case 'embossed': {
+            const d = Math.max(1.5, s * 0.025);
+            return {
+                under: [
+                    { fill: 'rgba(0,0,0,0.65)', dx: d, dy: d, shadowEnabled: true, shadowColor: '#000', shadowBlur: d * 3, shadowOpacity: 0.6 },
+                    { fill: rgbaHex(lighten(t.color, 0.7), 0.85), dx: -d * 0.7, dy: -d * 0.7 },
+                ],
+                main: { ...grad([0, lighten(t.color, 0.2), 1, darken(t.color, 0.15)]), ...noShadow },
+                over: [gloss(0.25)],
+            };
+        }
+        case 'engraved': {
+            const d = Math.max(1.5, s * 0.022);
+            return {
+                under: [{ fill: 'rgba(255,255,255,0.32)', dy: d, dx: d * 0.3 }],
+                main: { ...grad([0, darken(t.color, 0.45), 0.45, darken(t.color, 0.1), 1, t.color]), ...noShadow },
+                over: [
                     {
-                        fill: 'rgba(0,0,0,0)',
-                        stroke: t.glowColor,
-                        strokeWidth: Math.max(2, t.size * 0.07),
-                        shadowEnabled: true,
-                        shadowColor: t.glowColor,
-                        shadowBlur: t.size * 0.9,
-                        shadowOpacity: 1,
-                        opacity: 0.85,
+                        fillPriority: 'linear-gradient',
+                        fillLinearGradientStartPoint: { x: 0, y: gTop },
+                        fillLinearGradientEndPoint: { x: 0, y: gTop + (gBot - gTop) * 0.4 },
+                        fillLinearGradientColorStops: [0, 'rgba(0,0,0,0.55)', 1, 'rgba(0,0,0,0)'],
+                        ...noShadow,
                     },
                 ],
             };
-        case 'double':
+        }
+        case 'extrude': {
+            const depth = Math.max(5, s * 0.1);
+            const steps = 14;
+            const under = [];
+            for (let i = steps; i >= 1; i--) {
+                const k = i / steps;
+                under.push({
+                    fill: mixHex(t.color2, '#000000', 0.15 + k * 0.45),
+                    dx: depth * k * 0.6,
+                    dy: depth * k,
+                    ...(i === steps
+                        ? { shadowEnabled: true, shadowColor: '#000', shadowBlur: depth * 2.4, shadowOpacity: 0.85, shadowOffsetY: depth * 0.8, shadowOffsetX: depth * 0.3 }
+                        : noShadow),
+                });
+            }
             return {
-                main: { fill: t.color, stroke: t.strokeColor, strokeWidth: t.strokeWidth, fillAfterStrokeEnabled: true, lineJoin: 'round' },
-                under: [{ fill: t.color2, stroke: t.color2, strokeWidth: t.strokeWidth * 3.4, lineJoin: 'round', ...shadow }],
-            };
-        case 'gradient':
-            return { main: { ...gradient([0, t.color, 1, t.color2]), ...shadow }, under: [] };
-        case 'glow': {
-            const glow = { shadowEnabled: true, shadowColor: t.glowColor, shadowOffsetX: 0, shadowOffsetY: 0, shadowOpacity: 1 };
-            return {
-                main: { fill: t.color, ...glow, shadowBlur: t.size * 0.25 },
-                under: [{ fill: t.color, ...glow, shadowBlur: t.size * 0.75, opacity: 0.9 }],
+                under,
+                main: { ...grad([0, lighten(t.color, 0.35), 1, t.color]), stroke: lighten(t.color, 0.6), strokeWidth: Math.max(1, s * 0.01), ...noShadow },
+                over: [gloss(0.3)],
             };
         }
+        case 'longShadow': {
+            const n = 26;
+            const len = s * 0.9;
+            const under = [];
+            for (let i = n; i >= 1; i--)
+                under.push({ fill: `rgba(0,0,0,${0.09 * (1 - i / (n + 4))})`, dx: (len * i) / n, dy: (len * i) / n });
+            return { under, main: { fill: t.color, ...noShadow }, over: [] };
+        }
+        case 'glow':
+            return {
+                under: [
+                    glowOf(t.glowColor, s * 1.2, { opacity: 0.55 }),
+                    glowOf(t.glowColor, s * 0.5, { opacity: 0.8 }),
+                ],
+                main: { fill: t.color, shadowEnabled: true, shadowColor: t.glowColor, shadowBlur: s * 0.15, shadowOpacity: 1, shadowOffsetX: 0, shadowOffsetY: 0 },
+                over: [],
+            };
+        case 'neon': {
+            const g = t.glowColor;
+            return {
+                under: [
+                    { fill: 'rgba(0,0,0,0)', stroke: g, strokeWidth: Math.max(3, s * 0.09), lineJoin: 'round', shadowEnabled: true, shadowColor: g, shadowBlur: s * 1.3, shadowOpacity: 1, opacity: 0.55 },
+                    { fill: 'rgba(0,0,0,0)', stroke: g, strokeWidth: Math.max(2, s * 0.05), lineJoin: 'round', shadowEnabled: true, shadowColor: g, shadowBlur: s * 0.45, shadowOpacity: 1 },
+                ],
+                main: { fill: lighten(g, 0.82), stroke: lighten(g, 0.35), strokeWidth: Math.max(1, s * 0.018), lineJoin: 'round', shadowEnabled: true, shadowColor: g, shadowBlur: s * 0.12, shadowOpacity: 1, shadowOffsetX: 0, shadowOffsetY: 0 },
+                over: [],
+            };
+        }
+        case 'fire':
+            return {
+                under: [glowOf('#ff3c00', s * 1.1, { opacity: 0.6, dy: -s * 0.05 }), glowOf('#ff9a00', s * 0.4, { opacity: 0.85 })],
+                main: { ...grad([0, '#fff8c8', 0.35, '#ffd447', 0.65, '#ff7a00', 1, '#c41e00']), ...noShadow },
+                over: [gloss(0.2)],
+            };
+        case 'ice':
+            return {
+                under: [
+                    { fill: '#04121c', stroke: '#04121c', strokeWidth: Math.max(2, s * 0.04), lineJoin: 'round', shadowEnabled: true, shadowColor: '#000', shadowBlur: s * 0.3, shadowOpacity: 0.7, shadowOffsetY: s * 0.05 },
+                    glowOf('#7fdcff', s * 0.5, { opacity: 0.7 }),
+                ],
+                main: { ...grad([0, '#ffffff', 0.45, '#cdf3ff', 0.55, '#8fd6f5', 1, '#3d8fc4']), stroke: '#f2fcff', strokeWidth: Math.max(1, s * 0.01), ...noShadow },
+                over: [gloss(0.45)],
+            };
+        case 'blood':
+            return {
+                under: [
+                    { fill: '#000', shadowEnabled: true, shadowColor: '#000', shadowBlur: s * 0.4, shadowOpacity: 1, shadowOffsetY: s * 0.06, shadowOffsetX: 0 },
+                    glowOf('#8a0000', s * 0.7, { opacity: 0.6 }),
+                ],
+                main: { ...grad([0, '#ff7060', 0.4, '#d81b1b', 1, '#5c0000']), stroke: '#1a0000', strokeWidth: Math.max(1, s * 0.012), ...noShadow },
+                over: [gloss(0.15)],
+            };
+        case 'retro': {
+            const o = s * 0.065;
+            return {
+                under: [
+                    { fill: '#111', stroke: '#111', strokeWidth: Math.max(2, s * 0.04), lineJoin: 'round', dx: o, dy: o },
+                    { fill: t.color2, stroke: t.color2, strokeWidth: Math.max(2, s * 0.03), lineJoin: 'round', dx: o, dy: o },
+                    { fill: '#111', stroke: '#111', strokeWidth: Math.max(2, s * 0.045), lineJoin: 'round' },
+                ],
+                main: { fill: t.color, ...noShadow },
+                over: [],
+            };
+        }
+        case 'glitch': {
+            const o = Math.max(2, s * 0.035);
+            return {
+                under: [
+                    { fill: '#00e5ff', dx: -o, dy: -o * 0.3, opacity: 0.9 },
+                    { fill: '#ff2a6d', dx: o, dy: o * 0.3, opacity: 0.9 },
+                ],
+                main: { fill: t.color, ...dropShadow },
+                over: [],
+            };
+        }
+        case 'glass':
+            return {
+                under: [{ fill: 'rgba(0,0,0,0.35)', shadowEnabled: true, shadowColor: '#000', shadowBlur: s * 0.3, shadowOpacity: 0.7, shadowOffsetY: s * 0.05, shadowOffsetX: 0, opacity: 0.8 }],
+                main: { ...grad([0, rgbaHex(t.color, 0.55), 1, rgbaHex(t.color, 0.15)]), stroke: 'rgba(255,255,255,0.85)', strokeWidth: Math.max(1, s * 0.014), ...noShadow },
+                over: [gloss(0.55)],
+            };
+        case 'double':
+            return {
+                under: [{ fill: t.color2, stroke: t.color2, strokeWidth: t.strokeWidth * 3.4, lineJoin: 'round', ...dropShadow }],
+                main: { fill: t.color, stroke: t.strokeColor, strokeWidth: t.strokeWidth, fillAfterStrokeEnabled: true, lineJoin: 'round' },
+                over: [],
+            };
+        case 'gradient':
+            return { under: [], main: { ...grad([0, t.color, 1, t.color2]), ...dropShadow }, over: [] };
         case 'outline':
             return {
+                under: [],
                 main: {
                     fill: t.outlineOnly ? 'rgba(0,0,0,0)' : t.color,
                     stroke: t.strokeColor,
                     strokeWidth: t.strokeWidth,
                     fillAfterStrokeEnabled: !t.outlineOnly,
                     lineJoin: 'round',
-                    ...shadow,
+                    ...dropShadow,
                 },
-                under: [],
+                over: [],
             };
-        case 'engraved': {
-            const d = Math.max(1.5, t.size * 0.02);
-            return {
-                main: { fill: t.color, shadowEnabled: true, shadowColor: '#000', shadowBlur: d, shadowOpacity: 0.85, shadowOffsetX: 0, shadowOffsetY: -d },
-                under: [{ fill: 'rgba(255,255,255,0.28)', dy: d }],
-            };
-        }
         default:
-            return { main: { fill: t.color, ...shadow }, under: [] };
+            return { under: [], main: { fill: t.color, ...dropShadow }, over: [] };
     }
+}
+/** الحدّ الملوّن حول النص — يُرسم خلف كل شيء ويعمل مع أي تأثير */
+function buildRingLayers(t) {
+    const out = [];
+    if (!t.ring)
+        return out;
+    const w1 = Math.max(1, t.ringWidth || 6);
+    const soft = t.ringStyle === 'soft';
+    if (t.ring2) {
+        const w2 = w1 + Math.max(1, t.ring2Width || 4);
+        out.push({
+            fill: t.ring2Color,
+            stroke: t.ring2Color,
+            strokeWidth: w2 * 2,
+            lineJoin: 'round',
+            ...(soft ? { shadowEnabled: true, shadowColor: t.ring2Color, shadowBlur: w2 * 1.5, shadowOpacity: 1, shadowOffsetX: 0, shadowOffsetY: 0 } : { shadowEnabled: false }),
+        });
+    }
+    out.push({
+        fill: t.ringColor,
+        stroke: t.ringColor,
+        strokeWidth: w1 * 2,
+        lineJoin: 'round',
+        ...(soft ? { shadowEnabled: true, shadowColor: t.ringColor, shadowBlur: w1 * 2, shadowOpacity: 1, shadowOffsetX: 0, shadowOffsetY: 0 } : { shadowEnabled: false }),
+    });
+    return out;
+}
+// ─────────────────────────────────────────────
+// معاينة مصغّرة لأي تأثير بلوحة 2D عادية (لمعرض التأثيرات)
+// ─────────────────────────────────────────────
+function paintLayer(ctx, L, text, cx, top, lh, boxX) {
+    if (L.opacity === 0)
+        return;
+    ctx.save();
+    ctx.globalAlpha = L.opacity ?? 1;
+    const x = cx + (L.dx || 0);
+    const y = top + lh / 2 + (L.dy || 0);
+    let fill = L.fill;
+    if (L.fillPriority === 'linear-gradient' && L.fillLinearGradientColorStops) {
+        const a = L.fillLinearGradientStartPoint, b = L.fillLinearGradientEndPoint;
+        const g = ctx.createLinearGradient(boxX + a.x + (L.dx || 0), top + a.y + (L.dy || 0), boxX + b.x + (L.dx || 0), top + b.y + (L.dy || 0));
+        const st = L.fillLinearGradientColorStops;
+        for (let i = 0; i < st.length; i += 2)
+            g.addColorStop(st[i], st[i + 1]);
+        fill = g;
+    }
+    if (L.shadowEnabled) {
+        ctx.shadowColor = L.shadowColor || '#000';
+        ctx.shadowBlur = L.shadowBlur || 0;
+        ctx.shadowOffsetX = L.shadowOffsetX || 0;
+        ctx.shadowOffsetY = L.shadowOffsetY || 0;
+    }
+    ctx.lineJoin = L.lineJoin || 'miter';
+    const doStroke = () => {
+        if (L.stroke && L.strokeWidth) {
+            ctx.strokeStyle = L.stroke;
+            ctx.lineWidth = L.strokeWidth;
+            ctx.strokeText(text, x, y);
+        }
+    };
+    if (L.fillAfterStrokeEnabled)
+        doStroke();
+    if (fill) {
+        ctx.fillStyle = fill;
+        ctx.fillText(text, x, y);
+    }
+    if (!L.fillAfterStrokeEnabled) {
+        ctx.shadowColor = 'transparent';
+        doStroke();
+    }
+    ctx.restore();
+}
+function paintEffectPreview(canvas, t, text) {
+    const ctx = canvas.getContext('2d');
+    const W = canvas.width, H = canvas.height;
+    ctx.clearRect(0, 0, W, H);
+    const size = Math.round(H * 0.5);
+    const tt = { ...TEXT_EFFECT_DEFAULTS, ...t, size, lineHeight: 1.2, width: W, text };
+    const lh = size * 1.2;
+    const top = (H - lh) / 2;
+    ctx.font = `${t.weight || 700} ${size}px "${t.font}", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.direction = 'rtl';
+    const { under, main, over } = buildTextLayers(tt, { lh, lines: 1, w: W });
+    [...buildRingLayers(tt), ...under, main, ...over].forEach((L) => paintLayer(ctx, L, text, W / 2, top, lh, 0));
 }
 // ===== lib/imageFilters.js =====
 // ─────────────────────────────────────────────────────────────
@@ -2176,6 +2450,8 @@ const TEMPLATE_CATEGORIES = [
     { id: 'essay', label: 'مقالات وفكر' },
     { id: 'novel', label: 'روايات' },
     { id: 'poetry', label: 'شعر وأدب' },
+    { id: 'security', label: 'أمني وعسكري' },
+    { id: 'research', label: 'أبحاث وعلوم' },
 ];
 const TEMPLATES = [
     // ── رعب ──
@@ -2720,6 +2996,7 @@ const TEMPLATES = [
     // ── الإصدار 2.4: قوالب على الخلفيات الجديدة ──
     {
         id: 'scene-library', category: 'essay', name: 'المكتبة العتيقة', sample: 'في صحبة الكتب',
+        frame: { style: 'gold', color: '#d4af6a', width: 5, margin: 34 },
         paletteId: 'coffee', background: { scene: 'library', dim: 0.35 },
         title: { font: 'Aref Ruqaa', weight: 700, size: 140, color: '#f0dfb5', effect: 'gold', y: 520, shadow: true, bg: 'plaque', bgColor: '#120b06', bgStroke: '#d4af6a', bgOpacity: 0.85, bgPadding: 34 },
         subtitle: { font: 'Amiri', weight: 400, size: 46, color: '#e6c98a', y: 1300 },
@@ -2792,6 +3069,7 @@ const TEMPLATES = [
     },
     {
         id: 'scene-arabesque', category: 'religious', name: 'زخرفة أرابيسك', sample: 'أصول الفقه',
+        frame: { style: 'islamic', color: '#d4af6a', width: 5, margin: 30 },
         paletteId: 'emerald-night', background: { scene: 'arabesque', dim: 0.1 },
         title: { font: 'Amiri', weight: 700, size: 130, color: '#f0dfb5', effect: 'gold', y: 560, shadow: true, bg: 'plaque', bgColor: '#0d1a1a', bgStroke: '#d4af6a', bgOpacity: 0.95, bgPadding: 40 },
         subtitle: { font: 'Amiri', weight: 400, size: 44, color: '#e6c98a', y: 1300 },
@@ -2815,6 +3093,7 @@ const TEMPLATES = [
     },
     {
         id: 'scene-ink', category: 'essay', name: 'بقعة حبر', sample: 'الكتابة',
+        frame: { style: 'film', color: '#efe6d4', color2: '#0d0b0a', width: 6, margin: 0 },
         paletteId: 'ivory', background: { scene: 'inkSplash', dim: 0 },
         title: { font: 'Lalezar', weight: 400, size: 170, color: '#f5efe2', effect: 'none', y: 820, shadow: false },
         subtitle: { font: 'Tajawal', weight: 700, size: 44, color: '#0d0b0a', y: 1360, shadow: false },
@@ -2830,6 +3109,7 @@ const TEMPLATES = [
     },
     {
         id: 'scene-deco', category: 'novel', name: 'آرت ديكو', sample: 'غاتسبي',
+        frame: { style: 'deco', color: '#d4af6a', width: 4, margin: 36 },
         paletteId: 'charcoal-gold', background: { scene: 'artDeco', dim: 0.1 },
         title: { font: 'Reem Kufi', weight: 700, size: 140, color: '#e6c98a', effect: 'gold', y: 600, shadow: true },
         subtitle: { font: 'Tajawal', weight: 400, size: 40, color: '#d4af6a', y: 1340 },
@@ -2858,8 +3138,140 @@ const TEMPLATES = [
         subtitle: { font: 'Tajawal', weight: 500, size: 42, color: '#ffd890', y: 1330 },
         textAboveLayers: true,
     },
+    // ── الإصدار 2.5: أمني وعسكري وبحثي ──
+    {
+        id: 'sec-radar', category: 'security', name: 'الرادار', sample: 'عين لا تنام',
+        frame: { style: 'tactical', color: '#3cff9a', width: 3, margin: 34, opacity: 0.8 },
+        paletteId: 'midnight-teal', background: { scene: 'radar', dim: 0.05 },
+        title: { font: 'Changa', weight: 800, size: 140, color: '#d8ffe6', effect: 'glow', glowColor: '#3cff9a', y: 120, shadow: false },
+        subtitle: { font: 'Readex Pro', weight: 500, size: 38, color: '#9effc6', y: 1360, bg: 'corners', bgColor: '#021008', bgStroke: '#3cff9a', bgOpacity: 0.8, bgPadding: 20 },
+        layers: { grain: 0.25, vignette: 0.5 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'sec-dossier', category: 'security', name: 'الملف السري', sample: 'وثائق محظورة',
+        frame: { style: 'classified', color: '#b31414', color2: '#f5efe2', width: 6, margin: 0 },
+        paletteId: 'burnt-clay', background: { scene: 'dossier', dim: 0 },
+        title: { font: 'Lalezar', weight: 400, size: 150, color: '#f5efe2', effect: 'none', y: 470, shadow: false, bg: 'tag', bgColor: '#2a2a2a', bgOpacity: 1, bgPadding: 26 },
+        subtitle: { font: 'Cairo', weight: 800, size: 46, color: '#b31414', y: 1300, shadow: false, bg: 'stamp', bgColor: '#c9a66b', bgStroke: '#b31414', bgOpacity: 0.9, bgPadding: 26 },
+        layers: { grain: 0.35, scratches: 0.25 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'sec-camo', category: 'security', name: 'العمليات الخاصة', sample: 'القوات الخاصة',
+        frame: { style: 'hazard', color: '#e8c21a', color2: '#111111', width: 6, margin: 0 },
+        paletteId: 'gunmetal', background: { scene: 'camoWood', dim: 0.35 },
+        title: { font: 'Blaka', weight: 400, size: 170, color: '#e9e4cf', effect: 'embossed', y: 520, shadow: true, ring: true, ringColor: '#14170d', ringWidth: 8 },
+        subtitle: { font: 'Cairo', weight: 800, size: 44, color: '#1c1f14', y: 1320, shadow: false, bg: 'ribbon', bgColor: '#c8b88a', bgStroke: '#1c1f14', bgOpacity: 0.95, bgPadding: 18 },
+        layers: { grain: 0.3, vignette: 0.6 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'sec-desert', category: 'security', name: 'عاصفة الصحراء', sample: 'حرب الرمال',
+        paletteId: 'desert-gold', background: { scene: 'camoDesert', dim: 0.15 },
+        title: { font: 'Reem Kufi', weight: 700, size: 150, color: '#3a2a12', effect: 'none', y: 560, shadow: false, bg: 'torn', bgColor: '#efe3c4', bgOpacity: 0.95, bgPadding: 30 },
+        subtitle: { font: 'Cairo', weight: 700, size: 42, color: '#2a1d0c', y: 1330, shadow: false },
+        layers: { dust: 0.5, grain: 0.3 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'sec-hud', category: 'security', name: 'المهمة', sample: 'المهمة صفر',
+        frame: { style: 'tactical', color: '#7fdcff', width: 4, margin: 40 },
+        paletteId: 'royal-navy', background: { scene: 'hud', dim: 0 },
+        title: { font: 'Changa', weight: 800, size: 150, color: '#e8fbff', effect: 'chrome', y: 600, shadow: true },
+        subtitle: { font: 'Readex Pro', weight: 500, size: 38, color: '#7fdcff', y: 1300, bg: 'glass', bgColor: '#0a3a5a', bgOpacity: 0.7, bgPadding: 22 },
+        layers: { grain: 0.15 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'sec-cyber', category: 'security', name: 'الاختراق', sample: 'الحرب السيبرانية',
+        paletteId: 'emerald-night', background: { scene: 'cyber', dim: 0 },
+        title: { font: 'Changa', weight: 800, size: 140, color: '#eafff2', effect: 'glitch', y: 900, shadow: true },
+        subtitle: { font: 'Readex Pro', weight: 500, size: 38, color: '#3cff9a', y: 1330 },
+        layers: { grain: 0.2, scratches: 0.15 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'sec-night', category: 'security', name: 'عين الليل', sample: 'المراقبة',
+        paletteId: 'emerald-night', background: { scene: 'nightVision', dim: 0 },
+        title: { font: 'Blaka', weight: 400, size: 160, color: '#d9ffcc', effect: 'neon', glowColor: '#6cff4a', y: 130, shadow: false },
+        subtitle: { font: 'Readex Pro', weight: 500, size: 38, color: '#b8ffa8', y: 1350 },
+        layers: { grain: 0.4 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'sec-battle', category: 'security', name: 'خط النار', sample: 'معركة المدينة',
+        paletteId: 'burnt-clay', background: { scene: 'battlefield', dim: 0 },
+        title: { font: 'Lalezar', weight: 400, size: 170, color: '#ffe6c8', effect: 'fire', y: 150, shadow: true },
+        subtitle: { font: 'Cairo', weight: 700, size: 42, color: '#ffd0a0', y: 1350 },
+        layers: { embers: 0.5, smoke: 0.3, grain: 0.3 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'sec-map', category: 'security', name: 'الخريطة', sample: 'خطة الهجوم',
+        paletteId: 'gunmetal', background: { scene: 'tacticalMap', dim: 0 },
+        title: { font: 'Reem Kufi', weight: 700, size: 150, color: '#f2ecd2', effect: 'bronze', y: 560, shadow: true, bg: 'fade', bgColor: '#0e130c', bgOpacity: 0.85, bgPadding: 26 },
+        subtitle: { font: 'Cairo', weight: 600, size: 40, color: '#d9d4b0', y: 1340 },
+        layers: { grain: 0.25 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'sec-satellite', category: 'security', name: 'من السماء', sample: 'رصد',
+        paletteId: 'smoke-gray', background: { scene: 'satellite', dim: 0.2 },
+        title: { font: 'Changa', weight: 800, size: 170, color: '#ffffff', effect: 'longShadow', y: 160, shadow: false },
+        subtitle: { font: 'Readex Pro', weight: 600, size: 40, color: '#ffffff', y: 1340, bg: 'bars', bgColor: '#b31414', bgOpacity: 0.95, bgPadding: 14 },
+        layers: { grain: 0.3, vignette: 0.5 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'res-evidence', category: 'research', name: 'لوحة التحقيق', sample: 'القضية المفتوحة',
+        paletteId: 'coffee', background: { scene: 'evidenceBoard', dim: 0.1 },
+        title: { font: 'Aref Ruqaa', weight: 700, size: 140, color: '#1a1206', effect: 'none', y: 560, shadow: false, bg: 'torn', bgColor: '#f3ead2', bgOpacity: 1, bgPadding: 30 },
+        subtitle: { font: 'Cairo', weight: 700, size: 42, color: '#ffffff', y: 1330, bg: 'bars', bgColor: '#b31414', bgOpacity: 0.95, bgPadding: 14 },
+        layers: { grain: 0.25 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'res-print', category: 'research', name: 'البصمة', sample: 'علم الأدلة الجنائية',
+        paletteId: 'ink-blue', background: { scene: 'fingerprint', dim: 0 },
+        title: { font: 'El Messiri', weight: 700, size: 135, color: '#e6f8ff', effect: 'ice', y: 130, shadow: true },
+        subtitle: { font: 'Readex Pro', weight: 400, size: 38, color: '#9fdcff', y: 1350 },
+        layers: { grain: 0.15 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'res-dna', category: 'research', name: 'الشيفرة', sample: 'أسرار الجينات',
+        paletteId: 'royal-navy', background: { scene: 'dna', dim: 0 },
+        title: { font: 'Readex Pro', weight: 700, size: 140, color: '#ffffff', effect: 'glass', y: 600, shadow: true },
+        subtitle: { font: 'Readex Pro', weight: 400, size: 38, color: '#bcd8ff', y: 1340, bg: 'ornament', bgColor: '#06173a', bgStroke: '#7fb4ff', bgOpacity: 0.9, bgPadding: 22 },
+        layers: { grain: 0.1 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'res-network', category: 'research', name: 'الشبكة', sample: 'الذكاء الاصطناعي',
+        paletteId: 'royal-navy', background: { scene: 'network', dim: 0 },
+        title: { font: 'Changa', weight: 700, size: 145, color: '#9fd0ff', effect: 'cinematic', y: 560, shadow: true },
+        subtitle: { font: 'Readex Pro', weight: 400, size: 38, color: '#d6e8ff', y: 1340 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'res-blueprint', category: 'research', name: 'المخطط', sample: 'هندسة المستقبل',
+        frame: { style: 'double', color: '#e6f3ff', width: 4, margin: 34 },
+        paletteId: 'royal-navy', background: { scene: 'blueprint', dim: 0 },
+        title: { font: 'Reem Kufi', weight: 700, size: 140, color: '#ffffff', effect: 'outline', strokeColor: '#ffffff', strokeWidth: 3, outlineOnly: true, y: 120, shadow: false },
+        subtitle: { font: 'Readex Pro', weight: 500, size: 38, color: '#e6f3ff', y: 1290, bg: 'frame', bgColor: '#0d3a6e', bgStroke: '#e6f3ff', bgOpacity: 0.9, bgPadding: 20 },
+        textAboveLayers: true,
+    },
+    {
+        id: 'res-circuit', category: 'research', name: 'الدائرة', sample: 'عالم الإلكترونيات',
+        paletteId: 'emerald-night', background: { scene: 'circuit', dim: 0 },
+        title: { font: 'Changa', weight: 800, size: 140, color: '#d8ffef', effect: 'goldFoil', y: 130, shadow: true },
+        subtitle: { font: 'Readex Pro', weight: 500, size: 38, color: '#78ffc8', y: 1350 },
+        layers: { grain: 0.15 },
+        textAboveLayers: true,
+    },
 ];
-const STYLE_RESET = { effect: 'none', bg: 'none', secondColor: '', rotation: 0, letterSpacing: 0 };
+const STYLE_RESET = { effect: 'none', bg: 'none', secondColor: '', rotation: 0, letterSpacing: 0, ring: false, ring2: false };
 /** تطبيق القالب على المستند مع الاحتفاظ بنص المستخدم وصوره */
 function applyTemplateToDoc(doc, tpl) {
     const layers = {};
@@ -2870,6 +3282,7 @@ function applyTemplateToDoc(doc, tpl) {
     return {
         ...doc,
         paletteId: tpl.customPalette ? 'custom' : tpl.paletteId,
+        frame: tpl.frame ? { ...tpl.frame, fromTemplate: true } : doc.frame?.fromTemplate ? null : doc.frame,
         customPalette: tpl.customPalette || doc.customPalette,
         texts: Object.fromEntries(Object.entries(doc.texts).map(([k, t]) => {
             const style = tpl[k];
@@ -4079,6 +4492,30 @@ function moon(ctx, x, y, R, color = '#f3ead2') {
         ctx.fill();
     });
 }
+/** نقش تمويه بقع عضوية بأربعة ألوان */
+function camo(ctx, w, h, r, cols) {
+    ctx.fillStyle = cols[0];
+    ctx.fillRect(0, 0, w, h);
+    for (let c = 1; c < cols.length; c++) {
+        ctx.fillStyle = cols[c];
+        for (let i = 0; i < 38; i++) {
+            const cx = r() * w, cy = r() * h, R = w * (0.04 + r() * 0.08);
+            const n = 14, pts = [];
+            for (let j = 0; j < n; j++) {
+                const a = (j / n) * S_TAU;
+                const rr = R * (0.55 + r() * 0.75);
+                pts.push([cx + Math.cos(a) * rr * 1.6, cy + Math.sin(a) * rr]);
+            }
+            ctx.beginPath();
+            pts.forEach(([x, y], j) => {
+                const [nx, ny] = pts[(j + 1) % n];
+                j ? ctx.quadraticCurveTo(x, y, (x + nx) / 2, (y + ny) / 2) : ctx.moveTo((x + nx) / 2, (y + ny) / 2);
+            });
+            ctx.closePath();
+            ctx.fill();
+        }
+    }
+}
 const SCENES = [
     {
         id: 'mountains', label: 'جبال الغروب',
@@ -5196,6 +5633,691 @@ const SCENES = [
             }
         },
     },
+    // ═════════════ أمنية وعسكرية وبحثية ═════════════
+    {
+        id: 'radar', label: 'شاشة رادار', cat: 'security',
+        draw(ctx, w, h, r) {
+            ctx.fillStyle = '#020a05';
+            ctx.fillRect(0, 0, w, h);
+            const cx = w / 2, cy = h * 0.5, R = w * 0.46, k = w / 1000;
+            ctx.strokeStyle = 'rgba(60,255,140,0.07)';
+            ctx.lineWidth = 1 * k;
+            for (let x = 0; x < w; x += 40 * k) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+            for (let y = 0; y < h; y += 40 * k) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+            glow(ctx, cx, cy, R * 1.1, 'rgba(30,200,100,0.12)');
+            ctx.strokeStyle = 'rgba(80,255,150,0.45)';
+            ctx.lineWidth = 2 * k;
+            for (let i = 1; i <= 5; i++) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, (R * i) / 5, 0, S_TAU);
+                ctx.stroke();
+            }
+            ctx.lineWidth = 1 * k;
+            for (let a = 0; a < 12; a++) {
+                const t = (a * Math.PI) / 6;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.lineTo(cx + Math.cos(t) * R, cy + Math.sin(t) * R);
+                ctx.stroke();
+            }
+            for (let a = 0; a < 72; a++) {
+                const t = (a * Math.PI) / 36, l = a % 6 ? 10 : 22;
+                ctx.beginPath();
+                ctx.moveTo(cx + Math.cos(t) * R, cy + Math.sin(t) * R);
+                ctx.lineTo(cx + Math.cos(t) * (R - l * k), cy + Math.sin(t) * (R - l * k));
+                ctx.stroke();
+            }
+            const sweep = -0.6;
+            for (let i = 0; i < 60; i++) {
+                const a0 = sweep - (i * 0.9) / 60;
+                ctx.fillStyle = `rgba(60,255,140,${0.22 * (1 - i / 60)})`;
+                ctx.beginPath();
+                ctx.moveTo(cx, cy);
+                ctx.arc(cx, cy, R, a0 - 0.016, a0);
+                ctx.closePath();
+                ctx.fill();
+            }
+            ctx.strokeStyle = 'rgba(160,255,200,0.9)';
+            ctx.lineWidth = 2.5 * k;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + Math.cos(sweep) * R, cy + Math.sin(sweep) * R);
+            ctx.stroke();
+            for (let i = 0; i < 9; i++) {
+                const a = r() * S_TAU, d = R * (0.2 + r() * 0.75);
+                glow(ctx, cx + Math.cos(a) * d, cy + Math.sin(a) * d, 14 * k, 'rgba(120,255,170,0.9)');
+            }
+        },
+    },
+    {
+        id: 'tacticalMap', label: 'خريطة تكتيكية', cat: 'security',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#1c2418'], [1, '#0e130c']]);
+            const k = w / 1000;
+            // خطوط كنتور: منحنيات مغلقة مشوّهة حول عدة قمم
+            const peaks = [[0.3, 0.3], [0.72, 0.55], [0.4, 0.8]].map(([x, y]) => [x * w, y * h]);
+            peaks.forEach(([px, py], pi) => {
+                const ph = r() * 10;
+                for (let ring = 1; ring < 16; ring++) {
+                    const base = ring * 34 * k;
+                    ctx.strokeStyle = ring % 5 === 0 ? 'rgba(190,200,140,0.45)' : 'rgba(170,185,120,0.2)';
+                    ctx.lineWidth = (ring % 5 === 0 ? 2 : 1) * k;
+                    ctx.beginPath();
+                    for (let i = 0; i <= 90; i++) {
+                        const a = (i / 90) * S_TAU;
+                        const rr = base * (1 + 0.18 * Math.sin(a * 3 + ph + pi) + 0.1 * Math.sin(a * 5 + ring * 0.3));
+                        const x = px + Math.cos(a) * rr * 1.2, y = py + Math.sin(a) * rr;
+                        i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+                    }
+                    ctx.stroke();
+                }
+            });
+            ctx.strokeStyle = 'rgba(220,220,180,0.18)';
+            ctx.lineWidth = 1 * k;
+            for (let x = 0; x < w; x += 125 * k) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+            for (let y = 0; y < h; y += 125 * k) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+            // مسار وأهداف
+            ctx.strokeStyle = 'rgba(255,90,60,0.85)';
+            ctx.lineWidth = 4 * k;
+            ctx.setLineDash([18 * k, 12 * k]);
+            ctx.beginPath();
+            ctx.moveTo(w * 0.12, h * 0.9);
+            ctx.bezierCurveTo(w * 0.3, h * 0.6, w * 0.6, h * 0.75, w * 0.7, h * 0.45);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            [[0.7, 0.45], [0.3, 0.3]].forEach(([x, y]) => {
+                ctx.strokeStyle = 'rgba(255,90,60,0.95)';
+                ctx.lineWidth = 3 * k;
+                ctx.beginPath();
+                ctx.arc(x * w, y * h, 26 * k, 0, S_TAU);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x * w - 40 * k, y * h);
+                ctx.lineTo(x * w + 40 * k, y * h);
+                ctx.moveTo(x * w, y * h - 40 * k);
+                ctx.lineTo(x * w, y * h + 40 * k);
+                ctx.stroke();
+            });
+            const v = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, h * 0.75);
+            v.addColorStop(0, 'rgba(0,0,0,0)');
+            v.addColorStop(1, 'rgba(0,0,0,0.7)');
+            ctx.fillStyle = v;
+            ctx.fillRect(0, 0, w, h);
+        },
+    },
+    {
+        id: 'camoWood', label: 'تمويه غابي', cat: 'military',
+        draw(ctx, w, h, r) { camo(ctx, w, h, r, ['#4b5320', '#2f3a1e', '#6b5a3a', '#1c1f14']); },
+    },
+    {
+        id: 'camoDesert', label: 'تمويه صحراوي', cat: 'military',
+        draw(ctx, w, h, r) { camo(ctx, w, h, r, ['#c2a878', '#a68a5b', '#8a6f45', '#d9c49a']); },
+    },
+    {
+        id: 'camoDigital', label: 'تمويه رقمي', cat: 'military',
+        draw(ctx, w, h, r) {
+            const cols = ['#5b6340', '#3d452b', '#7a7656', '#272b1c'];
+            const px = Math.round(w / 90);
+            ctx.fillStyle = cols[0];
+            ctx.fillRect(0, 0, w, h);
+            for (let c = 1; c < 4; c++) {
+                for (let i = 0; i < 160; i++) {
+                    let x = Math.floor((r() * w) / px) * px, y = Math.floor((r() * h) / px) * px;
+                    ctx.fillStyle = cols[c];
+                    for (let j = 0; j < 14; j++) {
+                        ctx.fillRect(x, y, px * (1 + Math.floor(r() * 3)), px * (1 + Math.floor(r() * 2)));
+                        x += (Math.floor(r() * 3) - 1) * px;
+                        y += (Math.floor(r() * 3) - 1) * px;
+                    }
+                }
+            }
+        },
+    },
+    {
+        id: 'hud', label: 'واجهة تكتيكية', cat: 'security',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#03101a'], [1, '#061c2a']]);
+            const k = w / 1000, c = 'rgba(90,220,255,';
+            glow(ctx, w / 2, h / 2, w * 0.6, 'rgba(40,160,220,0.18)');
+            ctx.strokeStyle = c + '0.6)';
+            ctx.lineWidth = 2 * k;
+            const cx = w / 2, cy = h * 0.5;
+            ctx.beginPath();
+            ctx.arc(cx, cy, w * 0.22, 0, S_TAU);
+            ctx.stroke();
+            ctx.setLineDash([6 * k, 8 * k]);
+            ctx.beginPath();
+            ctx.arc(cx, cy, w * 0.3, 0, S_TAU);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.lineWidth = 3 * k;
+            for (let i = 0; i < 4; i++) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, w * 0.36, (i * Math.PI) / 2 + 0.25, (i * Math.PI) / 2 + 1.3);
+                ctx.stroke();
+            }
+            ctx.lineWidth = 1.5 * k;
+            ctx.beginPath();
+            ctx.moveTo(cx - w * 0.45, cy);
+            ctx.lineTo(cx - w * 0.08, cy);
+            ctx.moveTo(cx + w * 0.08, cy);
+            ctx.lineTo(cx + w * 0.45, cy);
+            ctx.moveTo(cx, cy - w * 0.45);
+            ctx.lineTo(cx, cy - w * 0.08);
+            ctx.moveTo(cx, cy + w * 0.08);
+            ctx.lineTo(cx, cy + w * 0.45);
+            ctx.stroke();
+            // أقواس الزوايا
+            const m = 50 * k, L = 120 * k;
+            ctx.lineWidth = 4 * k;
+            ctx.strokeStyle = c + '0.8)';
+            [[m, m, 1, 1], [w - m, m, -1, 1], [m, h - m, 1, -1], [w - m, h - m, -1, -1]].forEach(([x, y, sx, sy]) => {
+                ctx.beginPath();
+                ctx.moveTo(x, y + sy * L);
+                ctx.lineTo(x, y);
+                ctx.lineTo(x + sx * L, y);
+                ctx.stroke();
+            });
+            // مسطرة بوصلة
+            ctx.lineWidth = 1.5 * k;
+            ctx.strokeStyle = c + '0.55)';
+            for (let i = 0; i <= 40; i++) {
+                const x = w * 0.2 + (w * 0.6 * i) / 40, l = i % 5 ? 10 : 22;
+                ctx.beginPath();
+                ctx.moveTo(x, h * 0.08);
+                ctx.lineTo(x, h * 0.08 + l * k);
+                ctx.stroke();
+            }
+            // أعمدة بيانات
+            for (let i = 0; i < 18; i++) {
+                ctx.fillStyle = c + (0.2 + r() * 0.5) + ')';
+                ctx.fillRect(w * 0.06 + i * 14 * k, h * 0.9 - r() * 90 * k, 8 * k, 4 * k + r() * 90 * k);
+            }
+            for (let i = 0; i < 6; i++) {
+                ctx.fillStyle = c + '0.35)';
+                ctx.fillRect(w * 0.7, h * (0.82 + i * 0.022), w * (0.08 + r() * 0.16), 6 * k);
+            }
+            ctx.fillStyle = 'rgba(0,0,0,0.12)';
+            for (let y = 0; y < h; y += 4 * k)
+                ctx.fillRect(0, y, w, 1.5 * k);
+        },
+    },
+    {
+        id: 'dossier', label: 'ملف سرّي', cat: 'security',
+        draw(ctx, w, h, r) {
+            ctx.fillStyle = '#c9a66b';
+            ctx.fillRect(0, 0, w, h);
+            for (let i = 0; i < 20; i++)
+                glow(ctx, r() * w, r() * h, w * (0.1 + r() * 0.2), `rgba(120,80,30,${0.05 + r() * 0.08})`);
+            const k = w / 1000;
+            // ورقة داخلية بخطوط محجوبة
+            ctx.save();
+            ctx.translate(w * 0.5, h * 0.55);
+            ctx.rotate(-0.03);
+            ctx.fillStyle = '#efe8d8';
+            ctx.shadowColor = 'rgba(0,0,0,0.35)';
+            ctx.shadowBlur = 20 * k;
+            ctx.fillRect(-w * 0.38, -h * 0.36, w * 0.76, h * 0.72);
+            ctx.shadowBlur = 0;
+            for (let y = -h * 0.3; y < h * 0.32; y += 34 * k) {
+                let x = -w * 0.33;
+                while (x < w * 0.32) {
+                    const len = (40 + r() * 140) * k;
+                    ctx.fillStyle = r() < 0.35 ? '#111' : 'rgba(60,55,50,0.35)';
+                    ctx.fillRect(x, y, Math.min(len, w * 0.33 - x), r() < 0.35 ? 20 * k : 6 * k);
+                    x += len + 14 * k;
+                }
+            }
+            ctx.restore();
+            // ختم أحمر وشريط
+            ctx.save();
+            ctx.translate(w * 0.7, h * 0.22);
+            ctx.rotate(-0.25);
+            ctx.strokeStyle = 'rgba(180,20,20,0.75)';
+            ctx.lineWidth = 8 * k;
+            ctx.strokeRect(-150 * k, -55 * k, 300 * k, 110 * k);
+            ctx.lineWidth = 3 * k;
+            ctx.strokeRect(-135 * k, -42 * k, 270 * k, 84 * k);
+            ctx.restore();
+            ctx.fillStyle = '#9a7b45';
+            ctx.fillRect(0, h * 0.07, w * 0.35, 40 * k);
+        },
+    },
+    {
+        id: 'fingerprint', label: 'بصمة', cat: 'research',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#04080e'], [1, '#0a1622']]);
+            const k = w / 1000, cx = w * 0.5, cy = h * 0.52;
+            ctx.strokeStyle = 'rgba(80,200,255,0.55)';
+            ctx.lineCap = 'round';
+            for (let i = 1; i < 42; i++) {
+                const rr = i * 9 * k;
+                ctx.lineWidth = 3 * k;
+                ctx.beginPath();
+                let started = false;
+                for (let a = 0; a <= S_TAU; a += 0.04) {
+                    if (Math.sin(a * 3 + i * 0.7) > 0.93 && r() < 0.5) {
+                        started = false;
+                        continue;
+                    } // انقطاعات طبيعية
+                    const x = cx + Math.cos(a) * rr * 0.78 * (1 + 0.05 * Math.sin(a * 2 + i * 0.2));
+                    const y = cy + Math.sin(a) * rr * (1 + 0.08 * Math.cos(a * 3));
+                    if (y > cy + h * 0.32) {
+                        started = false;
+                        continue;
+                    }
+                    started ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+                    started = true;
+                }
+                ctx.stroke();
+            }
+            const sy = cy - h * 0.05;
+            const g = ctx.createLinearGradient(0, sy - 60 * k, 0, sy + 6 * k);
+            g.addColorStop(0, 'rgba(80,220,255,0)');
+            g.addColorStop(1, 'rgba(120,240,255,0.55)');
+            ctx.fillStyle = g;
+            ctx.fillRect(0, sy - 60 * k, w, 66 * k);
+            ctx.fillStyle = 'rgba(180,250,255,0.9)';
+            ctx.fillRect(0, sy, w, 3 * k);
+        },
+    },
+    {
+        id: 'nightVision', label: 'رؤية ليلية', cat: 'security',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#0b2a0b'], [0.6, '#123d12'], [1, '#061806']]);
+            const k = w / 1000;
+            // مبانٍ ضبابية
+            for (let i = 0; i < 9; i++) {
+                ctx.fillStyle = `rgba(20,${60 + r() * 40},20,0.8)`;
+                const bw = w * (0.08 + r() * 0.12);
+                ctx.fillRect(r() * w, h * (0.45 + r() * 0.2), bw, h);
+            }
+            glow(ctx, w * 0.6, h * 0.45, w * 0.5, 'rgba(160,255,140,0.25)');
+            const img = ctx.getImageData(0, 0, w, h);
+            const d = img.data;
+            for (let i = 0; i < d.length; i += 4) {
+                const n = (r() - 0.5) * 60;
+                d[i] += n * 0.4;
+                d[i + 1] += n;
+                d[i + 2] += n * 0.3;
+            }
+            ctx.putImageData(img, 0, 0);
+            const v = ctx.createRadialGradient(w / 2, h / 2, w * 0.25, w / 2, h / 2, w * 0.62);
+            v.addColorStop(0, 'rgba(0,0,0,0)');
+            v.addColorStop(1, 'rgba(0,0,0,0.95)');
+            ctx.fillStyle = v;
+            ctx.fillRect(0, 0, w, h);
+            ctx.strokeStyle = 'rgba(190,255,170,0.7)';
+            ctx.lineWidth = 2 * k;
+            ctx.beginPath();
+            ctx.moveTo(w / 2 - 60 * k, h / 2);
+            ctx.lineTo(w / 2 + 60 * k, h / 2);
+            ctx.moveTo(w / 2, h / 2 - 60 * k);
+            ctx.lineTo(w / 2, h / 2 + 60 * k);
+            ctx.stroke();
+            ctx.fillStyle = 'rgba(255,60,40,0.9)';
+            ctx.beginPath();
+            ctx.arc(w * 0.1, h * 0.06, 12 * k, 0, S_TAU);
+            ctx.fill();
+        },
+    },
+    {
+        id: 'cyber', label: 'أمن سيبراني', cat: 'security',
+        draw(ctx, w, h, r) {
+            ctx.fillStyle = '#020806';
+            ctx.fillRect(0, 0, w, h);
+            const k = w / 1000, fs = 22 * k;
+            ctx.font = `${fs}px monospace`;
+            ctx.textAlign = 'center';
+            for (let x = fs / 2; x < w; x += fs * 1.1) {
+                const len = 8 + r() * 50, y0 = r() * h;
+                for (let j = 0; j < len; j++) {
+                    const a = j / len;
+                    ctx.fillStyle = j === Math.floor(len) - 1 ? 'rgba(200,255,220,0.95)' : `rgba(40,255,120,${0.05 + a * 0.5})`;
+                    ctx.fillText(r() < 0.5 ? '0' : '1', x, (y0 + j * fs) % h);
+                }
+            }
+            glow(ctx, w / 2, h * 0.45, w * 0.45, 'rgba(0,0,0,0.75)');
+            // قفل
+            const cx = w / 2, cy = h * 0.45;
+            ctx.strokeStyle = 'rgba(80,255,160,0.95)';
+            ctx.lineWidth = 14 * k;
+            ctx.shadowColor = '#3cff9a';
+            ctx.shadowBlur = 30 * k;
+            ctx.beginPath();
+            ctx.arc(cx, cy - 50 * k, 70 * k, Math.PI, 0);
+            ctx.stroke();
+            ctx.strokeRect(cx - 105 * k, cy - 50 * k, 210 * k, 170 * k);
+            ctx.beginPath();
+            ctx.arc(cx, cy + 20 * k, 16 * k, 0, S_TAU);
+            ctx.moveTo(cx, cy + 36 * k);
+            ctx.lineTo(cx, cy + 75 * k);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        },
+    },
+    {
+        id: 'circuit', label: 'دائرة إلكترونية', cat: 'research',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#04140f'], [1, '#021009']]);
+            const k = w / 1000, step = 40 * k;
+            ctx.lineCap = 'round';
+            for (let n = 0; n < 70; n++) {
+                let x = Math.round((r() * w) / step) * step, y = Math.round((r() * h) / step) * step;
+                const a = 0.25 + r() * 0.55;
+                ctx.strokeStyle = `rgba(70,230,170,${a})`;
+                ctx.lineWidth = 3 * k;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                let dir = Math.floor(r() * 4);
+                for (let s = 0; s < 4 + r() * 8; s++) {
+                    const len = step * (1 + Math.floor(r() * 4));
+                    const dx = [1, 0, -1, 0][dir], dy = [0, 1, 0, -1][dir];
+                    if (r() < 0.5) {
+                        x += dx * len;
+                        y += dy * len;
+                    }
+                    else {
+                        x += dx * len * 0.7 + (dir % 2 ? len * 0.7 : 0);
+                        y += dy * len * 0.7 + (dir % 2 ? 0 : len * 0.7);
+                    }
+                    ctx.lineTo(x, y);
+                    dir = (dir + (r() < 0.5 ? 1 : 3)) % 4;
+                }
+                ctx.stroke();
+                ctx.fillStyle = `rgba(120,255,200,${a + 0.2})`;
+                ctx.beginPath();
+                ctx.arc(x, y, 7 * k, 0, S_TAU);
+                ctx.fill();
+                ctx.fillStyle = '#021009';
+                ctx.beginPath();
+                ctx.arc(x, y, 3 * k, 0, S_TAU);
+                ctx.fill();
+            }
+            ctx.fillStyle = '#0b2a20';
+            ctx.strokeStyle = 'rgba(120,255,200,0.8)';
+            ctx.lineWidth = 3 * k;
+            ctx.fillRect(w * 0.35, h * 0.42, w * 0.3, w * 0.3);
+            ctx.strokeRect(w * 0.35, h * 0.42, w * 0.3, w * 0.3);
+            glow(ctx, w * 0.5, h * 0.42 + w * 0.15, w * 0.35, 'rgba(60,255,170,0.18)');
+        },
+    },
+    {
+        id: 'evidenceBoard', label: 'لوحة التحقيق', cat: 'research',
+        draw(ctx, w, h, r) {
+            ctx.fillStyle = '#7a5532';
+            ctx.fillRect(0, 0, w, h);
+            for (let i = 0; i < 9000; i++) {
+                ctx.fillStyle = `rgba(${r() < 0.5 ? '40,25,10' : '200,160,110'},${0.15 + r() * 0.2})`;
+                ctx.fillRect(r() * w, r() * h, 2 + r() * 3, 2 + r() * 3);
+            }
+            const k = w / 1000;
+            const pins = [];
+            for (let i = 0; i < 9; i++) {
+                const x = w * (0.12 + (i % 3) * 0.36) + (r() - 0.5) * 80 * k, y = h * (0.12 + Math.floor(i / 3) * 0.32) + (r() - 0.5) * 80 * k;
+                const pw = (150 + r() * 70) * k, ph = (r() < 0.5 ? 1.2 : 0.8) * pw;
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate((r() - 0.5) * 0.25);
+                ctx.shadowColor = 'rgba(0,0,0,0.5)';
+                ctx.shadowBlur = 14 * k;
+                ctx.shadowOffsetY = 6 * k;
+                ctx.fillStyle = r() < 0.4 ? '#e9e2cf' : r() < 0.5 ? '#3a3a3a' : '#f3e7a0';
+                ctx.fillRect(-pw / 2, 0, pw, ph);
+                ctx.shadowBlur = 0;
+                ctx.shadowOffsetY = 0;
+                ctx.fillStyle = 'rgba(0,0,0,0.25)';
+                for (let l = 0; l < 5; l++)
+                    ctx.fillRect(-pw * 0.38, ph * (0.2 + l * 0.14), pw * (0.4 + r() * 0.35), 4 * k);
+                ctx.restore();
+                pins.push([x, y + 10 * k]);
+            }
+            ctx.strokeStyle = 'rgba(200,20,20,0.9)';
+            ctx.lineWidth = 3.5 * k;
+            [[0, 4], [4, 8], [1, 4], [4, 6], [2, 5], [3, 7]].forEach(([a, b]) => { ctx.beginPath(); ctx.moveTo(...pins[a]); ctx.quadraticCurveTo((pins[a][0] + pins[b][0]) / 2, (pins[a][1] + pins[b][1]) / 2 + 30 * k, ...pins[b]); ctx.stroke(); });
+            pins.forEach(([x, y]) => { ctx.fillStyle = '#c0161a'; ctx.beginPath(); ctx.arc(x, y, 10 * k, 0, S_TAU); ctx.fill(); ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(x - 3 * k, y - 3 * k, 3 * k, 0, S_TAU); ctx.fill(); });
+            const v = ctx.createRadialGradient(w / 2, h / 2, w * 0.3, w / 2, h / 2, h * 0.75);
+            v.addColorStop(0, 'rgba(0,0,0,0)');
+            v.addColorStop(1, 'rgba(0,0,0,0.7)');
+            ctx.fillStyle = v;
+            ctx.fillRect(0, 0, w, h);
+        },
+    },
+    {
+        id: 'battlefield', label: 'ساحة معركة', cat: 'military',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#1a0f0c'], [0.45, '#7a2f12'], [0.7, '#d0672a'], [1, '#1a0b05']]);
+            for (let i = 0; i < 70; i++) {
+                const x = r() * w, y = h * (0.15 + r() * 0.55), R = w * (0.06 + r() * 0.16);
+                const g = ctx.createRadialGradient(x, y, 0, x, y, R);
+                g.addColorStop(0, `rgba(${30 + r() * 30},${20 + r() * 20},${15 + r() * 15},0.45)`);
+                g.addColorStop(1, 'rgba(0,0,0,0)');
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(x, y, R, 0, S_TAU);
+                ctx.fill();
+            }
+            glow(ctx, w * 0.35, h * 0.68, w * 0.25, 'rgba(255,170,60,0.55)');
+            // مبانٍ مدمّرة
+            const base = h * 0.78, k = w / 1000;
+            ctx.fillStyle = '#0c0705';
+            let x = 0;
+            while (x < w) {
+                const bw = (60 + r() * 140) * k, bh = (80 + r() * 260) * k;
+                ctx.beginPath();
+                ctx.moveTo(x, base);
+                ctx.lineTo(x, base - bh);
+                for (let j = 1; j <= 5; j++)
+                    ctx.lineTo(x + (bw * j) / 5, base - bh + (r() - 0.3) * bh * 0.35);
+                ctx.lineTo(x + bw, base);
+                ctx.closePath();
+                ctx.fill();
+                x += bw + r() * 30 * k;
+            }
+            ctx.fillRect(0, base, w, h - base);
+            ctx.fillStyle = 'rgba(255,180,90,0.8)';
+            for (let i = 0; i < 160; i++) {
+                ctx.globalAlpha = r();
+                ctx.fillRect(r() * w, r() * h * 0.85, 2 * k, 2 * k + r() * 5 * k);
+            }
+            ctx.globalAlpha = 1;
+        },
+    },
+    {
+        id: 'dna', label: 'حمض نووي', cat: 'research',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#020818'], [1, '#06173a']]);
+            for (let i = 0; i < 40; i++)
+                glow(ctx, r() * w, r() * h, w * (0.01 + r() * 0.05), `rgba(80,150,255,${0.08 + r() * 0.15})`);
+            const k = w / 1000, cx = w * 0.5, amp = w * 0.2;
+            ctx.save();
+            ctx.translate(cx, h / 2);
+            ctx.rotate(-0.35);
+            ctx.translate(-cx, -h / 2);
+            const N = 46;
+            for (let i = 0; i < N; i++) {
+                const y = -h * 0.1 + (h * 1.2 * i) / N, ph = i * 0.42;
+                const x1 = cx + Math.sin(ph) * amp, x2 = cx - Math.sin(ph) * amp;
+                const front = Math.cos(ph);
+                ctx.strokeStyle = `rgba(140,200,255,${0.25 + 0.3 * Math.abs(front)})`;
+                ctx.lineWidth = 3 * k;
+                ctx.beginPath();
+                ctx.moveTo(x1, y);
+                ctx.lineTo(x2, y);
+                ctx.stroke();
+                [[x1, front], [x2, -front]].forEach(([x, f]) => {
+                    const R = (9 + 6 * f) * k;
+                    glow(ctx, x, y, R * 3, `rgba(90,180,255,${0.25 + 0.25 * f})`);
+                    ctx.fillStyle = f > 0 ? '#cfe6ff' : '#4d7fc0';
+                    ctx.beginPath();
+                    ctx.arc(x, y, R, 0, S_TAU);
+                    ctx.fill();
+                });
+            }
+            ctx.restore();
+        },
+    },
+    {
+        id: 'network', label: 'شبكة بيانات', cat: 'research',
+        draw(ctx, w, h, r) {
+            vGrad(ctx, w, h, [[0, '#050a1a'], [1, '#0a1430']]);
+            const k = w / 1000;
+            const pts = Array.from({ length: 70 }, () => [r() * w, r() * h, r()]);
+            for (let i = 0; i < pts.length; i++)
+                for (let j = i + 1; j < pts.length; j++) {
+                    const d = Math.hypot(pts[i][0] - pts[j][0], pts[i][1] - pts[j][1]);
+                    if (d < 190 * k) {
+                        ctx.strokeStyle = `rgba(110,170,255,${0.7 * (1 - d / (190 * k))})`;
+                        ctx.lineWidth = 1.5 * k;
+                        ctx.beginPath();
+                        ctx.moveTo(pts[i][0], pts[i][1]);
+                        ctx.lineTo(pts[j][0], pts[j][1]);
+                        ctx.stroke();
+                    }
+                }
+            pts.forEach(([x, y, s]) => { glow(ctx, x, y, (10 + s * 26) * k, 'rgba(120,190,255,0.5)'); ctx.fillStyle = '#d6e8ff'; ctx.beginPath(); ctx.arc(x, y, (2 + s * 4) * k, 0, S_TAU); ctx.fill(); });
+        },
+    },
+    {
+        id: 'blueprint', label: 'مخطط هندسي', cat: 'research',
+        draw(ctx, w, h, r) {
+            ctx.fillStyle = '#0d3a6e';
+            ctx.fillRect(0, 0, w, h);
+            const k = w / 1000;
+            ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+            ctx.lineWidth = 1 * k;
+            for (let x = 0; x < w; x += 25 * k) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+            for (let y = 0; y < h; y += 25 * k) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+            for (let x = 0; x < w; x += 125 * k) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+                ctx.stroke();
+            }
+            for (let y = 0; y < h; y += 125 * k) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+                ctx.stroke();
+            }
+            ctx.strokeStyle = 'rgba(230,245,255,0.7)';
+            ctx.lineWidth = 2.5 * k;
+            const cx = w * 0.5, cy = h * 0.5;
+            ctx.beginPath();
+            ctx.arc(cx, cy, w * 0.28, 0, S_TAU);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(cx, cy, w * 0.12, 0, S_TAU);
+            ctx.stroke();
+            for (let i = 0; i < 12; i++) {
+                const a = (i * Math.PI) / 6;
+                ctx.save();
+                ctx.translate(cx + Math.cos(a) * w * 0.28, cy + Math.sin(a) * w * 0.28);
+                ctx.rotate(a);
+                ctx.strokeRect(-14 * k, -24 * k, 28 * k, 48 * k);
+                ctx.restore();
+            }
+            ctx.setLineDash([12 * k, 8 * k, 3 * k, 8 * k]);
+            ctx.lineWidth = 1.5 * k;
+            ctx.beginPath();
+            ctx.moveTo(cx - w * 0.4, cy);
+            ctx.lineTo(cx + w * 0.4, cy);
+            ctx.moveTo(cx, cy - w * 0.4);
+            ctx.lineTo(cx, cy + w * 0.4);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.beginPath();
+            ctx.moveTo(cx - w * 0.28, cy + w * 0.36);
+            ctx.lineTo(cx + w * 0.28, cy + w * 0.36);
+            ctx.stroke();
+            [-1, 1].forEach((s) => { ctx.beginPath(); ctx.moveTo(cx + s * w * 0.28, cy + w * 0.33); ctx.lineTo(cx + s * w * 0.28, cy + w * 0.39); ctx.stroke(); });
+            ctx.strokeRect(w * 0.08, h * 0.82, w * 0.84, h * 0.12);
+            ctx.beginPath();
+            ctx.moveTo(w * 0.6, h * 0.82);
+            ctx.lineTo(w * 0.6, h * 0.94);
+            ctx.stroke();
+        },
+    },
+    {
+        id: 'satellite', label: 'صورة أقمار صناعية', cat: 'security',
+        draw(ctx, w, h, r) {
+            ctx.fillStyle = '#3a3a30';
+            ctx.fillRect(0, 0, w, h);
+            for (let i = 0; i < 400; i++) {
+                ctx.fillStyle = `rgba(${90 + r() * 60},${85 + r() * 50},${60 + r() * 40},0.35)`;
+                ctx.fillRect(r() * w, r() * h, r() * 80, r() * 80);
+            }
+            const k = w / 1000;
+            // شوارع ومبانٍ من الأعلى
+            ctx.strokeStyle = 'rgba(200,195,170,0.5)';
+            ctx.lineWidth = 14 * k;
+            for (let i = 0; i < 5; i++) {
+                ctx.beginPath();
+                ctx.moveTo(0, r() * h);
+                ctx.lineTo(w, r() * h);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(r() * w, 0);
+                ctx.lineTo(r() * w, h);
+                ctx.stroke();
+            }
+            for (let i = 0; i < 160; i++) {
+                ctx.fillStyle = `rgba(${40 + r() * 40},${40 + r() * 40},${40 + r() * 30},0.85)`;
+                ctx.fillRect(r() * w, r() * h, (20 + r() * 50) * k, (20 + r() * 50) * k);
+            }
+            ctx.fillStyle = 'rgba(0,30,10,0.25)';
+            ctx.fillRect(0, 0, w, h);
+            // تحديد هدف
+            ctx.strokeStyle = 'rgba(255,60,40,0.95)';
+            ctx.lineWidth = 4 * k;
+            ctx.strokeRect(w * 0.42, h * 0.4, w * 0.18, w * 0.14);
+            ctx.lineWidth = 2 * k;
+            ctx.beginPath();
+            ctx.moveTo(w * 0.6, h * 0.4);
+            ctx.lineTo(w * 0.78, h * 0.3);
+            ctx.lineTo(w * 0.95, h * 0.3);
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+            ctx.lineWidth = 1 * k;
+            ctx.beginPath();
+            ctx.moveTo(w / 2, 0);
+            ctx.lineTo(w / 2, h);
+            ctx.moveTo(0, h / 2);
+            ctx.lineTo(w, h / 2);
+            ctx.stroke();
+        },
+    },
 ];
 const sceneCache = new Map();
 /** يرسم المشهد بدقة الغلاف ويعيده رابط صورة (يُخزَّن بعد أول مرة) */
@@ -5220,6 +6342,458 @@ function drawScenePreview(canvas, id) {
     if (!scene)
         return;
     scene.draw(canvas.getContext('2d'), canvas.width, canvas.height, sceneRng([...id].reduce((a, ch) => a * 31 + ch.charCodeAt(0), 11)));
+}
+// ===== lib/mockup.js =====
+// ─────────────────────────────────────────────────────────────
+// مولّد المجسّمات: يحوّل الغلاف إلى كتاب ثلاثي الأبعاد، كتاب مسطّح،
+// مجلة مفتوحة أو دفتر سلكي — رسم 2D خالص داخل الجهاز
+// ─────────────────────────────────────────────────────────────
+const MOCKUP_KINDS = [
+    { id: 'book3d', label: 'كتاب قائم', icon: '📕' },
+    { id: 'flat', label: 'كتاب مسطّح', icon: '📘' },
+    { id: 'magazine', label: 'مجلة مفتوحة', icon: '📖' },
+    { id: 'notebook', label: 'دفتر سلكي', icon: '📓' },
+];
+const MOCKUP_BACKDROPS = [
+    { id: 'studio', label: 'استوديو داكن', sw: 'radial-gradient(circle,#4a4038,#0b0907)' },
+    { id: 'light', label: 'فاتح', sw: 'radial-gradient(circle,#ffffff,#cfc9c0)' },
+    { id: 'wood', label: 'طاولة خشب', sw: 'linear-gradient(135deg,#8a5a34,#4a2c16)' },
+    { id: 'concrete', label: 'إسمنت', sw: 'linear-gradient(135deg,#9a9893,#5e5c58)' },
+    { id: 'navy', label: 'كحلي', sw: 'radial-gradient(circle,#2a3a5a,#070b16)' },
+    { id: 'transparent', label: 'شفاف', sw: 'repeating-conic-gradient(#555 0 25%,#333 0 50%) 0 0/12px 12px' },
+];
+const MW = 2400;
+const MH = 1800;
+function mkCanvas(w, h) {
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    return c;
+}
+function rand(seed) {
+    let a = seed >>> 0;
+    return () => {
+        a = (a + 0x6d2b79f5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+function paintBackdrop(ctx, W, H, kind) {
+    if (kind === 'transparent')
+        return;
+    if (kind === 'light' || kind === 'studio' || kind === 'navy') {
+        const [a, b] = kind === 'light' ? ['#fbfaf7', '#c9c3b9'] : kind === 'navy' ? ['#2c3c5e', '#05080f'] : ['#4a4038', '#0a0807'];
+        const g = ctx.createRadialGradient(W / 2, H * 0.42, 0, W / 2, H * 0.5, W * 0.75);
+        g.addColorStop(0, a);
+        g.addColorStop(1, b);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, W, H);
+        return;
+    }
+    if (kind === 'wood') {
+        ctx.fillStyle = '#6e4526';
+        ctx.fillRect(0, 0, W, H);
+        const r = rand(7);
+        const plank = H / 5;
+        for (let p = 0; p < 6; p++) {
+            const y0 = p * plank;
+            ctx.fillStyle = `rgba(${p % 2 ? '40,20,8' : '150,95,50'},0.12)`;
+            ctx.fillRect(0, y0, W, plank);
+            for (let i = 0; i < 70; i++) {
+                const y = y0 + r() * plank;
+                ctx.strokeStyle = `rgba(${r() < 0.5 ? '45,22,8' : '170,110,60'},${0.08 + r() * 0.18})`;
+                ctx.lineWidth = 1 + r() * 3;
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                const ph = r() * 10, amp = 2 + r() * 6;
+                for (let x = 0; x <= W; x += 40)
+                    ctx.lineTo(x, y + Math.sin(x / (180 + r() * 40) + ph) * amp);
+                ctx.stroke();
+            }
+            ctx.fillStyle = 'rgba(20,8,2,0.55)';
+            ctx.fillRect(0, y0, W, 3);
+        }
+        const v = ctx.createRadialGradient(W / 2, H / 2, W * 0.2, W / 2, H / 2, W * 0.75);
+        v.addColorStop(0, 'rgba(255,220,170,0.12)');
+        v.addColorStop(1, 'rgba(0,0,0,0.55)');
+        ctx.fillStyle = v;
+        ctx.fillRect(0, 0, W, H);
+        return;
+    }
+    // إسمنت
+    ctx.fillStyle = '#86847f';
+    ctx.fillRect(0, 0, W, H);
+    const r = rand(11);
+    for (let i = 0; i < 26000; i++) {
+        ctx.fillStyle = `rgba(${r() < 0.5 ? '40,40,40' : '230,230,225'},${0.04 + r() * 0.1})`;
+        ctx.fillRect(r() * W, r() * H, 1 + r() * 4, 1 + r() * 4);
+    }
+    const v = ctx.createRadialGradient(W / 2, H / 2, W * 0.2, W / 2, H / 2, W * 0.75);
+    v.addColorStop(0, 'rgba(255,255,255,0.1)');
+    v.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = v;
+    ctx.fillRect(0, 0, W, H);
+}
+/** ظل ناعم لشكل دون رسم الشكل نفسه */
+function softShadow(ctx, tracePath, blur, alpha, dx = 0, dy = 0) {
+    const OFF = 20000;
+    ctx.save();
+    ctx.shadowColor = `rgba(0,0,0,${alpha})`;
+    ctx.shadowBlur = blur;
+    ctx.shadowOffsetX = OFF + dx;
+    ctx.shadowOffsetY = dy;
+    // الإزاحة في إحداثيات الشاشة حتى يبقى الظل صحيحاً مع الدوران
+    const m = ctx.getTransform();
+    ctx.setTransform(m.a, m.b, m.c, m.d, m.e - OFF, m.f);
+    ctx.beginPath();
+    tracePath(ctx);
+    ctx.fillStyle = '#000';
+    ctx.fill();
+    ctx.restore();
+}
+/** متوسط لون الصورة (لتلوين صفحة المجلة والكعب) */
+function averageColor(img) {
+    const c = mkCanvas(16, 24);
+    const x = c.getContext('2d');
+    x.drawImage(img, 0, 0, 16, 24);
+    const d = x.getImageData(0, 0, 16, 24).data;
+    let r = 0, g = 0, b = 0;
+    for (let i = 0; i < d.length; i += 4) {
+        r += d[i];
+        g += d[i + 1];
+        b += d[i + 2];
+    }
+    const n = d.length / 4;
+    return [Math.round(r / n), Math.round(g / n), Math.round(b / n)];
+}
+function roundRectPath(ctx, x, y, w, h, r) {
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+}
+// ─────────────── كتاب قائم ثلاثي الأبعاد ───────────────
+function drawBook3D(ctx, img, { angle = 28 }) {
+    const th = (angle * Math.PI) / 180;
+    const bookH = MH * 0.74;
+    const bookW = bookH * (img.width / img.height);
+    const p = Math.sin(th) * 0.1; // قوة المنظور
+    const nearH = bookH * (1 + p);
+    const farH = bookH * (1 - p);
+    const frontW = bookW * Math.cos(th);
+    const spineW = bookW * 0.075 * (0.6 + Math.sin(th) * 1.6);
+    const total = spineW + frontW;
+    const x0 = MW / 2 - total / 2;
+    const cy = MH * 0.47;
+    const xL = x0 + spineW;
+    const xR = xL + frontW;
+    const spineFarH = nearH * (1 - p * 0.5);
+    // الظل على الأرض
+    softShadow(ctx, (c) => {
+        c.moveTo(x0, cy + spineFarH / 2);
+        c.lineTo(xR, cy + farH / 2);
+        c.lineTo(xR + frontW * 0.35, cy + farH / 2 + 20);
+        c.lineTo(x0 + 40, cy + nearH / 2 + 30);
+        c.closePath();
+    }, 60, 0.75, 0, 10);
+    softShadow(ctx, (c) => { c.rect(x0, cy + nearH / 2 - 6, total, 12); }, 14, 0.9);
+    // الكعب: أقصى يسار الغلاف مشدود + تظليل
+    const spineSrcW = Math.max(2, img.width * 0.04);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(x0, cy - spineFarH / 2);
+    ctx.lineTo(xL, cy - nearH / 2);
+    ctx.lineTo(xL, cy + nearH / 2);
+    ctx.lineTo(x0, cy + spineFarH / 2);
+    ctx.closePath();
+    ctx.clip();
+    const steps = Math.ceil(spineW);
+    for (let i = 0; i < steps; i++) {
+        const t = i / steps;
+        const h = spineFarH + (nearH - spineFarH) * t;
+        ctx.drawImage(img, t * spineSrcW, 0, Math.max(1, spineSrcW / steps), img.height, x0 + i, cy - h / 2, 1.6, h);
+    }
+    const sg = ctx.createLinearGradient(x0, 0, xL, 0);
+    sg.addColorStop(0, 'rgba(0,0,0,0.65)');
+    sg.addColorStop(0.55, 'rgba(0,0,0,0.25)');
+    sg.addColorStop(0.85, 'rgba(255,255,255,0.12)');
+    sg.addColorStop(1, 'rgba(0,0,0,0.35)');
+    ctx.fillStyle = sg;
+    ctx.fillRect(x0, 0, spineW + 1, MH);
+    ctx.restore();
+    // الوجه الأمامي بمنظور صحيح
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(xL, cy - nearH / 2);
+    ctx.lineTo(xR, cy - farH / 2);
+    ctx.lineTo(xR, cy + farH / 2);
+    ctx.lineTo(xL, cy + nearH / 2);
+    ctx.closePath();
+    ctx.clip();
+    const zL = 1 / nearH, zR = 1 / farH;
+    const cols = Math.ceil(frontW);
+    for (let i = 0; i < cols; i++) {
+        const t = i / cols;
+        const u = (t / zR) / ((1 - t) / zL + t / zR);
+        const h = nearH + (farH - nearH) * t;
+        const sx = Math.min(img.width - 1, u * img.width);
+        ctx.drawImage(img, sx, 0, Math.max(1, img.width / cols), img.height, xL + i, cy - h / 2, 1.6, h);
+    }
+    // الإضاءة: مفصل الغلاف + تدرّج + لمعة قطرية
+    const lg = ctx.createLinearGradient(xL, 0, xR, 0);
+    lg.addColorStop(0, 'rgba(255,255,255,0.18)');
+    lg.addColorStop(0.025, 'rgba(0,0,0,0.38)');
+    lg.addColorStop(0.05, 'rgba(255,255,255,0.14)');
+    lg.addColorStop(0.09, 'rgba(255,255,255,0)');
+    lg.addColorStop(0.7, 'rgba(0,0,0,0.05)');
+    lg.addColorStop(1, 'rgba(0,0,0,0.28)');
+    ctx.fillStyle = lg;
+    ctx.fillRect(xL, 0, frontW + 2, MH);
+    const sh = ctx.createLinearGradient(xL, cy - nearH / 2, xR, cy + farH / 2);
+    sh.addColorStop(0, 'rgba(255,255,255,0)');
+    sh.addColorStop(0.42, 'rgba(255,255,255,0)');
+    sh.addColorStop(0.5, 'rgba(255,255,255,0.13)');
+    sh.addColorStop(0.58, 'rgba(255,255,255,0)');
+    ctx.fillStyle = sh;
+    ctx.fillRect(xL, 0, frontW + 2, MH);
+    ctx.restore();
+    // حافة الأوراق السفلية الرفيعة
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(xL, cy + nearH / 2);
+    ctx.lineTo(xR, cy + farH / 2);
+    ctx.stroke();
+}
+// ─────────────── كتاب مسطّح ───────────────
+function drawFlatBook(ctx, img) {
+    const h = MH * 0.78;
+    const w = h * (img.width / img.height);
+    const x = MW / 2 - w / 2 - 10;
+    const y = MH / 2 - h / 2 - 10;
+    const depth = 22;
+    softShadow(ctx, (c) => c.rect(x + 10, y + 20, w + depth, h + depth), 70, 0.7, 30, 40);
+    // كتلة الأوراق
+    for (let i = depth; i > 0; i -= 2) {
+        ctx.fillStyle = i % 4 ? '#ebe5d9' : '#d8d1c3';
+        ctx.fillRect(x + i, y + i, w, h);
+    }
+    ctx.fillStyle = '#3a3128';
+    ctx.fillRect(x + depth, y + depth, w, h);
+    for (let i = depth - 2; i > 2; i -= 3) {
+        ctx.fillStyle = i % 2 ? '#f4efe4' : '#e2dccf';
+        ctx.fillRect(x + w, y + i, i, h - i + 1);
+        ctx.fillRect(x + i, y + h, w - i + 1, i);
+    }
+    ctx.drawImage(img, x, y, w, h);
+    const g = ctx.createLinearGradient(x, 0, x + w, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0.35)');
+    g.addColorStop(0.03, 'rgba(255,255,255,0.18)');
+    g.addColorStop(0.05, 'rgba(0,0,0,0.25)');
+    g.addColorStop(0.08, 'rgba(255,255,255,0)');
+    g.addColorStop(1, 'rgba(0,0,0,0.12)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x, y, w, h);
+    const sh = ctx.createLinearGradient(x, y, x + w, y + h);
+    sh.addColorStop(0, 'rgba(255,255,255,0.10)');
+    sh.addColorStop(0.5, 'rgba(255,255,255,0)');
+    sh.addColorStop(1, 'rgba(0,0,0,0.12)');
+    ctx.fillStyle = sh;
+    ctx.fillRect(x, y, w, h);
+}
+// ─────────────── مجلة مفتوحة ───────────────
+function articlePage(img, pw, ph, title) {
+    const c = mkCanvas(pw, ph);
+    const x = c.getContext('2d');
+    x.fillStyle = '#f7f4ee';
+    x.fillRect(0, 0, pw, ph);
+    const [r, g, b] = averageColor(img);
+    const accent = `rgb(${Math.round(r * 0.8)},${Math.round(g * 0.8)},${Math.round(b * 0.8)})`;
+    const m = pw * 0.08;
+    // صورة مقصوصة من الغلاف
+    const ih = ph * 0.38;
+    const scale = Math.max((pw - m * 2) / img.width, ih / img.height);
+    const sw = (pw - m * 2) / scale, sh = ih / scale;
+    x.drawImage(img, (img.width - sw) / 2, (img.height - sh) * 0.35, sw, sh, m, m, pw - m * 2, ih);
+    // عنوان المقال
+    x.fillStyle = accent;
+    x.fillRect(pw - m - pw * 0.25, m + ih + ph * 0.03, pw * 0.25, ph * 0.008);
+    x.fillStyle = '#1a1714';
+    x.textAlign = 'right';
+    x.direction = 'rtl';
+    x.font = `700 ${Math.round(ph * 0.045)}px "Amiri","Cairo",serif`;
+    x.fillText(title || 'عنوان المقال', pw - m, m + ih + ph * 0.1);
+    // أعمدة النص
+    const colW = (pw - m * 2 - m * 0.6) / 2;
+    const top = m + ih + ph * 0.14;
+    const rr = rand(3);
+    for (let col = 0; col < 2; col++) {
+        const cx = pw - m - col * (colW + m * 0.6);
+        for (let y = top; y < ph - m; y += ph * 0.022) {
+            const len = colW * (y > ph - m - ph * 0.03 ? 0.5 : 0.82 + rr() * 0.18);
+            x.fillStyle = 'rgba(40,36,32,0.45)';
+            x.fillRect(cx - len, y, len, ph * 0.007);
+        }
+    }
+    return c;
+}
+function drawMagazine(ctx, img, { spread = false, title }) {
+    const ph = MH * 0.8;
+    const pw = ph * (img.width / img.height);
+    const sw = pw * 2;
+    ctx.save();
+    ctx.translate(MW / 2, MH / 2);
+    ctx.rotate((-3 * Math.PI) / 180);
+    const x0 = -sw / 2, y0 = -ph / 2;
+    softShadow(ctx, (c) => c.rect(x0 + 10, y0 + 20, sw, ph), 80, 0.7, 20, 40);
+    // سماكة الصفحات تحت كل صفحة
+    for (let i = 10; i > 0; i -= 2) {
+        ctx.fillStyle = i % 4 ? '#e6e0d4' : '#cfc8ba';
+        ctx.fillRect(x0 - i * 0.6, y0 + i, pw, ph);
+        ctx.fillRect(x0 + pw + i * 0.6, y0 + i, pw, ph);
+    }
+    let left, right;
+    if (spread) {
+        const full = mkCanvas(Math.round(sw), Math.round(ph));
+        const fx = full.getContext('2d');
+        const sc = Math.max(sw / img.width, ph / img.height);
+        const dw = img.width * sc, dh = img.height * sc;
+        fx.drawImage(img, (sw - dw) / 2, (ph - dh) / 2, dw, dh);
+        left = { src: full, sx: 0, sw: Math.round(pw) };
+        right = { src: full, sx: Math.round(pw), sw: Math.round(pw) };
+    }
+    else {
+        left = { src: articlePage(img, Math.round(pw), Math.round(ph), title), sx: 0, sw: Math.round(pw) };
+        right = { src: img, sx: 0, sw: img.width };
+    }
+    // الصفحتان مع انحناء خفيف للحافة العلوية والسفلية قرب الكعب
+    const bend = ph * 0.012;
+    const pagePath = (side) => {
+        const xa = side < 0 ? x0 : x0 + pw, xb = side < 0 ? x0 + pw : x0 + sw;
+        const gx = side < 0 ? xb : xa; // جهة الكعب
+        const ox = side < 0 ? xa : xb;
+        ctx.beginPath();
+        ctx.moveTo(ox, y0);
+        ctx.quadraticCurveTo((ox + gx) / 2, y0 - bend, gx, y0 + bend);
+        ctx.lineTo(gx, y0 + ph - bend);
+        ctx.quadraticCurveTo((ox + gx) / 2, y0 + ph + bend, ox, y0 + ph);
+        ctx.closePath();
+    };
+    [[-1, left], [1, right]].forEach(([side, pg]) => {
+        ctx.save();
+        pagePath(side);
+        ctx.clip();
+        const dx = side < 0 ? x0 : x0 + pw;
+        const srcH = pg.src === img ? img.height : pg.src.height;
+        ctx.drawImage(pg.src, pg.sx, 0, pg.sw, srcH, dx, y0 - bend, pw, ph + bend * 2);
+        // ظل الكعب وإضاءة الانحناء
+        const gx = x0 + pw;
+        const gg = ctx.createLinearGradient(gx, 0, gx + side * pw * 0.22, 0);
+        gg.addColorStop(0, 'rgba(0,0,0,0.55)');
+        gg.addColorStop(0.08, 'rgba(0,0,0,0.25)');
+        gg.addColorStop(0.3, 'rgba(255,255,255,0.10)');
+        gg.addColorStop(0.55, 'rgba(255,255,255,0)');
+        gg.addColorStop(1, 'rgba(0,0,0,0.06)');
+        ctx.fillStyle = gg;
+        ctx.fillRect(x0, y0 - bend * 2, sw, ph + bend * 4);
+        ctx.restore();
+    });
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x0 + pw, y0 + bend);
+    ctx.lineTo(x0 + pw, y0 + ph - bend);
+    ctx.stroke();
+    ctx.restore();
+}
+// ─────────────── دفتر سلكي ───────────────
+function drawNotebook(ctx, img, { band = true }) {
+    const h = MH * 0.78;
+    const w = h * (img.width / img.height);
+    ctx.save();
+    ctx.translate(MW / 2, MH / 2 + 30);
+    ctx.rotate((2.5 * Math.PI) / 180);
+    const x = -w / 2, y = -h / 2;
+    const R = w * 0.035;
+    softShadow(ctx, (c) => roundRectPath(c, x + 6, y + 14, w + 10, h + 10, R), 70, 0.7, 25, 40);
+    // أوراق
+    for (let i = 12; i > 0; i -= 3) {
+        ctx.beginPath();
+        roundRectPath(ctx, x + i * 0.5, y + i, w, h, R);
+        ctx.fillStyle = i % 2 ? '#f2eee6' : '#ddd7cb';
+        ctx.fill();
+    }
+    // الغلاف
+    ctx.save();
+    ctx.beginPath();
+    roundRectPath(ctx, x, y, w, h, R);
+    ctx.clip();
+    ctx.drawImage(img, x, y, w, h);
+    const sh = ctx.createLinearGradient(x, y, x + w, y + h);
+    sh.addColorStop(0, 'rgba(255,255,255,0.12)');
+    sh.addColorStop(0.5, 'rgba(255,255,255,0)');
+    sh.addColorStop(1, 'rgba(0,0,0,0.15)');
+    ctx.fillStyle = sh;
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+    // الشريط المطاطي
+    if (band) {
+        const bx = x + w * 0.86, bw = w * 0.035;
+        softShadow(ctx, (c) => c.rect(bx, y - 6, bw, h + 12), 10, 0.6, 4, 0);
+        const bg = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+        bg.addColorStop(0, '#0e0d0c');
+        bg.addColorStop(0.5, '#3a3734');
+        bg.addColorStop(1, '#0e0d0c');
+        ctx.fillStyle = bg;
+        ctx.fillRect(bx, y - 6, bw, h + 12);
+    }
+    // الثقوب والسلك الحلزوني في الأعلى
+    const n = Math.round(w / 52);
+    const step = w / (n + 1);
+    for (let i = 1; i <= n; i++) {
+        const hx = x + step * i, hy = y + h * 0.028;
+        ctx.fillStyle = '#141210';
+        ctx.beginPath();
+        ctx.ellipse(hx, hy, step * 0.13, step * 0.11, 0, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    for (let i = 1; i <= n; i++) {
+        const hx = x + step * i, hy = y + h * 0.028;
+        const g = ctx.createLinearGradient(hx - step * 0.3, 0, hx + step * 0.3, 0);
+        g.addColorStop(0, '#5d5e60');
+        g.addColorStop(0.45, '#f0f1f3');
+        g.addColorStop(1, '#4a4b4d');
+        ctx.strokeStyle = g;
+        ctx.lineWidth = step * 0.09;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(hx - step * 0.12, hy);
+        ctx.bezierCurveTo(hx - step * 0.22, hy - h * 0.06, hx + step * 0.28, hy - h * 0.065, hx + step * 0.12, hy + step * 0.02);
+        ctx.stroke();
+    }
+    ctx.restore();
+}
+/**
+ * يرسم المجسّم ويعيد لوحة 2400×1800
+ * @param cover HTMLCanvasElement | HTMLImageElement للغلاف
+ */
+function renderMockup(cover, { kind = 'book3d', backdrop = 'studio', angle = 28, spread = false, band = true, title = '' } = {}) {
+    const c = mkCanvas(MW, MH);
+    const ctx = c.getContext('2d');
+    ctx.imageSmoothingQuality = 'high';
+    paintBackdrop(ctx, MW, MH, backdrop);
+    if (kind === 'flat')
+        drawFlatBook(ctx, cover);
+    else if (kind === 'magazine')
+        drawMagazine(ctx, cover, { spread, title });
+    else if (kind === 'notebook')
+        drawNotebook(ctx, cover, { band });
+    else
+        drawBook3D(ctx, cover, { angle });
+    return c;
 }
 // ===== hooks/useArabicFonts.js =====
 /**
@@ -5796,6 +7370,27 @@ function BackgroundImage({ bg, palette }) {
         bg.paletteMix > 0 && (React.createElement(Rect, { name: "background", width: COVER_W, height: COVER_H, ...paletteFill(palette), opacity: bg.paletteMix, globalCompositeOperation: bg.blend || 'soft-light' })),
         bg.dim > 0 && React.createElement(Rect, { name: "background", width: COVER_W, height: COVER_H, fill: "#000", opacity: bg.dim })));
 }
+/** مولّد أرقام شبه عشوائية ثابت (حتى لا يرتجف الشكل عند كل رسم) */
+function seeded(seed) {
+    let a = (seed >>> 0) || 1;
+    return () => {
+        a = (a + 0x6d2b79f5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+/** تفتيح/تغميق لون سداسي: amount من -1 إلى 1 */
+function shade(hex, amount) {
+    let h = String(hex || '#000').replace('#', '');
+    if (h.length === 3)
+        h = h.split('').map((c) => c + c).join('');
+    const n = parseInt(h.slice(0, 6), 16) || 0;
+    const target = amount >= 0 ? 255 : 0;
+    const k = Math.abs(amount);
+    const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => Math.round(v + (target - v) * k));
+    return '#' + ch.map((v) => v.toString(16).padStart(2, '0')).join('');
+}
 /** شكل خلف النص: شريط لكل سطر، صندوق، إطار بيضاوي، لوحة زخرفية، هالة، خط سفلي */
 function TextBackground({ t, lines, lh }) {
     const type = t.bg || 'none';
@@ -5828,6 +7423,179 @@ function TextBackground({ t, lines, lh }) {
                 React.createElement(Circle, { x: -dotX, y: cy, radius: boxH * 0.07, fill: t.bgStroke || color, opacity: op }),
                 React.createElement(Circle, { x: dotX, y: cy, radius: boxH * 0.07, fill: t.bgStroke || color, opacity: op })));
         }
+        case 'glass':
+            return (React.createElement(Rect, { x: -blockW / 2 - pad * 1.4, y: top, width: blockW + pad * 2.8, height: boxH, cornerRadius: Math.min(28, boxH * 0.22), fillLinearGradientStartPoint: { x: 0, y: 0 }, fillLinearGradientEndPoint: { x: 0, y: boxH }, fillLinearGradientColorStops: [0, rgba(color, 0.42 * op), 0.5, rgba(color, 0.22 * op), 1, rgba(color, 0.32 * op)], stroke: `rgba(255,255,255,${0.5 * op})`, strokeWidth: Math.max(1.5, t.size * 0.014), shadowColor: "#000", shadowBlur: t.size * 0.4, shadowOpacity: 0.45, shadowOffsetY: t.size * 0.06, shadowForStrokeEnabled: false }));
+        case 'fade': {
+            const W = blockW + pad * 10;
+            return (React.createElement(Rect, { x: -W / 2, y: top, width: W, height: boxH, fillLinearGradientStartPoint: { x: 0, y: 0 }, fillLinearGradientEndPoint: { x: W, y: 0 }, fillLinearGradientColorStops: [0, rgba(color, 0), 0.22, rgba(color, op * 0.9), 0.5, rgba(color, op), 0.78, rgba(color, op * 0.9), 1, rgba(color, 0)] }));
+        }
+        case 'brush': {
+            const W = blockW + pad * 4;
+            const H = boxH * 1.05;
+            const seed = (t.text || '').length * 31 + Math.round(t.size);
+            return (React.createElement(Shape, { y: top + boxH / 2, opacity: op, fill: color, sceneFunc: (ctx, shape) => {
+                    const r = seeded(seed);
+                    const x0 = -W / 2, x1 = W / 2;
+                    const steps = 26;
+                    ctx.beginPath();
+                    ctx.moveTo(x0 + W * 0.02, -H * 0.42);
+                    for (let i = 1; i <= steps; i++) {
+                        const x = x0 + (W * i) / steps;
+                        ctx.lineTo(x - W * 0.01, -H * (0.44 + (r() - 0.5) * 0.12) - Math.sin(i * 0.5) * H * 0.03);
+                    }
+                    // طرف خشن
+                    for (let j = 0; j < 7; j++)
+                        ctx.lineTo(x1 + W * (0.01 + r() * 0.05) * (j % 2 ? 1 : 0.3), -H * 0.4 + (H * 0.8 * (j + 1)) / 7);
+                    for (let i = steps; i >= 0; i--) {
+                        const x = x0 + (W * i) / steps;
+                        ctx.lineTo(x + W * 0.01, H * (0.46 + (r() - 0.5) * 0.14) + Math.cos(i * 0.4) * H * 0.03);
+                    }
+                    for (let j = 0; j < 7; j++)
+                        ctx.lineTo(x0 - W * (0.01 + r() * 0.06) * (j % 2 ? 1 : 0.4), H * 0.4 - (H * 0.8 * (j + 1)) / 7);
+                    ctx.closePath();
+                    ctx.fillShape(shape);
+                    // خطوط جافة متقطعة عند الحواف
+                    const native = ctx._context;
+                    const prevAlpha = native.globalAlpha;
+                    native.globalAlpha = prevAlpha * 0.55;
+                    for (let k = 0; k < 9; k++) {
+                        const yy = (r() < 0.5 ? -1 : 1) * H * (0.48 + r() * 0.08);
+                        const xs = x0 + r() * W * 0.7;
+                        ctx.beginPath();
+                        ctx.rect(xs, yy, W * (0.1 + r() * 0.25), Math.max(1, H * 0.02));
+                        ctx.fillShape(shape);
+                    }
+                    native.globalAlpha = prevAlpha;
+                } }));
+        }
+        case 'ribbon': {
+            const W = blockW + pad * 2.4;
+            const H = boxH;
+            const tail = H * 0.9;
+            const drop = H * 0.28;
+            const dark = shade(color, -0.35);
+            return (React.createElement(React.Fragment, null,
+                [-1, 1].map((side) => (React.createElement(Shape, { key: side, opacity: op, y: top, fill: shade(color, -0.12), sceneFunc: (ctx, shape) => {
+                        const xe = side * (W / 2 - H * 0.2);
+                        const xo = side * (W / 2 + tail);
+                        ctx.beginPath();
+                        ctx.moveTo(xe, drop);
+                        ctx.lineTo(xo, drop);
+                        ctx.lineTo(xo - side * H * 0.32, drop + H / 2);
+                        ctx.lineTo(xo, drop + H);
+                        ctx.lineTo(xe, drop + H);
+                        ctx.closePath();
+                        ctx.fillShape(shape);
+                    } }))),
+                [-1, 1].map((side) => (React.createElement(Shape, { key: `f${side}`, opacity: op, y: top, fill: dark, sceneFunc: (ctx, shape) => {
+                        const xe = side * (W / 2);
+                        ctx.beginPath();
+                        ctx.moveTo(xe, H);
+                        ctx.lineTo(xe - side * H * 0.2, drop + H);
+                        ctx.lineTo(xe - side * H * 0.2, H);
+                        ctx.closePath();
+                        ctx.fillShape(shape);
+                    } }))),
+                React.createElement(Rect, { x: -W / 2, y: top, width: W, height: H, opacity: op, fillLinearGradientStartPoint: { x: 0, y: 0 }, fillLinearGradientEndPoint: { x: 0, y: H }, fillLinearGradientColorStops: [0, shade(color, 0.18), 0.5, color, 1, shade(color, -0.15)], shadowColor: "#000", shadowBlur: t.size * 0.25, shadowOpacity: 0.5, shadowOffsetY: t.size * 0.05 }),
+                React.createElement(Rect, { x: -W / 2, y: top + H * 0.09, width: W, height: Math.max(1, t.size * 0.012), fill: t.bgStroke || '#fff', opacity: op * 0.7 }),
+                React.createElement(Rect, { x: -W / 2, y: top + H * 0.91, width: W, height: Math.max(1, t.size * 0.012), fill: t.bgStroke || '#fff', opacity: op * 0.7 })));
+        }
+        case 'frame': {
+            const W = blockW + pad * 3, sw = Math.max(1.5, t.size * 0.02), gap = Math.max(5, t.size * 0.07);
+            return (React.createElement(React.Fragment, null,
+                React.createElement(Rect, { x: -W / 2, y: top, width: W, height: boxH, fill: rgba(color, 0.55 * op), stroke: t.bgStroke, strokeWidth: sw }),
+                React.createElement(Rect, { x: -W / 2 + gap, y: top + gap, width: W - gap * 2, height: boxH - gap * 2, stroke: t.bgStroke, strokeWidth: sw * 0.5, opacity: op })));
+        }
+        case 'corners': {
+            const W = blockW + pad * 3, L = Math.min(W, boxH) * 0.28, sw = Math.max(2, t.size * 0.028);
+            const x0 = -W / 2, x1 = W / 2, y0 = top, y1 = top + boxH;
+            const c = t.bgStroke || color;
+            return (React.createElement(React.Fragment, null,
+                React.createElement(Rect, { x: x0, y: y0, width: W, height: boxH, fill: rgba(color, 0.35 * op) }),
+                [
+                    [x0, y0 + L, x0, y0, x0 + L, y0],
+                    [x1 - L, y0, x1, y0, x1, y0 + L],
+                    [x0, y1 - L, x0, y1, x0 + L, y1],
+                    [x1 - L, y1, x1, y1, x1, y1 - L],
+                ].map((pts, i) => (React.createElement(Line, { key: i, points: pts, stroke: c, strokeWidth: sw, lineCap: "square", opacity: Math.min(1, op + 0.15) })))));
+        }
+        case 'ornament': {
+            const W = blockW + pad * 6, sw = Math.max(1.2, t.size * 0.014), d = Math.max(5, t.size * 0.07);
+            const c = t.bgStroke || color;
+            const row = (y) => (React.createElement(React.Fragment, null,
+                React.createElement(Rect, { x: -W / 2, y: y - sw / 2, width: W, height: sw, fillLinearGradientStartPoint: { x: 0, y: 0 }, fillLinearGradientEndPoint: { x: W, y: 0 }, fillLinearGradientColorStops: [0, rgba(c, 0), 0.3, rgba(c, op), 0.7, rgba(c, op), 1, rgba(c, 0)] }),
+                React.createElement(Rect, { x: 0, y: y, width: d * 1.4, height: d * 1.4, offsetX: d * 0.7, offsetY: d * 0.7, rotation: 45, fill: c, opacity: op }),
+                React.createElement(Circle, { x: -W * 0.36, y: y, radius: d * 0.28, fill: c, opacity: op }),
+                React.createElement(Circle, { x: W * 0.36, y: y, radius: d * 0.28, fill: c, opacity: op })));
+            return (React.createElement(React.Fragment, null,
+                row(top + pad * 0.2),
+                row(top + boxH - pad * 0.2)));
+        }
+        case 'stamp': {
+            const R = Math.max(blockW / 2, boxH / 2) + pad;
+            const c = t.bgStroke || color;
+            const sw = Math.max(2, t.size * 0.03);
+            return (React.createElement(Group, { x: 0, y: top + boxH / 2, rotation: -8, opacity: op },
+                React.createElement(Circle, { radius: R, fill: rgba(color, 0.25), stroke: c, strokeWidth: sw }),
+                React.createElement(Circle, { radius: R - sw * 3, stroke: c, strokeWidth: sw * 0.5, dash: [sw * 1.5, sw] }),
+                React.createElement(Circle, { radius: R + sw * 2.5, stroke: c, strokeWidth: sw * 0.45 }),
+                [-1, 1].map((s) => (React.createElement(Shape, { key: s, x: s * (R - sw * 6), fill: c, sceneFunc: (ctx, shape) => {
+                        const r1 = sw * 2.2, r2 = sw;
+                        ctx.beginPath();
+                        for (let i = 0; i < 10; i++) {
+                            const a = (i * Math.PI) / 5 - Math.PI / 2;
+                            const rr = i % 2 ? r2 : r1;
+                            i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+                        }
+                        ctx.closePath();
+                        ctx.fillShape(shape);
+                    } })))));
+        }
+        case 'torn': {
+            const W = blockW + pad * 3;
+            const H = boxH * 1.1;
+            const seed = (t.text || '').length * 17 + 7;
+            return (React.createElement(Shape, { y: top + boxH / 2, rotation: -1.5, fill: color, opacity: op, shadowColor: "#000", shadowBlur: t.size * 0.3, shadowOpacity: 0.55, shadowOffsetY: t.size * 0.06, sceneFunc: (ctx, shape) => {
+                    const r = seeded(seed);
+                    const n = 34;
+                    ctx.beginPath();
+                    ctx.moveTo(-W / 2, -H / 2);
+                    for (let i = 1; i <= n; i++)
+                        ctx.lineTo(-W / 2 + (W * i) / n, -H / 2 + (r() - 0.5) * H * 0.09);
+                    ctx.lineTo(W / 2 + (r() - 0.5) * 6, H / 2);
+                    for (let i = n - 1; i >= 0; i--)
+                        ctx.lineTo(-W / 2 + (W * i) / n, H / 2 + (r() - 0.5) * H * 0.1);
+                    ctx.closePath();
+                    ctx.fillShape(shape);
+                } }));
+        }
+        case 'tag': {
+            const W = blockW + pad * 3.2;
+            const rv = Math.max(3, t.size * 0.045);
+            const inset = rv * 2.4;
+            return (React.createElement(Group, { opacity: op },
+                React.createElement(Rect, { x: -W / 2, y: top, width: W, height: boxH, cornerRadius: rv * 1.5, fillLinearGradientStartPoint: { x: 0, y: 0 }, fillLinearGradientEndPoint: { x: W * 0.3, y: boxH }, fillLinearGradientColorStops: [0, shade(color, 0.3), 0.45, color, 0.55, shade(color, -0.2), 1, shade(color, 0.1)], stroke: shade(color, -0.5), strokeWidth: Math.max(1.5, t.size * 0.015), shadowColor: "#000", shadowBlur: t.size * 0.3, shadowOpacity: 0.6, shadowOffsetY: t.size * 0.05 }),
+                [
+                    [-W / 2 + inset, top + inset],
+                    [W / 2 - inset, top + inset],
+                    [-W / 2 + inset, top + boxH - inset],
+                    [W / 2 - inset, top + boxH - inset],
+                ].map(([x, y], i) => (React.createElement(Circle, { key: i, x: x, y: y, radius: rv, fillRadialGradientStartPoint: { x: -rv * 0.3, y: -rv * 0.3 }, fillRadialGradientEndPoint: { x: 0, y: 0 }, fillRadialGradientStartRadius: 0, fillRadialGradientEndRadius: rv, fillRadialGradientColorStops: [0, '#ffffff', 0.5, shade(color, 0.2), 1, shade(color, -0.6)] })))));
+        }
+        case 'arch': {
+            const W = blockW + pad * 2.6;
+            const H = boxH + W * 0.5;
+            const y1 = top + boxH + pad * 0.6;
+            return (React.createElement(Shape, { opacity: op, fillLinearGradientStartPoint: { x: 0, y: y1 - H }, fillLinearGradientEndPoint: { x: 0, y: y1 }, fillLinearGradientColorStops: [0, shade(color, 0.15), 1, color], stroke: t.bgStroke, strokeWidth: Math.max(1.5, t.size * 0.018), sceneFunc: (ctx, shape) => {
+                    ctx.beginPath();
+                    ctx.moveTo(-W / 2, y1);
+                    ctx.lineTo(-W / 2, y1 - H + W / 2);
+                    ctx.arc(0, y1 - H + W / 2, W / 2, Math.PI, 0, false);
+                    ctx.lineTo(W / 2, y1);
+                    ctx.closePath();
+                    ctx.fillStrokeShape(shape);
+                } }));
+        }
         case 'halo':
             return (React.createElement(Ellipse, { x: 0, y: blockH / 2, radiusX: blockW * 0.62 + pad * 2, radiusY: blockH * 0.85 + pad * 2, fillRadialGradientStartPoint: { x: 0, y: 0 }, fillRadialGradientEndPoint: { x: 0, y: 0 }, fillRadialGradientStartRadius: 0, fillRadialGradientEndRadius: blockW * 0.62 + pad * 2, fillRadialGradientColorStops: [0, rgba(color, op), 0.55, rgba(color, op * 0.45), 1, rgba(color, 0)], listening: false }));
         case 'underline': {
@@ -5844,9 +7612,9 @@ function TextGroup({ id, t, fontsVersion, onSelect, onDragEnd, onOpenProps }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [t.text, t.font, t.weight, t.size, t.width, t.letterSpacing, fontsVersion]);
     const lh = t.size * t.lineHeight;
-    const perLine = !!t.secondColor && lines.length > 1;
+    const perLine = lines.length > 1 && (!!t.secondColor || needsPerLine(t.effect));
     const pieces = perLine
-        ? lines.map((l, i) => ({ text: l.text, y: i * lh, color: i === 0 ? t.color : t.secondColor }))
+        ? lines.map((l, i) => ({ text: l.text, y: i * lh, color: i > 0 && t.secondColor ? t.secondColor : t.color }))
         : [{ text: t.text, y: 0, color: t.color }];
     const k = `${id}-${t.font}-${t.weight}-${t.effect}-${perLine}-${fontsVersion}`;
     const common = {
@@ -5864,16 +7632,193 @@ function TextGroup({ id, t, fontsVersion, onSelect, onDragEnd, onOpenProps }) {
     return (React.createElement(Group, { id: `text-${id}`, x: t.x, y: t.y, rotation: t.rotation || 0, opacity: t.opacity ?? 1, name: "element", visible: t.visible !== false, listening: !t.locked, draggable: !t.locked, onMouseDown: (e) => onSelect(`text-${id}`, e.evt?.shiftKey), onTap: () => onSelect(`text-${id}`), onDblClick: () => onOpenProps?.(`text-${id}`), onDblTap: () => onOpenProps?.(`text-${id}`), onDragEnd: onDragEnd },
         React.createElement(TextBackground, { t: t, lines: lines, lh: lh }),
         pieces.map((p, pi) => {
-            const { main, under } = buildTextLayers({ ...t, text: p.text, color: p.color });
+            const tp = { ...t, text: p.text, color: p.color };
+            const { main, under, over } = buildTextLayers(tp, { lh, lines: perLine ? 1 : lines.length, w: t.width });
+            const back = [...buildRingLayers(tp), ...under];
             return [
-                ...under.map(({ dy = 0, dx = 0, ...u }, i) => (React.createElement(Text, { key: `${k}-${pi}-u${i}`, ...common, text: p.text, x: dx, y: p.y + dy, ...u, listening: false }))),
+                ...back.map(({ dy = 0, dx = 0, ...u }, i) => (React.createElement(Text, { key: `${k}-${pi}-u${i}`, ...common, text: p.text, x: dx, y: p.y + dy, ...u, listening: false }))),
                 React.createElement(Text, { key: `${k}-${pi}`, ...common, text: p.text, y: p.y, ...main }),
+                ...(over || []).map(({ dy = 0, dx = 0, ...o }, i) => (React.createElement(Text, { key: `${k}-${pi}-o${i}`, ...common, text: p.text, x: dx, y: p.y + dy, ...o, listening: false }))),
             ];
         })));
 }
+const FRAME_STYLES = [
+    { id: 'none', label: 'بدون' },
+    { id: 'line', label: 'خط رفيع' },
+    { id: 'double', label: 'خط مزدوج' },
+    { id: 'gold', label: 'ذهبي فاخر' },
+    { id: 'thick', label: 'حافة عريضة' },
+    { id: 'inset', label: 'إطار مستدير' },
+    { id: 'corners', label: 'زوايا زخرفية' },
+    { id: 'deco', label: 'آرت ديكو' },
+    { id: 'islamic', label: 'نجوم إسلامية' },
+    { id: 'dashed', label: 'متقطّع' },
+    { id: 'tactical', label: 'تكتيكي' },
+    { id: 'hazard', label: 'شريط تحذير' },
+    { id: 'classified', label: 'شريط سرّي' },
+    { id: 'film', label: 'شريط سينمائي' },
+];
+const DEFAULT_FRAME = { style: 'none', color: '#d4af6a', color2: '#111111', width: 6, margin: 36, opacity: 1 };
+/** إطار حول التصميم كاملاً — فوق كل الطبقات */
+function DesignFrame({ frame }) {
+    const f = { ...DEFAULT_FRAME, ...(frame || {}) };
+    if (!f.style || f.style === 'none')
+        return null;
+    const W = COVER_W, H = COVER_H, m = f.margin, sw = f.width, c = f.color, c2 = f.color2;
+    const common = { listening: false, opacity: f.opacity };
+    switch (f.style) {
+        case 'line':
+            return React.createElement(Rect, { ...common, x: m, y: m, width: W - m * 2, height: H - m * 2, stroke: c, strokeWidth: sw });
+        case 'double':
+            return (React.createElement(Group, { ...common },
+                React.createElement(Rect, { x: m, y: m, width: W - m * 2, height: H - m * 2, stroke: c, strokeWidth: sw }),
+                React.createElement(Rect, { x: m + sw * 2.5, y: m + sw * 2.5, width: W - (m + sw * 2.5) * 2, height: H - (m + sw * 2.5) * 2, stroke: c, strokeWidth: Math.max(1, sw * 0.4) })));
+        case 'gold': {
+            const g = { strokeLinearGradientStartPoint: { x: 0, y: 0 }, strokeLinearGradientEndPoint: { x: W, y: H }, strokeLinearGradientColorStops: [0, '#fff3c4', 0.25, '#c9972f', 0.5, '#f8e08e', 0.75, '#8a6420', 1, '#f2d27c'] };
+            return (React.createElement(Group, { ...common },
+                React.createElement(Rect, { x: m, y: m, width: W - m * 2, height: H - m * 2, strokeWidth: sw * 2, ...g, shadowColor: "#000", shadowBlur: sw * 2, shadowOpacity: 0.6 }),
+                React.createElement(Rect, { x: m + sw * 3, y: m + sw * 3, width: W - (m + sw * 3) * 2, height: H - (m + sw * 3) * 2, strokeWidth: Math.max(1, sw * 0.4), ...g })));
+        }
+        case 'thick':
+            return (React.createElement(Group, { ...common },
+                React.createElement(Shape, { fill: c, fillRule: "evenodd", sceneFunc: (ctx, shape) => {
+                        const b = Math.max(m, sw * 3);
+                        ctx.beginPath();
+                        ctx.rect(0, 0, W, H);
+                        // فتحة بعكس اتجاه الرسم — تعمل مع أي قاعدة تعبئة
+                        ctx.moveTo(b, b);
+                        ctx.lineTo(b, H - b);
+                        ctx.lineTo(W - b, H - b);
+                        ctx.lineTo(W - b, b);
+                        ctx.closePath();
+                        ctx.fillShape(shape);
+                    } }),
+                React.createElement(Rect, { x: Math.max(m, sw * 3) + sw, y: Math.max(m, sw * 3) + sw, width: W - (Math.max(m, sw * 3) + sw) * 2, height: H - (Math.max(m, sw * 3) + sw) * 2, stroke: c, strokeWidth: Math.max(1, sw * 0.35) })));
+        case 'inset':
+            return React.createElement(Rect, { ...common, x: m, y: m, width: W - m * 2, height: H - m * 2, cornerRadius: Math.min(120, m * 2.4), stroke: c, strokeWidth: sw });
+        case 'dashed':
+            return React.createElement(Rect, { ...common, x: m, y: m, width: W - m * 2, height: H - m * 2, stroke: c, strokeWidth: sw, dash: [sw * 4, sw * 2.5] });
+        case 'corners': {
+            const L = 160, o = sw * 2.6;
+            return (React.createElement(Group, { ...common }, [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]].map(([cx, cy, sx, sy], i) => (React.createElement(Group, { key: i },
+                React.createElement(Line, { points: [cx, cy + sy * L, cx, cy, cx + sx * L, cy], stroke: c, strokeWidth: sw, lineCap: "square" }),
+                React.createElement(Line, { points: [cx + sx * o, cy + sy * L * 0.7, cx + sx * o, cy + sy * o, cx + sx * L * 0.7, cy + sy * o], stroke: c, strokeWidth: Math.max(1, sw * 0.4) }),
+                React.createElement(Rect, { x: cx + sx * o * 2.4, y: cy + sy * o * 2.4, width: sw * 2.6, height: sw * 2.6, offsetX: sw * 1.3, offsetY: sw * 1.3, rotation: 45, fill: c }))))));
+        }
+        case 'deco': {
+            const s = 34;
+            const corner = (x, y, sx, sy) => [x, y + sy * s * 4, x + sx * s, y + sy * s * 4, x + sx * s, y + sy * s * 2, x + sx * s * 2, y + sy * s * 2, x + sx * s * 2, y + sy * s, x + sx * s * 4, y + sy * s, x + sx * s * 4, y];
+            return (React.createElement(Group, { ...common },
+                React.createElement(Rect, { x: m, y: m, width: W - m * 2, height: H - m * 2, stroke: c, strokeWidth: Math.max(1, sw * 0.5) }),
+                [[m, m, 1, 1], [W - m, m, -1, 1], [m, H - m, 1, -1], [W - m, H - m, -1, -1]].map(([x, y, sx, sy], i) => (React.createElement(Group, { key: i },
+                    React.createElement(Line, { points: corner(x + sx * sw * 2, y + sy * sw * 2, sx, sy), stroke: c, strokeWidth: sw }),
+                    React.createElement(Line, { points: corner(x + sx * sw * 5, y + sy * sw * 5, sx, sy).map((v) => v), stroke: c, strokeWidth: Math.max(1, sw * 0.4) })))),
+                React.createElement(Line, { points: [W / 2 - 120, m, W / 2 + 120, m], stroke: c, strokeWidth: sw * 2.2 }),
+                React.createElement(Line, { points: [W / 2 - 120, H - m, W / 2 + 120, H - m], stroke: c, strokeWidth: sw * 2.2 })));
+        }
+        case 'islamic': {
+            const band = Math.max(28, sw * 6);
+            return (React.createElement(Group, { ...common },
+                React.createElement(Rect, { x: m, y: m, width: W - m * 2, height: H - m * 2, stroke: c, strokeWidth: Math.max(1, sw * 0.4) }),
+                React.createElement(Rect, { x: m + band, y: m + band, width: W - (m + band) * 2, height: H - (m + band) * 2, stroke: c, strokeWidth: Math.max(1, sw * 0.4) }),
+                React.createElement(Shape, { stroke: c, strokeWidth: Math.max(1, sw * 0.35), sceneFunc: (ctx, shape) => {
+                        const R = band * 0.38;
+                        const star = (cx, cy) => {
+                            ctx.moveTo(cx + R, cy);
+                            for (let i = 1; i <= 16; i++) {
+                                const a = (i * Math.PI) / 8;
+                                const rr = i % 2 ? R * 0.6 : R;
+                                ctx.lineTo(cx + Math.cos(a) * rr, cy + Math.sin(a) * rr);
+                            }
+                        };
+                        ctx.beginPath();
+                        const mid = m + band / 2;
+                        const nx = Math.floor((W - m * 2) / band), ny = Math.floor((H - m * 2) / band);
+                        for (let i = 0; i < nx; i++) {
+                            const x = m + band / 2 + (i * (W - m * 2 - band)) / (nx - 1);
+                            star(x, mid);
+                            star(x, H - mid);
+                        }
+                        for (let j = 1; j < ny - 1; j++) {
+                            const y = m + band / 2 + (j * (H - m * 2 - band)) / (ny - 1);
+                            star(mid, y);
+                            star(W - mid, y);
+                        }
+                        ctx.strokeShape(shape);
+                    } })));
+        }
+        case 'tactical': {
+            const L = 110;
+            const br = [
+                [m, m + L, m, m, m + L, m],
+                [W - m - L, m, W - m, m, W - m, m + L],
+                [m, H - m - L, m, H - m, m + L, H - m],
+                [W - m - L, H - m, W - m, H - m, W - m, H - m - L],
+            ];
+            const ticks = [];
+            for (let i = 1; i < 20; i++) {
+                const y = m + ((H - m * 2) * i) / 20, l = i % 5 ? 10 : 24;
+                ticks.push([m, y, m + l, y], [W - m, y, W - m - l, y]);
+            }
+            for (let i = 1; i < 14; i++) {
+                const x = m + ((W - m * 2) * i) / 14, l = i % 7 ? 10 : 24;
+                ticks.push([x, m, x, m + l], [x, H - m, x, H - m - l]);
+            }
+            return (React.createElement(Group, { ...common },
+                br.map((p, i) => React.createElement(Line, { key: i, points: p, stroke: c, strokeWidth: sw })),
+                ticks.map((p, i) => React.createElement(Line, { key: `t${i}`, points: p, stroke: c, strokeWidth: Math.max(1, sw * 0.3), opacity: 0.75 }))));
+        }
+        case 'hazard': {
+            const b = Math.max(40, sw * 7);
+            const stripes = (y) => (React.createElement(Shape, { y: y, sceneFunc: (ctx, shape) => {
+                    ctx.beginPath();
+                    ctx.rect(0, 0, W, b);
+                    ctx.closePath();
+                    ctx.fillStrokeShape(shape);
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.rect(0, 0, W, b);
+                    ctx.clip();
+                    ctx.beginPath();
+                    for (let x = -b; x < W + b; x += b * 1.2) {
+                        ctx.moveTo(x, b);
+                        ctx.lineTo(x + b * 0.6, b);
+                        ctx.lineTo(x + b * 0.6 + b, 0);
+                        ctx.lineTo(x + b, 0);
+                        ctx.closePath();
+                    }
+                    ctx.setAttr('fillStyle', c2);
+                    ctx.fill();
+                    ctx.restore();
+                }, fill: c }));
+            return (React.createElement(Group, { ...common },
+                stripes(m * 0.3),
+                stripes(H - b - m * 0.3)));
+        }
+        case 'classified': {
+            const b = Math.max(46, sw * 7);
+            return (React.createElement(Group, { ...common }, [m * 0.4, H - b - m * 0.4].map((y, i) => (React.createElement(Group, { key: i, y: y },
+                React.createElement(Rect, { width: W, height: b, fill: c }),
+                React.createElement(Rect, { y: b * 0.15, width: W, height: 2, fill: c2 }),
+                React.createElement(Rect, { y: b * 0.85 - 2, width: W, height: 2, fill: c2 }))))));
+        }
+        case 'film': {
+            const b = Math.max(48, sw * 8);
+            const holes = [];
+            const hs = b * 0.42;
+            for (let y = hs; y < H - hs; y += hs * 2)
+                holes.push(y);
+            return (React.createElement(Group, { ...common }, [0, W - b].map((x, i) => (React.createElement(Group, { key: i, x: x },
+                React.createElement(Rect, { width: b, height: H, fill: c2 }),
+                holes.map((y, j) => (React.createElement(Rect, { key: j, x: b * 0.29, y: y, width: b * 0.42, height: hs * 1.1, cornerRadius: 4, fill: c }))))))));
+        }
+        default:
+            return null;
+    }
+}
 const SAFE_MARGIN = 60;
 const SNAP = 8;
-const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, shapes = [], logo, palette, background, layers, grade, textAboveLayers, selectedIds, onSelect, onCommit, onOpenProps, fontsVersion, snapping = true, zoom = 1, onZoomChange }, ref) {
+const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, shapes = [], logo, palette, background, layers, grade, textAboveLayers, frame, selectedIds, onSelect, onCommit, onOpenProps, fontsVersion, snapping = true, zoom = 1, onZoomChange }, ref) {
     const wrapRef = useRef(null);
     const stageRef = useRef(null);
     const layerRef = useRef(null);
@@ -6075,6 +8020,7 @@ const CoverCanvas = forwardRef(function CoverCanvas({ texts, images, shapes = []
                             overlays.map((o) => (React.createElement(KonvaImage, { key: o.id, image: o.canvas, x: 0, y: 0, width: COVER_W, height: COVER_H, opacity: o.opacity, globalCompositeOperation: o.blend, listening: false }))),
                             grading.map(({ blend, ...g }, i) => (React.createElement(Rect, { key: `grade-${i}`, x: 0, y: 0, width: COVER_W, height: COVER_H, ...g, globalCompositeOperation: blend, listening: false }))),
                             textAboveLayers && textNodes,
+                            React.createElement(DesignFrame, { frame: frame }),
                             React.createElement(Transformer, { ref: trRef, rotateEnabled: true, keepRatio: !onlyShapes, enabledAnchors: selectedTexts
                                     ? []
                                     : onlyShapes
@@ -6173,6 +8119,39 @@ const TEXT_SLOTS = [
 function ChipGroup({ items, value, onChange, cols = 3 }) {
     return (React.createElement("div", { className: `grid gap-1.5 ${cols === 4 ? 'grid-cols-4' : 'grid-cols-3'}` }, items.map((it) => (React.createElement("button", { key: it.id, type: "button", onClick: () => onChange(it.id), className: `rounded-lg px-1.5 py-2 text-[11.5px] transition ${value === it.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-800 text-stone-400 hover:text-stone-200'}` }, it.label)))));
 }
+/** معاينة حية لتأثير واحد بخط النص الحالي وألوانه */
+function EffectTile({ t, effect, label, active, onPick, sample }) {
+    const ref = useRef(null);
+    useEffect(() => {
+        const c = ref.current;
+        if (!c)
+            return;
+        const dpr = Math.min(2, window.devicePixelRatio || 1);
+        c.width = 150 * dpr;
+        c.height = 64 * dpr;
+        const draw = () => {
+            try {
+                paintEffectPreview(c, { ...t, effect }, sample);
+            }
+            catch (e) { }
+        };
+        draw();
+        let alive = true;
+        document.fonts?.load?.(`${t.weight || 700} 40px "${t.font}"`).then(() => alive && draw()).catch(() => { });
+        return () => { alive = false; };
+    }, [t.font, t.weight, t.color, t.color2, t.glowColor, t.strokeColor, t.strokeWidth, t.shadow, t.ring, t.ringColor, t.ringWidth, t.ring2, t.ring2Color, t.ring2Width, t.ringStyle, effect, sample]);
+    return (React.createElement("button", { type: "button", onClick: () => onPick(effect), className: `overflow-hidden rounded-xl border text-center transition ${active ? 'border-gold-400 ring-2 ring-gold-400/30' : 'border-white/10 hover:border-white/25'}` },
+        React.createElement("canvas", { ref: ref, className: "block h-16 w-full", style: { background: 'radial-gradient(circle at 50% 40%, #2b2119, #0b0907)' } }),
+        React.createElement("span", { className: `block py-1 text-[11px] ${active ? 'bg-gold-400/15 text-gold-200' : 'bg-ink-900 text-stone-400'}` }, label)));
+}
+function EffectGallery({ value, onPick }) {
+    const current = TEXT_EFFECTS.find((e) => e.id === value.effect);
+    const [group, setGroup] = useState(current?.group || 'metal');
+    const sample = (String(value.text || 'العنوان').split(/\s+/)[0] || 'العنوان').slice(0, 9);
+    return (React.createElement("div", { className: "space-y-2" },
+        React.createElement("div", { className: "scroll-thin flex gap-1.5 overflow-x-auto pb-0.5" }, EFFECT_GROUPS.map((g) => (React.createElement("button", { key: g.id, type: "button", onClick: () => setGroup(g.id), className: `shrink-0 rounded-full px-3 py-1 text-[11.5px] ${group === g.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-900 text-stone-400'}` }, g.label)))),
+        React.createElement("div", { className: "grid grid-cols-2 gap-2" }, TEXT_EFFECTS.filter((e) => e.group === group).map((e) => (React.createElement(EffectTile, { key: e.id, t: value, effect: e.id, label: e.label, active: value.effect === e.id, onPick: onPick, sample: sample }))))));
+}
 function TextBlockEditor({ slot, value, onChange, onSelect, open, onToggleOpen, focusSignal }) {
     const id = slot.id;
     const font = getFontMeta(value.font);
@@ -6224,16 +8203,17 @@ function TextBlockEditor({ slot, value, onChange, onSelect, open, onToggleOpen, 
                     React.createElement(Button, { onClick: () => set({ x: COVER_W / 2, rotation: 0 }), className: "text-[12px]" }, "\u062A\u0648\u0633\u064A\u0637 \u0623\u0641\u0642\u064A"),
                     React.createElement(Button, { onClick: () => onSelect(`text-${id}`), className: "text-[12px]" }, "\u062A\u062D\u062F\u064A\u062F \u0639\u0644\u0649 \u0627\u0644\u063A\u0644\u0627\u0641"))),
             React.createElement(PropGroup, { id: "t-bg", icon: "\u25AD", title: "\u0634\u0643\u0644 \u062E\u0644\u0641 \u0627\u0644\u0646\u0635", summary: TEXT_BACKGROUNDS.find((b) => b.id === (value.bg || 'none'))?.label },
-                React.createElement(ChipGroup, { items: TEXT_BACKGROUNDS, value: value.bg || 'none', onChange: (bg) => set({ bg }), cols: 4 }),
+                React.createElement(ChipGroup, { items: TEXT_BACKGROUNDS, value: value.bg || 'none', onChange: (bg) => set({ bg }), cols: 3 }),
                 value.bg && value.bg !== 'none' && (React.createElement(React.Fragment, null,
                     React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0634\u0643\u0644", value: value.bgColor, onChange: (bgColor) => set({ bgColor }) }),
-                    (value.bg === 'pill' || value.bg === 'plaque') && (React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0625\u0637\u0627\u0631", value: value.bgStroke, onChange: (bgStroke) => set({ bgStroke }) })),
+                    ['pill', 'plaque', 'frame', 'corners', 'ornament', 'stamp', 'ribbon', 'arch'].includes(value.bg) && (React.createElement(ColorField, { label: value.bg === 'ribbon' ? 'لون الخيوط' : 'لون الإطار والزخرفة', value: value.bgStroke, onChange: (bgStroke) => set({ bgStroke }) })),
                     React.createElement(RangeField, { label: "\u0627\u0644\u0634\u0641\u0627\u0641\u064A\u0629", min: 0.05, max: 1, step: 0.01, value: value.bgOpacity, onChange: (bgOpacity) => set({ bgOpacity }), format: (v) => `${Math.round(v * 100)}%` }),
                     React.createElement(RangeField, { label: "\u0627\u0644\u0647\u0627\u0645\u0634", min: 0, max: 60, value: value.bgPadding, onChange: (bgPadding) => set({ bgPadding }) }),
                     (value.bg === 'bars' || value.bg === 'box') && (React.createElement(RangeField, { label: "\u0627\u0633\u062A\u062F\u0627\u0631\u0629 \u0627\u0644\u0632\u0648\u0627\u064A\u0627", min: 0, max: 40, value: value.bgRadius || 0, onChange: (bgRadius) => set({ bgRadius }) }))))),
             React.createElement(PropGroup, { id: "t-fx", icon: "\u2726", title: "\u0627\u0644\u062A\u0623\u062B\u064A\u0631 \u0648\u0627\u0644\u0636\u0648\u0621", summary: `${TEXT_EFFECTS.find((e) => e.id === value.effect)?.label || 'بدون'}${value.shadow ? ' · ظل' : ''}` },
-                React.createElement(ChipGroup, { items: TEXT_EFFECTS, value: value.effect, onChange: (effect) => set({ effect }) }),
+                React.createElement(EffectGallery, { value: value, onPick: (effect) => set({ effect }) }),
                 value.effect === 'gradient' && React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0646\u0647\u0627\u064A\u0629", value: value.color2, onChange: (color2) => set({ color2 }) }),
+                value.effect === 'retro' && React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0638\u0644 \u0627\u0644\u0645\u0644\u0648\u0651\u0646", value: value.color2, onChange: (color2) => set({ color2 }) }),
                 (value.effect === 'glow' || value.effect === 'neon') && (React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u062A\u0648\u0647\u0651\u062C", value: value.glowColor, onChange: (glowColor) => set({ glowColor }) })),
                 value.effect === 'extrude' && React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u0639\u0645\u0642", value: value.color2, onChange: (color2) => set({ color2 }) }),
                 value.effect === 'double' && (React.createElement(React.Fragment, null,
@@ -6245,7 +8225,17 @@ function TextBlockEditor({ slot, value, onChange, onSelect, open, onToggleOpen, 
                     React.createElement(RangeField, { label: "\u0633\u0645\u0627\u0643\u0629 \u0627\u0644\u062D\u062F\u0651", min: 1, max: 24, value: value.strokeWidth, onChange: (strokeWidth) => set({ strokeWidth }) }),
                     React.createElement(Toggle, { checked: !!value.outlineOnly, onChange: (outlineOnly) => set({ outlineOnly }), label: "\u062D\u062F\u0651 \u0641\u0642\u0637 (\u0646\u0635 \u0645\u0641\u0631\u063A)", small: true }))),
                 value.effect === 'engraved' && React.createElement("p", { className: "text-[11px] text-stone-500" }, "\u064A\u0628\u062F\u0648 \u0623\u0641\u0636\u0644 \u0628\u0644\u0648\u0646 \u0646\u0635 \u0623\u063A\u0645\u0642 \u0642\u0644\u064A\u0644\u0627\u064B \u0645\u0646 \u0627\u0644\u062E\u0644\u0641\u064A\u0629."),
-                React.createElement(Toggle, { checked: !!value.shadow, onChange: (shadow) => set({ shadow }), label: "\u0638\u0644 \u0633\u064A\u0646\u0645\u0627\u0626\u064A", small: true }))))));
+                React.createElement(Toggle, { checked: !!value.shadow, onChange: (shadow) => set({ shadow }), label: "\u0638\u0644 \u0633\u064A\u0646\u0645\u0627\u0626\u064A", small: true })),
+            React.createElement(PropGroup, { id: "t-ring", icon: "\u25CE", title: "\u062D\u062F\u0651 \u0645\u0644\u0648\u0651\u0646 \u062D\u0648\u0644 \u0627\u0644\u0646\u0635", summary: value.ring ? (value.ring2 ? 'حدّان' : 'حدّ واحد') : 'بدون' },
+                React.createElement(Toggle, { checked: !!value.ring, onChange: (ring) => set({ ring }), label: "\u0625\u0638\u0647\u0627\u0631 \u062D\u062F\u0651 \u062D\u0648\u0644 \u0627\u0644\u062D\u0631\u0648\u0641", small: true }),
+                value.ring && (React.createElement(React.Fragment, null,
+                    React.createElement(ChipGroup, { items: [{ id: 'solid', label: 'حدّ صلب' }, { id: 'soft', label: 'هالة ناعمة' }], value: value.ringStyle || 'solid', onChange: (ringStyle) => set({ ringStyle }), cols: 2 }),
+                    React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u062D\u062F\u0651", value: value.ringColor, onChange: (ringColor) => set({ ringColor }) }),
+                    React.createElement(RangeField, { label: "\u0627\u0644\u0633\u0645\u0627\u0643\u0629", min: 1, max: 30, value: value.ringWidth ?? 6, onChange: (ringWidth) => set({ ringWidth }), defaultValue: 6 }),
+                    React.createElement(Toggle, { checked: !!value.ring2, onChange: (ring2) => set({ ring2 }), label: "\u062D\u062F\u0651 \u062B\u0627\u0646\u064D \u062E\u0627\u0631\u062C\u064A", small: true }),
+                    value.ring2 && (React.createElement(React.Fragment, null,
+                        React.createElement(ColorField, { label: "\u0644\u0648\u0646 \u0627\u0644\u062D\u062F\u0651 \u0627\u0644\u062B\u0627\u0646\u064A", value: value.ring2Color, onChange: (ring2Color) => set({ ring2Color }) }),
+                        React.createElement(RangeField, { label: "\u0633\u0645\u0627\u0643\u0629 \u0627\u0644\u062D\u062F\u0651 \u0627\u0644\u062B\u0627\u0646\u064A", min: 1, max: 30, value: value.ring2Width ?? 4, onChange: (ring2Width) => set({ ring2Width }), defaultValue: 4 }))))))))));
 }
 function TypographyTab({ texts, onChangeText, onSelect, openSlot, onOpenSlot, focusSignal }) {
     const [localOpen, setLocalOpen] = useState('title');
@@ -6542,15 +8532,24 @@ function ScenePreview({ id }) {
 const TEXTURE_SCENES = new Set(['marble', 'goldMarble', 'wood', 'leather', 'tiles', 'hexagons', 'watercolor', 'mesh', 'abstractWaves', 'velvet', 'goldFoil', 'artDeco', 'smoke', 'papyrus', 'arabesque', 'grainGradient', 'oldPaper', 'bokeh', 'inkSplash']);
 const SCENE_TABS = [
     { id: 'scenes', label: 'مشاهد' },
+    { id: 'security', label: 'أمني وعسكري' },
     { id: 'textures', label: 'أنسجة وفن' },
     { id: 'all', label: 'الكل' },
 ];
 function SceneGallery({ onPick, activeScene }) {
     const [busy, setBusy] = useState(null);
     const [tab, setTab] = useState('scenes');
-    const list = SCENES.filter((sc) => tab === 'all' || (tab === 'textures') === TEXTURE_SCENES.has(sc.id));
+    const list = SCENES.filter((sc) => {
+        if (tab === 'all')
+            return true;
+        if (tab === 'security')
+            return !!sc.cat;
+        if (sc.cat)
+            return false;
+        return (tab === 'textures') === TEXTURE_SCENES.has(sc.id);
+    });
     return (React.createElement(Section, { title: "\u062E\u0644\u0641\u064A\u0627\u062A \u062C\u0627\u0647\u0632\u0629", hint: `${SCENES.length} مشهداً ونسيجاً مرسومة داخل التطبيق — تعمل دون إنترنت، وكل خلفية قابلة للتلوين` },
-        React.createElement("div", { className: "grid grid-cols-3 gap-1.5" }, SCENE_TABS.map((t) => (React.createElement("button", { key: t.id, type: "button", onClick: () => setTab(t.id), className: `rounded-lg py-1.5 text-[12px] ${tab === t.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-900 text-stone-400'}` }, t.label)))),
+        React.createElement("div", { className: "grid grid-cols-4 gap-1.5" }, SCENE_TABS.map((t) => (React.createElement("button", { key: t.id, type: "button", onClick: () => setTab(t.id), className: `rounded-lg py-1.5 text-[12px] ${tab === t.id ? 'bg-gold-400 font-bold text-ink-950' : 'bg-ink-900 text-stone-400'}` }, t.label)))),
         React.createElement("div", { className: "grid grid-cols-3 gap-2" }, list.map((sc) => (React.createElement("button", { key: sc.id, type: "button", disabled: !!busy, onClick: () => {
                 setBusy(sc.id);
                 // نؤجل قليلاً ليظهر مؤشر التحميل قبل الرسم بدقة كاملة
@@ -6726,7 +8725,24 @@ function Swatches({ onPick }) {
     return (React.createElement("div", { className: "flex flex-wrap gap-1.5" }, SWATCHES.map((c) => (React.createElement("button", { key: c, type: "button", onClick: () => onPick(c), className: "h-6 w-6 rounded-full border border-white/20", style: { background: c } })))));
 }
 /** تبويب الزخارف: إضافة عناصر قابلة للتلوين + تحرير العنصر المحدد */
-function ShapesTab({ shapes, selectedId, onAddShape, onChangeShape, onRemoveShape, onDuplicate, focusSignal }) {
+const FRAME_ICONS = { none: '∅', line: '▢', double: '⧈', gold: '✦', thick: '▣', inset: '▢', corners: '⌜', deco: '◫', islamic: '✶', dashed: '⬚', tactical: '⌖', hazard: '⚠', classified: '▤', film: '🎞' };
+const TWO_COLOR_FRAMES = new Set(['hazard', 'classified', 'film']);
+function FrameSection({ frame, onChange }) {
+    const f = { ...DEFAULT_FRAME, ...(frame || {}) };
+    const set = (patch) => onChange({ ...f, ...patch, fromTemplate: false });
+    return (React.createElement(Section, { title: "\u0625\u0637\u0627\u0631 \u062D\u0648\u0644 \u0627\u0644\u062A\u0635\u0645\u064A\u0645", hint: "\u062D\u0627\u0641\u0629 \u062A\u062D\u064A\u0637 \u0628\u0627\u0644\u063A\u0644\u0627\u0641 \u0643\u0627\u0645\u0644\u0627\u064B \u2014 \u062A\u0638\u0647\u0631 \u0641\u0648\u0642 \u0643\u0644 \u0627\u0644\u0639\u0646\u0627\u0635\u0631 \u0648\u0641\u064A \u0627\u0644\u0635\u0648\u0631\u0629 \u0627\u0644\u0645\u0635\u062F\u0651\u0631\u0629" },
+        React.createElement("div", { className: "grid grid-cols-4 gap-1.5" }, FRAME_STYLES.map((st) => (React.createElement("button", { key: st.id, type: "button", onClick: () => set({ style: st.id }), className: `rounded-lg border px-1 py-1.5 text-[10.5px] leading-tight ${f.style === st.id ? 'border-gold-400 bg-gold-400/15 text-gold-200' : 'border-white/10 bg-ink-900 text-stone-400'}` },
+            React.createElement("span", { className: "block text-[16px] leading-none" }, FRAME_ICONS[st.id] || '▢'),
+            React.createElement("span", { className: "mt-1 block truncate" }, st.label))))),
+        f.style !== 'none' && (React.createElement("div", { className: "space-y-3" },
+            React.createElement(ColorField, { label: TWO_COLOR_FRAMES.has(f.style) ? 'اللون الأول' : 'لون الإطار', value: f.color, onChange: (color) => set({ color }) }),
+            React.createElement(Swatches, { onPick: (color) => set({ color }) }),
+            TWO_COLOR_FRAMES.has(f.style) && React.createElement(ColorField, { label: "\u0627\u0644\u0644\u0648\u0646 \u0627\u0644\u062B\u0627\u0646\u064A", value: f.color2, onChange: (color2) => set({ color2 }) }),
+            React.createElement(RangeField, { label: "\u0627\u0644\u0633\u0645\u0627\u0643\u0629", min: 1, max: 30, value: f.width, onChange: (width) => set({ width }), defaultValue: DEFAULT_FRAME.width }),
+            React.createElement(RangeField, { label: "\u0627\u0644\u0628\u0639\u062F \u0639\u0646 \u0627\u0644\u062D\u0627\u0641\u0629", min: 0, max: 160, value: f.margin, onChange: (margin) => set({ margin }), defaultValue: DEFAULT_FRAME.margin }),
+            React.createElement(RangeField, { label: "\u0627\u0644\u0634\u0641\u0627\u0641\u064A\u0629", min: 0.1, max: 1, step: 0.01, value: f.opacity, onChange: (opacity) => set({ opacity }), format: (v) => `${Math.round(v * 100)}%`, defaultValue: 1 })))));
+}
+function ShapesTab({ shapes, selectedId, onAddShape, onChangeShape, onRemoveShape, onDuplicate, focusSignal, frame, onChangeFrame }) {
     const [cat, setCat] = useState('lines');
     const selected = shapes.find((s) => s.id === selectedId);
     const editorRef = useRef(null);
@@ -6764,6 +8780,7 @@ function ShapesTab({ shapes, selectedId, onAddShape, onChangeShape, onRemoveShap
                     React.createElement(Button, { onClick: () => set({ x: 500 }) }, "\u062A\u0648\u0633\u064A\u0637 \u0623\u0641\u0642\u064A"),
                     React.createElement(Button, { onClick: () => onDuplicate([selected.id]) }, "\u29C9 \u062A\u0643\u0631\u0627\u0631"),
                     React.createElement(Button, { variant: "danger", onClick: () => onRemoveShape(selected.id), className: "col-span-2" }, "\u062D\u0630\u0641 \u0627\u0644\u0632\u062E\u0631\u0641\u0629"))))),
+        onChangeFrame && React.createElement(FrameSection, { frame: frame, onChange: onChangeFrame }),
         React.createElement(Section, { title: "\u0625\u0636\u0627\u0641\u0629 \u0632\u062E\u0631\u0641\u0629", hint: "\u062E\u0637\u0648\u0637 \u0648\u0641\u0648\u0627\u0635\u0644 \u0648\u0625\u0637\u0627\u0631\u0627\u062A \u0648\u0632\u0648\u0627\u064A\u0627 \u0648\u0623\u0634\u0643\u0627\u0644 \u0648\u0631\u0645\u0648\u0632 \u2014 \u0643\u0644\u0647\u0627 \u0642\u0627\u0628\u0644\u0629 \u0644\u0644\u062A\u0644\u0648\u064A\u0646 \u0648\u0627\u0644\u062A\u0645\u062F\u064A\u062F" },
             React.createElement("div", { className: "scroll-thin flex gap-1 overflow-x-auto pb-1" }, SHAPE_CATEGORIES.map((c) => (React.createElement("button", { key: c.id, type: "button", onClick: () => setCat(c.id), className: `shrink-0 whitespace-nowrap rounded-full px-3 py-1 text-[12px] transition ${cat === c.id ? 'bg-gold-400 font-bold text-ink-950' : 'border border-white/10 bg-ink-900 text-stone-400'}` }, c.label)))),
             React.createElement("div", { className: "grid grid-cols-3 gap-2" }, SHAPE_LIBRARY.filter((s) => s.cat === cat).map((s) => (React.createElement("button", { key: s.id, type: "button", onClick: () => onAddShape(s.id), className: "rounded-xl border border-white/10 bg-ink-900 p-1.5 transition hover:border-gold-500/50" },
@@ -6797,7 +8814,7 @@ function ControlPanel(props) {
                 React.createElement("button", { type: "button", onClick: props.onClose, className: "rounded-lg px-2.5 py-1 text-[12px] text-stone-400 hover:bg-white/5", title: "\u0625\u063A\u0644\u0627\u0642 \u0627\u0644\u0644\u0648\u062D\u0629" }, "\u2715"))),
         React.createElement("div", { className: "scroll-thin min-h-0 flex-1 space-y-4 overflow-y-auto p-3 lg:p-4" },
             tab === 'elements' && (React.createElement(ElementsTab, { texts: props.texts, images: props.images, shapes: props.shapes, logo: props.logo, selectedIds: props.selectedIds, onSelect: props.onSelect, onChangeText: props.onChangeText, onChangeNode: props.onChangeNode, onMoveImage: props.onMoveImage, onRemoveImage: props.onRemoveImage, onDuplicate: props.onDuplicate })),
-            tab === 'shapes' && (React.createElement(ShapesTab, { shapes: props.shapes, selectedId: props.selectedId, onAddShape: props.onAddShape, onChangeShape: props.onChangeNode, onRemoveShape: props.onRemoveShape, onDuplicate: props.onDuplicate, focusSignal: props.focusSignal })),
+            tab === 'shapes' && (React.createElement(ShapesTab, { shapes: props.shapes, selectedId: props.selectedId, onAddShape: props.onAddShape, onChangeShape: props.onChangeNode, onRemoveShape: props.onRemoveShape, onDuplicate: props.onDuplicate, focusSignal: props.focusSignal, frame: props.frame, onChangeFrame: props.onChangeFrame })),
             tab === 'templates' && React.createElement(TemplatesTab, { onApplyTemplate: props.onApplyTemplate, activeTemplateId: props.activeTemplateId }),
             tab === 'typography' && (React.createElement(TypographyTab, { texts: props.texts, onChangeText: props.onChangeText, onSelect: props.onSelect, openSlot: props.openSlot, onOpenSlot: props.onOpenSlot, focusSignal: props.focusSignal })),
             tab === 'compositing' && (React.createElement(CompositingTab, { images: props.images, selectedId: props.selectedId, onSelect: props.onSelect, onAddImage: props.onAddImage, onChangeNode: props.onChangeNode, onRemoveImage: props.onRemoveImage, onMoveImage: props.onMoveImage, autoColors: props.autoColors, onToggleAutoColors: props.onToggleAutoColors, onSuggestColors: props.onSuggestColors, paletteLight: props.paletteLight, onOpenCutout: props.onOpenCutout, focusSignal: props.focusSignal })),
@@ -6818,7 +8835,7 @@ function RailButton({ icon, label, onClick, active, disabled, gold, badge }) {
         badge > 0 && (React.createElement("span", { className: "absolute left-1 top-1 grid h-4 min-w-4 place-items-center rounded-full bg-gold-500 px-1 text-[9px] font-bold text-ink-950" }, badge))));
 }
 /** العمود الجانبي الأيمن: تبويبات القوائم + الأوامر — بالطول لترك أكبر مساحة للتصميم */
-function SideRail({ tab, panelOpen, onTab, layersCount, onWizard, onShuffle, onUndo, onRedo, canUndo, canRedo, onPreview, onOpen, onSave, onExport, exporting, }) {
+function SideRail({ tab, panelOpen, onTab, layersCount, onWizard, onShuffle, onUndo, onRedo, canUndo, canRedo, onPreview, onMockup, onOpen, onSave, onExport, exporting, }) {
     return (React.createElement("nav", { className: "scroll-thin z-40 flex h-full w-16 shrink-0 flex-col items-center gap-1 overflow-y-auto border-l border-white/5 bg-ink-900 px-1.5 py-2" },
         React.createElement("div", { className: "mb-1 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-gold-300 to-gold-600 text-lg font-bold text-ink-950", title: "\u0627\u0633\u062A\u0648\u062F\u064A\u0648 \u0627\u0644\u0623\u063A\u0644\u0641\u0629 \u2014 \u062A\u0637\u0648\u064A\u0631 \u0623\u0628\u0648 \u0639\u0628\u062F\u0627\u0644\u0644\u0647 \u0627\u0644\u0634\u0627\u0645\u064A" }, "\u063A"),
         PANEL_TABS.map((t) => (React.createElement(RailButton, { key: t.id, icon: t.icon, label: t.label, active: tab === t.id && panelOpen, badge: t.id === 'layers' ? layersCount : 0, onClick: () => onTab(t.id) }))),
@@ -6828,6 +8845,7 @@ function SideRail({ tab, panelOpen, onTab, layersCount, onWizard, onShuffle, onU
         React.createElement(RailButton, { icon: "\u21B6", label: "\u062A\u0631\u0627\u062C\u0639", onClick: onUndo, disabled: !canUndo }),
         React.createElement(RailButton, { icon: "\u21B7", label: "\u0625\u0639\u0627\u062F\u0629", onClick: onRedo, disabled: !canRedo }),
         React.createElement(RailButton, { icon: "\uD83D\uDC41", label: "\u0645\u0634\u0627\u0647\u062F\u0629", onClick: onPreview }),
+        React.createElement(RailButton, { icon: "\uD83D\uDCD6", label: "\u0645\u062C\u0633\u0651\u0645", onClick: onMockup }),
         React.createElement(RailButton, { icon: "\uD83D\uDCC2", label: "\u0641\u062A\u062D", onClick: onOpen }),
         React.createElement(RailButton, { icon: "\uD83D\uDCBE", label: "\u062D\u0641\u0638", onClick: onSave }),
         React.createElement(RailButton, { icon: "\u2B07", label: exporting ? '…' : 'تحميل', onClick: onExport, gold: true, disabled: exporting })));
@@ -7262,6 +9280,74 @@ function CutoutEditor({ item, onSave, onClose }) {
                         boxShadow: '0 0 0 1px rgba(0,0,0,.6)',
                     } }))))));
 }
+// ===== components/MockupStudio.jsx =====
+function Chip({ active, onClick, children }) {
+    return (React.createElement("button", { type: "button", onClick: onClick, className: `shrink-0 rounded-xl border px-3 py-2 text-[12px] ${active ? 'border-gold-400 bg-gold-400/15 font-bold text-gold-200' : 'border-white/10 bg-ink-900 text-stone-300'}` }, children));
+}
+/** شاشة المجسّمات: كتاب قائم، كتاب مسطّح، مجلة مفتوحة، دفتر — مع تحميل PNG */
+function MockupStudio({ cover, title, onClose, onDone }) {
+    const hostRef = useRef(null);
+    const [kind, setKind] = useState('book3d');
+    const [backdrop, setBackdrop] = useState('studio');
+    const [angle, setAngle] = useState(28);
+    const [spread, setSpread] = useState(false);
+    const [band, setBand] = useState(true);
+    const [busy, setBusy] = useState(false);
+    const outRef = useRef(null);
+    useEffect(() => {
+        if (!cover)
+            return;
+        const id = requestAnimationFrame(() => {
+            const c = renderMockup(cover, { kind, backdrop, angle, spread, band, title });
+            outRef.current = c;
+            const host = hostRef.current;
+            if (!host)
+                return;
+            c.style.maxWidth = '100%';
+            c.style.maxHeight = '100%';
+            c.style.width = 'auto';
+            c.style.height = 'auto';
+            c.style.borderRadius = '12px';
+            if (backdrop === 'transparent')
+                c.style.background = 'repeating-conic-gradient(#3a3a3a 0 25%,#262626 0 50%) 0 0/24px 24px';
+            host.replaceChildren(c);
+        });
+        return () => cancelAnimationFrame(id);
+    }, [cover, kind, backdrop, angle, spread, band, title]);
+    const download = async () => {
+        if (!outRef.current || busy)
+            return;
+        setBusy(true);
+        try {
+            const blob = await new Promise((res, rej) => outRef.current.toBlob((b) => (b ? res(b) : rej(new Error('فشل إنشاء الصورة'))), 'image/png'));
+            const name = `${(title || 'غلاف').replace(/[\\/:*?"<>|\n]+/g, ' ').trim().slice(0, 50)} - ${MOCKUP_KINDS.find((k) => k.id === kind)?.label}.png`;
+            await downloadBlob(blob, name);
+            onDone?.('تم تحميل المجسّم');
+        }
+        catch (e) {
+            onDone?.('تعذّر تحميل المجسّم', 'error');
+        }
+        finally {
+            setBusy(false);
+        }
+    };
+    return (React.createElement("div", { className: "fixed inset-0 z-50 flex flex-col bg-ink-950" },
+        React.createElement("div", { className: "flex shrink-0 items-center justify-between gap-2 border-b border-white/5 p-3" },
+            React.createElement("button", { type: "button", onClick: onClose, className: "rounded-xl border border-white/15 px-4 py-2 text-[13px] text-stone-200" }, "\u2715 \u0631\u062C\u0648\u0639"),
+            React.createElement("div", { className: "text-[14px] font-bold text-gold-200" }, "\u0645\u062C\u0633\u0651\u0645 \u0627\u0644\u062A\u0635\u0645\u064A\u0645"),
+            React.createElement("button", { type: "button", onClick: download, disabled: busy, className: "rounded-xl bg-gold-400 px-4 py-2 text-[13px] font-bold text-ink-950 disabled:opacity-50" }, busy ? '…' : '⬇ تحميل')),
+        React.createElement("div", { ref: hostRef, className: "grid min-h-0 flex-1 place-items-center p-3" }),
+        React.createElement("div", { className: "scroll-thin max-h-[42%] shrink-0 space-y-3 overflow-y-auto border-t border-white/5 bg-ink-900/80 p-3" },
+            React.createElement("div", { className: "scroll-thin flex gap-2 overflow-x-auto pb-1" }, MOCKUP_KINDS.map((k) => (React.createElement(Chip, { key: k.id, active: kind === k.id, onClick: () => setKind(k.id) },
+                React.createElement("span", { className: "me-1" }, k.icon),
+                k.label)))),
+            React.createElement("div", { className: "scroll-thin flex gap-2 overflow-x-auto pb-1" }, MOCKUP_BACKDROPS.map((b) => (React.createElement("button", { key: b.id, type: "button", onClick: () => setBackdrop(b.id), className: `flex shrink-0 items-center gap-2 rounded-xl border px-2.5 py-1.5 text-[12px] ${backdrop === b.id ? 'border-gold-400 text-gold-200' : 'border-white/10 text-stone-400'}` },
+                React.createElement("span", { className: "h-5 w-5 rounded-md border border-white/20", style: { background: b.sw } }),
+                b.label)))),
+            kind === 'book3d' && React.createElement(RangeField, { label: "\u0632\u0627\u0648\u064A\u0629 \u0627\u0644\u0643\u062A\u0627\u0628", min: 8, max: 50, value: angle, onChange: setAngle, format: (v) => `${v}°`, defaultValue: 28 }),
+            kind === 'magazine' && (React.createElement(Toggle, { checked: spread, onChange: setSpread, label: "\u0627\u0644\u062A\u0635\u0645\u064A\u0645 \u0645\u0645\u062A\u062F \u0639\u0644\u0649 \u0627\u0644\u0635\u0641\u062D\u062A\u064A\u0646 (\u0628\u062F\u0644 \u0635\u0641\u062D\u0629 \u0645\u0642\u0627\u0644)", small: true })),
+            kind === 'notebook' && React.createElement(Toggle, { checked: band, onChange: setBand, label: "\u0634\u0631\u064A\u0637 \u0645\u0637\u0627\u0637\u064A", small: true }))));
+}
 // ===== components/App.jsx =====
 const uid = (prefix) => `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
 const DEFAULT_TEXTS = {
@@ -7401,6 +9487,7 @@ function App() {
     const [multiSelect, setMultiSelect] = useState(false);
     const [zoom, setZoom] = useState(1);
     const [previewUrl, setPreviewUrl] = useState(null);
+    const [mockupCover, setMockupCover] = useState(null);
     const [panelTab, setPanelTab] = useState('templates');
     const [openSlot, setOpenSlot] = useState('title');
     const [focusSignal, setFocusSignal] = useState(0);
@@ -7799,6 +9886,17 @@ function App() {
         }
     };
     const closePreview = () => setPreviewUrl(null);
+    // ── المجسّم: كتاب / مجلة / دفتر ──
+    const openMockup = async () => {
+        try {
+            await document.fonts.ready;
+            setPreviewUrl(null);
+            setMockupCover(canvasRef.current.previewCanvas(1.6));
+        }
+        catch (err) {
+            flash('تعذّر إنشاء المجسّم', 'error');
+        }
+    };
     const ZOOMS = [0.5, 0.75, 1, 1.25, 1.5, 2, 3];
     const zoomStep = (dir) => {
         if (dir === 0)
@@ -7827,7 +9925,7 @@ function App() {
     })();
     const layersCount = Object.values(doc.layers).filter((l) => l.enabled).length;
     return (React.createElement("div", { className: "relative flex h-[100dvh] bg-ink-950 text-stone-200" },
-        React.createElement(SideRail, { tab: panelTab, panelOpen: panelOpen, onTab: onRailTab, layersCount: layersCount, onWizard: () => setShowWizard(true), onShuffle: shuffleDesign, onUndo: undo, onRedo: redo, canUndo: canUndo, canRedo: canRedo, onPreview: openPreview, onOpen: () => openRef.current?.click(), onSave: saveProject, onExport: handleExport, exporting: exporting }),
+        React.createElement(SideRail, { tab: panelTab, panelOpen: panelOpen, onTab: onRailTab, layersCount: layersCount, onWizard: () => setShowWizard(true), onShuffle: shuffleDesign, onUndo: undo, onRedo: redo, canUndo: canUndo, canRedo: canRedo, onPreview: openPreview, onMockup: openMockup, onOpen: () => openRef.current?.click(), onSave: saveProject, onExport: handleExport, exporting: exporting }),
         React.createElement("input", { ref: openRef, type: "file", accept: ".json,application/json", hidden: true, onChange: (e) => {
                 const f = e.target.files?.[0];
                 if (f)
@@ -7835,7 +9933,7 @@ function App() {
                 e.target.value = '';
             } }),
         React.createElement("div", { className: "relative flex min-w-0 flex-1 flex-col-reverse lg:flex-row" },
-            React.createElement(ControlPanel, { open: panelOpen, onClose: () => setPanelOpen(false), tall: panelTall, onToggleTall: () => setPanelTall((v) => !v), texts: doc.texts, onChangeText: updateText, images: doc.images, shapes: doc.shapes || [], onAddShape: addShape, onRemoveShape: removeShape, selectedId: selectedId, selectedIds: selection, onSelect: select, onDuplicate: duplicateImages, activeTab: panelTab, openSlot: openSlot, onOpenSlot: setOpenSlot, focusSignal: focusSignal, onOpenCutout: setCutoutEditId, grade: doc.grade || DEFAULT_GRADE, onChangeGrade: (patch) => setDoc((d) => ({ ...d, grade: { ...(d.grade || DEFAULT_GRADE), ...patch } }), { key: `grade:${Object.keys(patch).join(',')}` }), onAddImage: addImage, onChangeNode: changeNode, onRemoveImage: removeImage, onMoveImage: moveImage, autoColors: autoColors, onToggleAutoColors: setAutoColors, onSuggestColors: suggestColors, paletteLight: palette.colors[1], logo: doc.logo, onSetLogo: setLogoFromSrc, onRemoveLogo: removeLogo, paletteId: doc.paletteId, customPalette: doc.customPalette, onChangePalette: (paletteId) => setDoc((d) => ({ ...d, paletteId })), background: doc.background, onSetBackground: setBackground, onChangeBackground: changeBackground, onRemoveBackground: () => setDoc((d) => ({ ...d, background: null })), layers: doc.layers, onChangeLayer: changeLayer, onResetLayers: resetLayers, textAboveLayers: doc.textAboveLayers, onToggleTextAbove: (textAboveLayers) => setDoc((d) => ({ ...d, textAboveLayers })), onApplyTemplate: applyTemplate, activeTemplateId: doc.templateId }),
+            React.createElement(ControlPanel, { open: panelOpen, onClose: () => setPanelOpen(false), tall: panelTall, onToggleTall: () => setPanelTall((v) => !v), texts: doc.texts, onChangeText: updateText, images: doc.images, shapes: doc.shapes || [], frame: doc.frame, onChangeFrame: (frame) => setDoc((d) => ({ ...d, frame }), { key: `frame:${frame.style}` }), onAddShape: addShape, onRemoveShape: removeShape, selectedId: selectedId, selectedIds: selection, onSelect: select, onDuplicate: duplicateImages, activeTab: panelTab, openSlot: openSlot, onOpenSlot: setOpenSlot, focusSignal: focusSignal, onOpenCutout: setCutoutEditId, grade: doc.grade || DEFAULT_GRADE, onChangeGrade: (patch) => setDoc((d) => ({ ...d, grade: { ...(d.grade || DEFAULT_GRADE), ...patch } }), { key: `grade:${Object.keys(patch).join(',')}` }), onAddImage: addImage, onChangeNode: changeNode, onRemoveImage: removeImage, onMoveImage: moveImage, autoColors: autoColors, onToggleAutoColors: setAutoColors, onSuggestColors: suggestColors, paletteLight: palette.colors[1], logo: doc.logo, onSetLogo: setLogoFromSrc, onRemoveLogo: removeLogo, paletteId: doc.paletteId, customPalette: doc.customPalette, onChangePalette: (paletteId) => setDoc((d) => ({ ...d, paletteId })), background: doc.background, onSetBackground: setBackground, onChangeBackground: changeBackground, onRemoveBackground: () => setDoc((d) => ({ ...d, background: null })), layers: doc.layers, onChangeLayer: changeLayer, onResetLayers: resetLayers, textAboveLayers: doc.textAboveLayers, onToggleTextAbove: (textAboveLayers) => setDoc((d) => ({ ...d, textAboveLayers })), onApplyTemplate: applyTemplate, activeTemplateId: doc.templateId }),
             React.createElement("main", { className: "relative flex min-h-0 min-w-0 flex-1 flex-col" },
                 React.createElement(TopBar, { count: selection.length, label: selectionLabel, onOpenProps: () => selectedId && openProps(selectedId), onAlign: (type) => canvasRef.current?.align(type), onNudge: nudge, onDuplicate: () => duplicateImages(selection), canDuplicate: selection.some((id) => id.startsWith('img-') || id.startsWith('shp-')), onDelete: deleteSelection, onLock: lockSelection, onDeselect: () => setSelection([]), snapping: snapping, onToggleSnapping: () => setSnapping((v) => !v), multiSelect: multiSelect, onToggleMulti: () => setMultiSelect((v) => !v), zoom: zoom, onZoom: zoomStep }),
                 selection.length === 1 && (() => {
@@ -7850,14 +9948,17 @@ function App() {
                     return React.createElement(QuickBar, { kind: id.startsWith('shp-') ? 'shape' : 'image', value: node, onChange: (patch) => changeNode(id, patch) });
                 })(),
                 React.createElement("div", { className: "stage-backdrop relative min-h-0 flex-1" },
-                    React.createElement(CoverCanvas, { ref: canvasRef, texts: doc.texts, images: doc.images, shapes: doc.shapes || [], logo: doc.logo, palette: palette, background: doc.background, layers: doc.layers, textAboveLayers: doc.textAboveLayers, grade: doc.grade || DEFAULT_GRADE, selectedIds: selection, onSelect: select, onCommit: (patches) => applyPatches(patches), onOpenProps: openProps, fontsVersion: fontsVersion, snapping: snapping, zoom: zoom })),
+                    React.createElement(CoverCanvas, { ref: canvasRef, texts: doc.texts, images: doc.images, shapes: doc.shapes || [], logo: doc.logo, palette: palette, background: doc.background, layers: doc.layers, textAboveLayers: doc.textAboveLayers, frame: doc.frame, grade: doc.grade || DEFAULT_GRADE, selectedIds: selection, onSelect: select, onCommit: (patches) => applyPatches(patches), onOpenProps: openProps, fontsVersion: fontsVersion, snapping: snapping, zoom: zoom })),
                 notice && (React.createElement("div", { key: notice.id, className: `pointer-events-none absolute left-1/2 top-14 z-30 max-w-[92%] -translate-x-1/2 rounded-2xl border px-4 py-2 text-center text-[12px] shadow-xl backdrop-blur ${notice.tone === 'error' ? 'border-red-900/60 bg-red-950/90 text-red-200' : 'border-gold-500/30 bg-ink-800/95 text-gold-200'}` }, notice.text)))),
         previewUrl && (React.createElement("div", { className: "fixed inset-0 z-50 flex flex-col bg-black", onClick: closePreview },
             React.createElement("div", { className: "flex shrink-0 items-center justify-between gap-2 p-3", onClick: (e) => e.stopPropagation() },
                 React.createElement("button", { type: "button", onClick: closePreview, className: "rounded-xl border border-white/15 px-4 py-2 text-[13px] text-stone-200" }, "\u2715 \u0631\u062C\u0648\u0639 \u0644\u0644\u062A\u062D\u0631\u064A\u0631"),
-                React.createElement("button", { type: "button", onClick: handleExport, className: "rounded-xl bg-gold-400 px-4 py-2 text-[13px] font-bold text-ink-950" }, "\u2B07 \u062A\u062D\u0645\u064A\u0644 \u0627\u0644\u063A\u0644\u0627\u0641")),
+                React.createElement("div", { className: "flex gap-2" },
+                    React.createElement("button", { type: "button", onClick: openMockup, className: "rounded-xl border border-gold-500/40 px-4 py-2 text-[13px] text-gold-200" }, "\uD83D\uDCD6 \u0645\u062C\u0633\u0651\u0645"),
+                    React.createElement("button", { type: "button", onClick: handleExport, className: "rounded-xl bg-gold-400 px-4 py-2 text-[13px] font-bold text-ink-950" }, "\u2B07 \u062A\u062D\u0645\u064A\u0644 \u0627\u0644\u063A\u0644\u0627\u0641"))),
             React.createElement("div", { className: "grid min-h-0 flex-1 place-items-center p-3" },
                 React.createElement(PreviewHost, { canvas: previewUrl })))),
+        mockupCover && (React.createElement(MockupStudio, { cover: mockupCover, title: doc.texts.title?.text?.split('\n')[0], onClose: () => setMockupCover(null), onDone: (text, tone) => flash(text, tone) })),
         showWizard && React.createElement(QuickWizard, { onRun: runWizard, onClose: closeWizard }),
         cutoutEditId && doc.images.find((n) => n.id === cutoutEditId) && (React.createElement(CutoutEditor, { item: doc.images.find((n) => n.id === cutoutEditId), onClose: () => setCutoutEditId(null), onSave: (patch) => {
                 changeNode(cutoutEditId, patch);
